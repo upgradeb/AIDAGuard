@@ -1,0 +1,25 @@
+version: "1.0"
+name: "医疗场景规则"
+description: "适用于医疗、健康场景的敏感数据规则"
+
+rules:
+  - id: medical_record_no
+    name: "病历号"
+    pattern: 'MR\d{6,10}'
+    enabled: true
+    strategy: placeholder
+    priority: 100
+
+  - id: diagnosis_code
+    name: "ICD 诊断码"
+    pattern: '\b[A-Z]\d{2}(?:\.\d{1,4})?\b'
+    enabled: false
+    strategy: placeholder
+    priority: 80
+
+  - id: patient_name_hint
+    name: "患者姓名提示词"
+    pattern: '(?:患者|病人|就诊人)[：:]\s*[\u4e00-\u9fa5]{2,4}'
+    enabled: true
+    strategy: placeholder
+    priority: 90

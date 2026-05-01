@@ -1,0 +1,28 @@
+# Rust
+/target
+Cargo.lock
+
+# Tauri
+crates/aidaguard-tauri/src-tauri/target
+crates/aidaguard-tauri/node_modules
+crates/aidaguard-tauri/dist
+
+# 用户数据（本地运行时生成，不提交）
+~/.aidaguard/
+
+# 编辑器
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 环境变量
+.env
+.env.local
+
+# Claude Code
+.claude/
