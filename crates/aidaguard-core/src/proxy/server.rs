@@ -1,81 +1,94 @@
-use anyhow::{Context, Result};
 use axum::{
     body::Body,
     extract::Request,
     http::{HeaderMap, HeaderValue, StatusCode},
     response::Response,
-    routing::any,
-    Router,
+    routing::{any, get},
+    Json, Router,
 };
-use reqwest::Client;
+use reqwest::Method;
 use std::sync::Arc;
+use std::time::Instant;
 use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
 
+use crate::config::Config;
 use crate::detector::Detector;
 use crate::replacer::{self, PlaceholderMap};
+use crate::storage::Storage;
+use super::forwarder::Forwarder;
 use super::stream;
-
-/// 默认目标 API 地址（可通过 AIDAGUARD_TARGET_URL 环境变量覆盖）
-const DEFAULT_TARGET_URL: &str = "https://qianfan.baidubce.com/v2/coding";
-
-/// 本地监听端口
-pub const PROXY_PORT: u16 = 19000;
 
 /// 代理共享状态
 #[derive(Clone)]
 struct ProxyState {
-    client: Client,
+    forwarder: Forwarder,
     api_key: Arc<String>,
     target_url: Arc<String>,
     detector: Arc<RwLock<Detector>>,
+    storage: Option<Arc<Storage>>,
+    start_time: Instant,
+    version: &'static str,
 }
 
 /// 启动代理服务器
-pub async fn start() -> Result<()> {
-    // 从环境变量读取 API Key，启动时必须提供
-    let api_key = std::env::var("AIDAGUARD_API_KEY")
-        .context("环境变量 AIDAGUARD_API_KEY 未设置，请先执行：export AIDAGUARD_API_KEY=你的Key")?;
-
-    let auth_value = if api_key.starts_with("Bearer ") {
-        api_key
+pub async fn start(config: Config) -> Result<(), anyhow::Error> {
+    let api_key = if config.api_key.is_empty() {
+        return Err(anyhow::anyhow!(
+            "API Key 未设置，请在 config.toml 中配置 api_key"
+        ));
     } else {
-        format!("Bearer {}", api_key)
+        config.api_key
     };
 
-    info!("API Key 已加载（前8位：{}...）", &auth_value[..8.min(auth_value.len())]);
+    info!("API Key 已加载（前8位：{}...）", &api_key[..8.min(api_key.len())]);
+    info!("Target URL: {}", config.target_url);
+    info!("Rules dir: {}", config.rules_dir);
 
-    let target_url = std::env::var("AIDAGUARD_TARGET_URL")
-        .unwrap_or_else(|_| DEFAULT_TARGET_URL.to_string());
-
-    info!("Target URL: {}", target_url);
-
-    // 加载检测规则
     let mut detector = Detector::new();
-    let rules_dir = std::env::var("AIDAGUARD_RULES_DIR")
-        .unwrap_or_else(|_| "./rules".to_string());
-    let rules_path = std::path::Path::new(&rules_dir);
+    let rules_path = std::path::Path::new(&config.rules_dir);
     if rules_path.exists() {
         detector.load_from_dir(rules_path)?;
     } else {
-        warn!("规则目录不存在: {}", rules_dir);
+        warn!("规则目录不存在: {}", config.rules_dir);
     }
-
     let detector = Arc::new(RwLock::new(detector));
 
+    let storage = if config.storage.enabled {
+        if let Some(parent) = std::path::Path::new(&config.storage.db_path).parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let enc_key = config
+            .storage
+            .encryption_key
+            .as_deref()
+            .unwrap_or("aidaguard-internal-key");
+        let s = Storage::open(std::path::Path::new(&config.storage.db_path), enc_key)?;
+        info!("Storage enabled: {}", config.storage.db_path);
+        Some(Arc::new(s))
+    } else {
+        None
+    };
+
+    let forwarder = Forwarder::new()?;
+
     let state = ProxyState {
-        client: Client::builder().use_rustls_tls().build()?,
-        api_key: Arc::new(auth_value),
-        target_url: Arc::new(target_url),
+        forwarder,
+        api_key: Arc::new(api_key),
+        target_url: Arc::new(config.target_url),
         detector: detector.clone(),
+        storage,
+        start_time: Instant::now(),
+        version: crate::VERSION,
     };
 
     let app = Router::new()
-        .route("/", any(handle))
-        .route("/*path", any(handle))
+        .route("/health", get(health_check))
+        .route("/", any(proxy_handler))
+        .route("/*path", any(proxy_handler))
         .with_state(state);
 
-    let addr = format!("127.0.0.1:{}", PROXY_PORT);
+    let addr = format!("127.0.0.1:{}", config.port);
     let listener = tokio::net::TcpListener::bind(&addr).await?;
 
     info!("Aidaguard proxy listening on http://{}", addr);
@@ -84,8 +97,22 @@ pub async fn start() -> Result<()> {
     Ok(())
 }
 
-/// 处理所有进来的请求
-async fn handle(
+/// GET /health — 健康检查端点
+async fn health_check(
+    axum::extract::State(state): axum::extract::State<ProxyState>,
+) -> Json<serde_json::Value> {
+    let rules_count = state.detector.read().await.rule_count();
+    Json(serde_json::json!({
+        "status": "ok",
+        "version": state.version,
+        "uptime_seconds": state.start_time.elapsed().as_secs(),
+        "rules_count": rules_count,
+        "storage_enabled": state.storage.is_some(),
+    }))
+}
+
+/// 代理转发 handler：检测 → 替换 → 转发 → 还原
+async fn proxy_handler(
     axum::extract::State(state): axum::extract::State<ProxyState>,
     req: Request,
 ) -> Result<Response, (StatusCode, String)> {
@@ -94,7 +121,8 @@ async fn handle(
         .uri()
         .path_and_query()
         .map(|pq| pq.as_str())
-        .unwrap_or("");
+        .unwrap_or("")
+        .to_string();
 
     let target_url = if path_and_query == "/" || path_and_query.is_empty() {
         state.target_url.to_string()
@@ -105,19 +133,8 @@ async fn handle(
     info!("--> {} {}", req.method(), target_url);
 
     // 2. 处理请求头
-    let method = req.method().clone();
-    let mut headers = forward_headers(req.headers());
-
-    // 注入统一的 API Key
-    match HeaderValue::from_str(&state.api_key) {
-        Ok(v) => {
-            headers.insert("authorization", v);
-        }
-        Err(e) => {
-            error!("API Key 格式无效: {}", e);
-            return Err((StatusCode::INTERNAL_SERVER_ERROR, "API Key 格式无效".to_string()));
-        }
-    }
+    let method: Method = req.method().clone();
+    let headers = forward_headers(req.headers());
 
     // 3. 读取请求体
     let mut body_bytes = axum::body::to_bytes(req.into_body(), usize::MAX)
@@ -127,15 +144,17 @@ async fn handle(
             (StatusCode::BAD_REQUEST, e.to_string())
         })?;
 
-    // 4. 打印请求体内容（debug 级别，避免干扰检测输出）
     if let Ok(text) = std::str::from_utf8(&body_bytes) {
         debug!("📨 Request body:\n{}", text);
     } else {
         debug!("📨 Request body: <binary {} bytes>", body_bytes.len());
     }
 
-    // 4.5. 敏感数据检测与替换
+    // 4. 敏感数据检测与替换
     let mut placeholder_map: Option<PlaceholderMap> = None;
+    let mut sanitized_body: Option<String> = None;
+    let mut original_body: Option<String> = None;
+    let mut hits_for_audit: Option<Vec<crate::detector::Match>> = None;
 
     if let Ok(text) = std::str::from_utf8(&body_bytes) {
         let d = state.detector.read().await;
@@ -151,25 +170,56 @@ async fn handle(
             warn!("📝 替换后: {}", sanitized);
             warn!("══════════════════════════════════════════");
 
+            original_body = Some(text.to_string());
+            hits_for_audit = Some(hits);
+            sanitized_body = Some(sanitized.clone());
             body_bytes = axum::body::Bytes::from(sanitized);
             placeholder_map = Some(map);
         }
     }
 
     // 5. 转发请求
+    let body_vec = body_bytes.to_vec();
     let upstream_resp = state
-        .client
-        .request(method, &target_url)
-        .headers(headers)
-        .body(body_bytes)
-        .send()
+        .forwarder
+        .forward(method, &target_url, headers, body_vec, &state.api_key)
         .await
         .map_err(|e| {
-            error!("Upstream request failed: {}", e);
+            error!("Forward failed: {}", e);
             (StatusCode::BAD_GATEWAY, e.to_string())
         })?;
 
-    // 6. 判断是否为流式响应，处理返回
+    // 6. 审计记录：在获知响应状态后写入 storage
+    if let (Some(ref storage), Some(ref map), Some(ref sani_body), Some(ref hits), Some(ref orig_body)) =
+        (&state.storage, &placeholder_map, &sanitized_body, &hits_for_audit, &original_body)
+    {
+        let status_code = upstream_resp.status().as_u16();
+        for placeholder in map.placeholders() {
+            if let Some(original) = map.get(placeholder) {
+                let rule_id = placeholder
+                    .strip_prefix("[[")
+                    .and_then(|s| s.split_once('@'))
+                    .map(|(id, _)| id)
+                    .unwrap_or("unknown");
+                let context = hits
+                    .iter()
+                    .find(|m| m.text == *original)
+                    .map(|m| extract_context(orig_body, m.start, m.end, 80))
+                    .unwrap_or_default();
+                let _ = storage.record(
+                    rule_id,
+                    "placeholder",
+                    placeholder,
+                    original,
+                    &context,
+                    &path_and_query,
+                    sani_body,
+                    status_code,
+                );
+            }
+        }
+    }
+
     let status = upstream_resp.status();
     let resp_headers = upstream_resp.headers().clone();
 
@@ -179,6 +229,7 @@ async fn handle(
         .map(|v| v.contains("text/event-stream"))
         .unwrap_or(false);
 
+    // 7. 流式 / 非流式响应处理
     if is_stream {
         info!("🌊 Streaming response detected, switching to SSE passthrough");
         let (status, resp_headers, body) = if let Some(map) = placeholder_map {
@@ -209,7 +260,6 @@ async fn handle(
         (StatusCode::BAD_GATEWAY, e.to_string())
     })?;
 
-    // 7. 处理响应体：还原占位符 + 日志
     let mut resp_text = String::new();
     let was_utf8 = match std::str::from_utf8(&resp_bytes) {
         Ok(text) => {
@@ -233,7 +283,6 @@ async fn handle(
 
     info!("<-- {} ({} bytes)", status, resp_text.len());
 
-    // 8. 构造返回给客户端的响应
     let mut response = Response::builder().status(status);
     for (key, value) in &resp_headers {
         if key == "transfer-encoding" {
@@ -248,6 +297,19 @@ async fn handle(
             error!("Failed to build response: {}", e);
             (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
         })
+}
+
+/// 从原始文本中提取匹配位置周围的上下文片段。
+fn extract_context(text: &str, start: usize, end: usize, radius: usize) -> String {
+    let mut ctx_start = start.saturating_sub(radius);
+    let mut ctx_end = (end + radius).min(text.len());
+    while ctx_start > 0 && !text.is_char_boundary(ctx_start) {
+        ctx_start -= 1;
+    }
+    while ctx_end < text.len() && !text.is_char_boundary(ctx_end) {
+        ctx_end += 1;
+    }
+    text[ctx_start..ctx_end].to_string()
 }
 
 /// 过滤 hop-by-hop 头，同时移除客户端的 Authorization（由 Aidaguard 统一注入）

@@ -15,29 +15,32 @@ Aidaguard 是一个本地 API 网关代理，部署在 AI 客户端与大模型 
 ```
 aidaguard/
 ├── Cargo.toml                    # workspace 根，集中管理依赖版本
+├── config.toml                   # 代理配置文件（目标URL、端口、日志、存储等）
 ├── rules/                        # YAML 规则文件目录（支持热加载）
 │   ├── general.yaml              #   通用规则：手机号、身份证、邮箱、银行卡、API Key
 │   ├── finance.yaml              #   金融规则：银行卡（严格）、SWIFT 代码、金额
 │   └── medical.yaml              #   医疗规则：病历号、诊断码、患者姓名
+├── data/                         # [运行时生成] SQLite 数据库文件
 ├── docs/                         # 文档
 └── crates/
     └── aidaguard-core/
         ├── Cargo.toml
         └── src/
-            ├── main.rs           # 入口：初始化 tracing，启动代理
-            ├── lib.rs            # 模块声明：proxy, detector, replacer, storage
+            ├── main.rs           # 入口：加载配置、初始化 tracing、启动代理
+            ├── lib.rs            # 模块声明：config, proxy, detector, replacer, storage
+            ├── config.rs         # 配置文件加载（TOML + 默认值）
             ├── proxy/
             │   ├── mod.rs        # 模块声明
-            │   ├── server.rs     # HTTP 反向代理服务器核心
+            │   ├── server.rs     # HTTP 反向代理服务器 + 健康检查端点
             │   ├── stream.rs     # SSE 流式透传 + 占位符还原
-            │   └── forwarder.rs  # [待实现] 通用请求转发器
+            │   └── forwarder.rs  # 通用请求转发器（TLS + 超时 + 自动注入）
             ├── detector/
             │   └── mod.rs        # 敏感数据检测引擎（正则 + 去重 + 热加载）
             ├── replacer/
             │   └── mod.rs        # 占位符替换与还原
             ├── storage/
-            │   └── mod.rs        # [待实现] SQLite + AES-256-GCM 加密存储
-            └── bin/
+            │   └── mod.rs        # SQLite + AES-256-GCM 加密审计存储
+            └── examples/
                 └── mock_sse.rs   # 测试用 Mock SSE 服务器
 ```
 
@@ -51,11 +54,15 @@ aidaguard/
 │ (Roo Code)│ <────────── │  (127.0.0.1:19000)│ <────────────────── │  (qianfan)    │
 └─────────┘              └──────────────────┘                      └──────────────┘
                                   │
-                    ┌─────────────┴─────────────┐
-                    │  detector (正则规则检测)      │
-                    │  replacer (占位符替换/还原)   │
-                    │  stream (SSE 流式处理)       │
-                    └───────────────────────────┘
+                    ┌─────────────┴──────────────┐
+                    │  config (TOML 配置)          │
+                    │  detector (正则规则检测)       │
+                    │  replacer (占位符替换/还原)    │
+                    │  forwarder (请求转发)         │
+                    │  stream (SSE 流式处理)        │
+                    │  storage (加密审计存储)        │
+                    │  /health (运行状态)           │
+                    └────────────────────────────┘
 ```
 
 ### 请求处理流程（server.rs `handle()`）
@@ -190,12 +197,92 @@ SSE chunk (raw bytes)
 
 ### 4. 代理服务器 (server)
 
-**文件：** `crates/aidaguard-core/src/proxy/server.rs` (283 行)
+**文件：** `crates/aidaguard-core/src/proxy/server.rs` (343 行)
+
+**启动流程：** `start(Config)` — 加载规则 → 初始化 Storage（可选）→ 创建 Forwarder → 绑定端口 → 构造 Router
+
+**路由表：**
+| 路由 | 方法 | Handler | 说明 |
+|------|------|---------|------|
+| `/health` | GET | `health_check` | 健康检查，返回 JSON（状态、版本、运行时长、规则数、存储状态） |
+| `/` | ANY | `proxy_handler` | 代理所有请求 |
+| `/*path` | ANY | `proxy_handler` | 代理带路径的请求 |
+
+**健康检查响应示例：**
+```json
+{"status":"ok","version":"0.1.0","uptime_seconds":3600,"rules_count":9,"storage_enabled":true}
+```
 
 **`forward_headers()` 跳过列表（12 个 hop-by-hop 头）：**
 `host`, `authorization`, `connection`, `content-encoding`, `content-length`, `keep-alive`, `proxy-authenticate`, `proxy-authorization`, `te`, `trailers`, `transfer-encoding`, `upgrade`
 
 其中 `content-length` 和 `content-encoding` 的移除尤为关键——占位符替换后 body 长度会改变，若保留原始 Content-Length 会导致截断。
+
+### 5. 配置模块 (config)
+
+**文件：** `crates/aidaguard-core/src/config.rs` (92 行)
+
+**配置来源：** 仅从 `config.toml` 文件加载，不依赖环境变量。
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `api_key` | String | `""` | **必填**，上游 LLM API 认证 Key |
+| `port` | u16 | `19000` | 本地监听端口 |
+| `target_url` | String | `https://qianfan.baidubce.com/v2/coding` | 上游 API 地址 |
+| `rules_dir` | String | `"./rules"` | YAML 规则文件目录 |
+| `log_level` | String | `"info"` | 日志级别 |
+| `[storage]` | Table | — | 存储子表（可选） |
+| `storage.enabled` | bool | `false` | 启用审计记录 |
+| `storage.db_path` | String | `"./data/aidaguard.db"` | 数据库路径 |
+| `storage.encryption_key` | Option | 内置默认值 | AES 加密密钥 |
+
+### 6. 请求转发器 (forwarder)
+
+**文件：** `crates/aidaguard-core/src/proxy/forwarder.rs` (45 行)
+
+```rust
+Forwarder::new() -> Result<Self>
+Forwarder::forward(method, url, headers, body, api_key) -> Result<Response>
+Forwarder::set_timeout(duration)
+```
+
+- 封装 reqwest HTTP 客户端（rustls-tls）
+- 自动注入 `Bearer <api_key>` 到 Authorization 头
+- 默认 300 秒超时
+- 可扩展重试、故障转移、多后端负载均衡
+
+### 7. 加密审计存储 (storage)
+
+**文件：** `crates/aidaguard-core/src/storage/mod.rs` (271 行)
+
+**依赖：** SQLite (rusqlite, bundled) + AES-256-GCM (aes-gcm) + SHA-256 (sha2)
+
+**数据库表 `detections`：**
+
+| 字段 | 类型 | 加密 | 说明 |
+|------|------|------|------|
+| `id` | TEXT PK | 否 | UUID v4 |
+| `timestamp_ms` | INTEGER | 否 | Unix 毫秒时间戳 |
+| `rule_id` | TEXT | 否 | 触发规则 ID |
+| `strategy` | TEXT | 否 | 替换策略 |
+| `placeholder` | TEXT | 否 | 生成的占位符 |
+| `original_encrypted` | BLOB | **AES-256-GCM** | 原始敏感值密文 |
+| `context_encrypted` | BLOB | **AES-256-GCM** | 匹配位置前后各 80 字节上下文密文 |
+| `request_path` | TEXT | 否 | 请求路径 |
+| `sanitized_body` | TEXT | 否 | 替换后的完整请求体 |
+| `response_status` | INTEGER | 否 | 上游响应 HTTP 状态码 |
+
+**公开 API：**
+```rust
+Storage::open(db_path, encryption_key) -> Result<Self>
+Storage::record(rule_id, strategy, placeholder, original, context, request_path, sanitized_body, response_status) -> Result<()>
+Storage::list(limit, offset) -> Result<Vec<DetectionRecord>>  // 解密 original + context
+Storage::count() -> Result<usize>
+```
+
+**密钥派生：** SHA-256(encryption_key) → 32 字节 AES-256 密钥。`encryption_key` 未设置时使用内置默认密钥。
+
+**加密格式：** [nonce (12 bytes) | AES-GCM ciphertext]，nonce 每次记录随机生成（OsRng）。
 
 ---
 
@@ -235,7 +322,7 @@ rules:
 | ID | 名称 | 模式 | 策略 | 优先级 | 状态 |
 |---|---|---|---|---|---|
 | `bank_card_strict` | 银行卡（严格）| `\b(?:62\|60\|64)\d{14,17}\b` | placeholder | 100 | 启用 |
-| `swift_code` | SWIFT 代码 | `\b[A-Z]{4}[A-Z]{2}(?=[A-Z0-9]*\d)[A-Z0-9]{2}(?:[A-Z0-9]{3})?\b` | placeholder | 90 | 启用 |
+| `swift_code` | SWIFT 代码 | `\b[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?\b` | placeholder | 90 | 启用 |
 | `amount_cny` | 金额（人民币）| `(?:¥\|CNY\s?)\d+(?:\.\d{1,2})?` | mask | 70 | 禁用 |
 
 **医疗规则 (medical.yaml):**
@@ -248,14 +335,17 @@ rules:
 
 ---
 
-## 环境变量
+## 配置文件
 
-| 变量 | 必需 | 默认值 | 说明 |
-|------|------|--------|------|
-| `AIDAGUARD_API_KEY` | **是** | — | 上游 API 认证 Key，自动补充 `Bearer ` 前缀 |
-| `AIDAGUARD_TARGET_URL` | 否 | `https://qianfan.baidubce.com/v2/coding` | 上游 API 基础 URL |
-| `AIDAGUARD_RULES_DIR` | 否 | `./rules` | YAML 规则文件目录 |
-| `RUST_LOG` | 否 | `info` | 日志级别 (tracing env-filter) |
+所有配置集中在 `config.toml` 中，不依赖环境变量。详见上方配置模块文档。
+
+### 最小可运行配置
+
+```toml
+api_key = "your-api-key"
+[storage]
+enabled = true
+```
 
 ---
 
@@ -264,7 +354,8 @@ rules:
 ### 启动代理
 
 ```bash
-AIDAGUARD_API_KEY='你的API Key' cargo run --bin aidaguard
+# 在 config.toml 中配置 api_key 后直接启动
+cargo run --bin aidaguard
 ```
 
 ### 启动 Mock SSE 测试服务器
@@ -277,10 +368,11 @@ cargo run --bin mock-sse
 ### 运行测试
 
 ```bash
-cargo test                    # 全部测试
-cargo test stream             # 仅流式模块测试 (5 tests)
-cargo test detector           # 仅检测模块测试 (7 tests)
-cargo test replacer           # 仅替换模块测试 (6 tests)
+cargo test                    # 全部测试 (24 tests)
+cargo test stream             # 流式模块测试 (5 tests)
+cargo test detector           # 检测模块测试 (7 tests)
+cargo test replacer           # 替换模块测试 (6 tests)
+cargo test storage            # 存储模块测试 (5 tests)
 ```
 
 ### 代理端口
@@ -294,8 +386,9 @@ cargo test replacer           # 仅替换模块测试 (6 tests)
 
 | 模块 | 文件 | 状态 |
 |------|------|------|
-| 通用请求转发器 | `proxy/forwarder.rs` | 仅占位注释 |
-| 加密存储 | `storage/mod.rs` | 仅占位注释（依赖 `rusqlite` + `aes-gcm` 已就绪） |
+| reasoning_content 流式还原 | `proxy/stream.rs` | 探索中 |
+| 请求体大小限制 | `proxy/server.rs` | 探索中 |
+| 规则热重载 API | `proxy/server.rs` | 探索中 |
 | Tauri 桌面客户端 | `crates/aidaguard-tauri/` | 未创建 |
 
 ---
@@ -304,5 +397,5 @@ cargo test replacer           # 仅替换模块测试 (6 tests)
 
 1. **仅处理 UTF-8 文本请求体** — 二进制 body 跳过检测与还原
 2. **非流式响应需完整加载** — 大响应可能占用较多内存
-3. **swift_code 规则使用了 look-ahead** — Rust `regex` crate 不支持，该规则编译会失败并跳过（日志中有 warn）
-4. **流式还原仅处理 content 和 tool_calls[0].function.arguments** — 其他文本字段（如 reasoning_content）不做还原
+3. **流式还原仅处理 content 和 tool_calls[0].function.arguments** — reasoning_content 字段不做还原
+4. **无请求体大小限制** — 超大 body 可能导致内存不足

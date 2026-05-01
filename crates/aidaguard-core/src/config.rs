@@ -1,0 +1,96 @@
+use serde::Deserialize;
+use std::path::PathBuf;
+
+fn default_port() -> u16 { 19000 }
+fn default_target_url() -> String { "https://qianfan.baidubce.com/v2/coding".to_string() }
+fn default_rules_dir() -> String { "./rules".to_string() }
+fn default_log_level() -> String { "info".to_string() }
+fn default_api_key() -> String { String::new() }
+fn default_storage_enabled() -> bool { false }
+fn default_storage_db_path() -> String { "./data/aidaguard.db".to_string() }
+
+/// 存储子配置
+#[derive(Debug, Clone, Deserialize)]
+pub struct StorageConfig {
+    /// 是否启用审计记录
+    #[serde(default = "default_storage_enabled")]
+    pub enabled: bool,
+
+    /// 数据库文件路径
+    #[serde(default = "default_storage_db_path")]
+    pub db_path: String,
+
+    /// 加密密钥，未设置时使用默认密钥
+    #[serde(default)]
+    pub encryption_key: Option<String>,
+}
+
+impl Default for StorageConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_storage_enabled(),
+            db_path: default_storage_db_path(),
+            encryption_key: None,
+        }
+    }
+}
+
+/// Aidaguard 配置
+#[derive(Debug, Clone, Deserialize)]
+pub struct Config {
+    #[serde(default = "default_api_key")]
+    pub api_key: String,
+
+    #[serde(default = "default_port")]
+    pub port: u16,
+
+    #[serde(default = "default_target_url")]
+    pub target_url: String,
+
+    #[serde(default = "default_rules_dir")]
+    pub rules_dir: String,
+
+    #[serde(default = "default_log_level")]
+    pub log_level: String,
+
+    #[serde(default)]
+    pub storage: StorageConfig,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            api_key: default_api_key(),
+            port: default_port(),
+            target_url: default_target_url(),
+            rules_dir: default_rules_dir(),
+            log_level: default_log_level(),
+            storage: StorageConfig::default(),
+        }
+    }
+}
+
+impl Config {
+    /// 从 config.toml 文件加载配置，文件不存在时使用默认值。
+    pub fn load() -> Self {
+        Self::load_file().unwrap_or_default()
+    }
+
+    fn load_file() -> Option<Self> {
+        let path = PathBuf::from("config.toml");
+        if !path.exists() {
+            return None;
+        }
+        let content = std::fs::read_to_string(&path).ok()?;
+        match toml::from_str(&content) {
+            Ok(c) => {
+                tracing::info!("已加载配置文件: {}", path.display());
+                Some(c)
+            }
+            Err(e) => {
+                tracing::warn!("配置文件解析失败 {}: {}", path.display(), e);
+                None
+            }
+        }
+    }
+}

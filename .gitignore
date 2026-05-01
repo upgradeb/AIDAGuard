@@ -20,6 +20,10 @@ crates/aidaguard-tauri/dist
 .DS_Store
 Thumbs.db
 
+# 配置和数据（运行时生成，含敏感信息）
+data/
+config.toml
+
 # 环境变量
 .env
 .env.local

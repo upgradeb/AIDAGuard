@@ -31,6 +31,7 @@ aho-corasick = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_yaml = "0.9"
+toml = "0.8"
 
 # 流处理
 futures = "0.3"
@@ -51,6 +52,9 @@ uuid = { version = "1", features = ["v4"] }
 # 错误处理
 anyhow = "1"
 thiserror = "1"
+
+# 加密哈希
+sha2 = "0.10"
 
 # 日志
 tracing = "0.1"

@@ -1,0 +1,26 @@
+# Aidaguard 配置文件
+# 复制此文件为 config.toml 并填入实际值
+# 所有字段均为可选，未设置时使用默认值。
+
+# 上游 LLM API 认证 Key（必填）
+api_key = ""
+
+# 本地监听端口
+# port = 19000
+
+# 上游 LLM API 地址
+# target_url = "https://qianfan.baidubce.com/v2/coding"
+
+# YAML 规则文件目录
+# rules_dir = "./rules"
+
+# 日志级别: trace, debug, info, warn, error
+# log_level = "info"
+
+[storage]
+# 是否启用审计记录持久化
+enabled = false
+# 数据库文件路径
+# db_path = "./data/aidaguard.db"
+# 加密密钥（可选，不设置使用内置默认密钥）
+# encryption_key = "your-secret-key"

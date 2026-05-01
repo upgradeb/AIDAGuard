@@ -136,6 +136,11 @@ impl Detector {
     }
 
     /// 在文本中检测敏感数据，返回去重且无重叠的命中列表
+    /// 已编译的规则数量
+    pub fn rule_count(&self) -> usize {
+        self.rules.len()
+    }
+
     pub fn detect(&self, text: &str) -> Vec<Match> {
         if self.rules.is_empty() {
             return Vec::new();
