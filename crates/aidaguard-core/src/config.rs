@@ -6,6 +6,7 @@ fn default_target_url() -> String { "https://qianfan.baidubce.com/v2/coding".to_
 fn default_rules_dir() -> String { "./rules".to_string() }
 fn default_log_level() -> String { "info".to_string() }
 fn default_api_key() -> String { String::new() }
+fn default_max_body_size_mb() -> usize { 10 }
 fn default_storage_enabled() -> bool { false }
 fn default_storage_db_path() -> String { "./data/aidaguard.db".to_string() }
 
@@ -53,6 +54,10 @@ pub struct Config {
     #[serde(default = "default_log_level")]
     pub log_level: String,
 
+    /// 请求体最大大小（MB），超出返回 413
+    #[serde(default = "default_max_body_size_mb")]
+    pub max_body_size_mb: usize,
+
     #[serde(default)]
     pub storage: StorageConfig,
 }
@@ -65,6 +70,7 @@ impl Default for Config {
             target_url: default_target_url(),
             rules_dir: default_rules_dir(),
             log_level: default_log_level(),
+            max_body_size_mb: default_max_body_size_mb(),
             storage: StorageConfig::default(),
         }
     }

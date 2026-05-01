@@ -3,7 +3,7 @@ use axum::{
     extract::Request,
     http::{HeaderMap, HeaderValue, StatusCode},
     response::Response,
-    routing::{any, get},
+    routing::{any, get, post},
     Json, Router,
 };
 use reqwest::Method;
@@ -29,6 +29,8 @@ struct ProxyState {
     storage: Option<Arc<Storage>>,
     start_time: Instant,
     version: &'static str,
+    max_body_size: usize,
+    rules_dir: Arc<String>,
 }
 
 /// 启动代理服务器
@@ -72,6 +74,9 @@ pub async fn start(config: Config) -> Result<(), anyhow::Error> {
 
     let forwarder = Forwarder::new()?;
 
+    let rules_dir = Arc::new(config.rules_dir.clone());
+    let max_body_size = config.max_body_size_mb * 1024 * 1024;
+
     let state = ProxyState {
         forwarder,
         api_key: Arc::new(api_key),
@@ -80,10 +85,13 @@ pub async fn start(config: Config) -> Result<(), anyhow::Error> {
         storage,
         start_time: Instant::now(),
         version: crate::VERSION,
+        max_body_size,
+        rules_dir: rules_dir.clone(),
     };
 
     let app = Router::new()
         .route("/health", get(health_check))
+        .route("/reload", post(reload_rules))
         .route("/", any(proxy_handler))
         .route("/*path", any(proxy_handler))
         .with_state(state);
@@ -108,7 +116,33 @@ async fn health_check(
         "uptime_seconds": state.start_time.elapsed().as_secs(),
         "rules_count": rules_count,
         "storage_enabled": state.storage.is_some(),
+        "max_body_size_mb": state.max_body_size / (1024 * 1024),
     }))
+}
+
+/// POST /reload — 手动重载规则
+async fn reload_rules(
+    axum::extract::State(state): axum::extract::State<ProxyState>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let rules_path = std::path::Path::new(state.rules_dir.as_str());
+    let mut detector = state.detector.write().await;
+    match detector.load_from_dir(rules_path) {
+        Ok(count) => {
+            info!("规则手动重载完成: {} 条", count);
+            Ok(Json(serde_json::json!({
+                "status": "ok",
+                "rules_count": count,
+                "message": format!("已加载 {} 条规则", count),
+            })))
+        }
+        Err(e) => {
+            error!("规则重载失败: {}", e);
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"status": "error", "message": e.to_string()})),
+            ))
+        }
+    }
 }
 
 /// 代理转发 handler：检测 → 替换 → 转发 → 还原
@@ -136,8 +170,27 @@ async fn proxy_handler(
     let method: Method = req.method().clone();
     let headers = forward_headers(req.headers());
 
-    // 3. 读取请求体
-    let mut body_bytes = axum::body::to_bytes(req.into_body(), usize::MAX)
+    // 3. 检查请求体大小
+    let content_length = req
+        .headers()
+        .get("content-length")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.parse::<usize>().ok())
+        .unwrap_or(0);
+
+    if content_length > state.max_body_size {
+        warn!(
+            "请求体过大: {} bytes (限制: {} MB)",
+            content_length, state.max_body_size / (1024 * 1024)
+        );
+        return Err((
+            StatusCode::PAYLOAD_TOO_LARGE,
+            format!("请求体不能超过 {} MB", state.max_body_size / (1024 * 1024)),
+        ));
+    }
+
+    // 4. 读取请求体
+    let mut body_bytes = axum::body::to_bytes(req.into_body(), state.max_body_size)
         .await
         .map_err(|e| {
             error!("Failed to read request body: {}", e);
