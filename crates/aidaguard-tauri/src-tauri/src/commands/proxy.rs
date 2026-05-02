@@ -37,20 +37,29 @@ pub async fn start_proxy(
 
     let mut config = state.config.read().await.clone();
 
-    // 从默认上游解析 target_url 和 api_key
-    if config.target_url.is_empty() {
+    // 从默认上游解析 target_url、api_key 和 upstream_name
+    let upstream_name = if config.target_url.is_empty() {
         if let Some(up) = config.upstreams.iter().find(|u| u.default) {
             config.target_url = up.url.clone();
             if let Some(ref key) = up.api_key {
                 config.api_key = key.clone();
             }
+            up.name.clone()
         } else if let Some(up) = config.upstreams.first() {
             config.target_url = up.url.clone();
             if let Some(ref key) = up.api_key {
                 config.api_key = key.clone();
             }
+            up.name.clone()
+        } else {
+            String::new()
         }
-    }
+    } else {
+        config.upstreams.iter()
+            .find(|u| u.url == config.target_url)
+            .map(|u| u.name.clone())
+            .unwrap_or_default()
+    };
 
     // 启动前校验
     if config.target_url.is_empty() {
@@ -132,6 +141,7 @@ pub async fn start_proxy(
             storage_clone,
             Some(event_tx),
             shutdown_signal,
+            upstream_name,
         )
         .await
         {

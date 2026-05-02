@@ -27,6 +27,7 @@ struct ProxyState {
     forwarder: Forwarder,
     api_key: Arc<String>,
     target_url: Arc<String>,
+    upstream_name: Arc<String>,
     detector: Arc<RwLock<Detector>>,
     storage: Option<Arc<Storage>>,
     start_time: Instant,
@@ -39,20 +40,29 @@ struct ProxyState {
 /// 启动代理服务器（便捷包装，用于 CLI 独立运行）。
 /// 内部创建 Detector / Storage 并永不主动关闭。
 pub async fn start(mut config: Config) -> Result<(), anyhow::Error> {
-    // 从默认上游解析 target_url 和 api_key（与 Tauri start_proxy 保持一致）
-    if config.target_url.is_empty() {
+    // 从默认上游解析 target_url、api_key 和 upstream_name（与 Tauri start_proxy 保持一致）
+    let upstream_name = if config.target_url.is_empty() {
         if let Some(up) = config.upstreams.iter().find(|u| u.default) {
             config.target_url = up.url.clone();
             if let Some(ref key) = up.api_key {
                 config.api_key = key.clone();
             }
+            up.name.clone()
         } else if let Some(up) = config.upstreams.first() {
             config.target_url = up.url.clone();
             if let Some(ref key) = up.api_key {
                 config.api_key = key.clone();
             }
+            up.name.clone()
+        } else {
+            String::new()
         }
-    }
+    } else {
+        config.upstreams.iter()
+            .find(|u| u.url == config.target_url)
+            .map(|u| u.name.clone())
+            .unwrap_or_default()
+    };
 
     let mut detector = Detector::new();
     let rules_path = std::path::Path::new(&config.rules_dir);
@@ -65,7 +75,7 @@ pub async fn start(mut config: Config) -> Result<(), anyhow::Error> {
 
     let storage = open_storage(&config);
 
-    start_with_state(config, detector, storage, None, std::future::pending()).await
+    start_with_state(config, detector, storage, None, std::future::pending(), upstream_name).await
 }
 
 /// 启动代理服务器，接受外部管理的 Detector / Storage 及关闭信号。
@@ -81,6 +91,7 @@ pub async fn start_with_state<F>(
     storage: Option<Arc<Storage>>,
     event_tx: Option<tokio::sync::broadcast::Sender<DetectionEvent>>,
     shutdown_signal: F,
+    upstream_name: String,
 ) -> Result<(), anyhow::Error>
 where
     F: Future<Output = ()> + Send + 'static,
@@ -106,6 +117,7 @@ where
         forwarder,
         api_key: Arc::new(api_key),
         target_url: Arc::new(config.target_url),
+        upstream_name: Arc::new(upstream_name),
         detector: detector.clone(),
         storage,
         start_time: Instant::now(),
@@ -208,7 +220,10 @@ async fn proxy_handler(
     axum::extract::State(state): axum::extract::State<ProxyState>,
     req: Request,
 ) -> Result<Response, (StatusCode, String)> {
-    // 1. 拼接目标 URL
+    // 1. 从请求头提取工具名
+    let tool_name = extract_client_name(req.headers());
+
+    // 2. 拼接目标 URL
     let path_and_query = req
         .uri()
         .path_and_query()
@@ -224,11 +239,11 @@ async fn proxy_handler(
 
     info!("--> {} {}", req.method(), target_url);
 
-    // 2. 处理请求头
+    // 3. 处理请求头
     let method: Method = req.method().clone();
     let headers = forward_headers(req.headers());
 
-    // 3. 检查请求体大小
+    // 4. 检查请求体大小
     let content_length = req
         .headers()
         .get("content-length")
@@ -247,7 +262,7 @@ async fn proxy_handler(
         ));
     }
 
-    // 4. 读取请求体
+    // 5. 读取请求体
     let mut body_bytes = axum::body::to_bytes(req.into_body(), state.max_body_size)
         .await
         .map_err(|e| {
@@ -261,10 +276,22 @@ async fn proxy_handler(
         debug!("📨 Request body: <binary {} bytes>", body_bytes.len());
     }
 
-    // 4. 提取工具名（从 OpenAI function calling 格式请求体中）
-    let tool_name = extract_tool_name(&body_bytes);
+    // 5a. 从请求体提取模型名，构建请求路径: 上游名/模型名
+    let model_name = extract_model(&body_bytes);
+    let upstream_name = state.upstream_name.as_ref();
+    let audit_path = if !model_name.is_empty() {
+        if !upstream_name.is_empty() {
+            format!("{}/{}", upstream_name, model_name)
+        } else {
+            model_name
+        }
+    } else if !upstream_name.is_empty() {
+        upstream_name.to_string()
+    } else {
+        path_and_query // 回退到原始 URL 路径
+    };
 
-    // 5. 敏感数据检测与替换
+    // 6. 敏感数据检测与替换
     let mut placeholder_map: Option<PlaceholderMap> = None;
     let mut sanitized_body: Option<String> = None;
     let mut original_body: Option<String> = None;
@@ -293,7 +320,7 @@ async fn proxy_handler(
         }
     }
 
-    // 6. 转发请求
+    // 7. 转发请求
     let body_vec = body_bytes.to_vec();
     let upstream_resp = state
         .forwarder
@@ -304,7 +331,7 @@ async fn proxy_handler(
             (StatusCode::BAD_GATEWAY, e.to_string())
         })?;
 
-    // 7. 审计记录：在获知响应状态后写入 storage
+    // 8. 审计记录：在获知响应状态后写入 storage
     let status_code = upstream_resp.status().as_u16();
     if let (Some(ref storage), Some(ref map), Some(ref sani_body), Some(ref hits), Some(ref orig_body)) =
         (&state.storage, &placeholder_map, &sanitized_body, &hits_for_audit, &original_body)
@@ -327,7 +354,7 @@ async fn proxy_handler(
                     placeholder,
                     original,
                     &context,
-                    &path_and_query,
+                    &audit_path,
                     sani_body,
                     status_code,
                     &tool_name,
@@ -336,7 +363,7 @@ async fn proxy_handler(
         }
     }
 
-    // 7b. 广播检测事件（无论 storage 是否启用）
+    // 8b. 广播检测事件（无论 storage 是否启用）
     if let Some(ref tx) = state.event_tx {
         if let Some(ref map) = placeholder_map {
             for placeholder in map.placeholders() {
@@ -354,7 +381,7 @@ async fn proxy_handler(
                     rule_id: rule_id.to_string(),
                     strategy: "placeholder".to_string(),
                     placeholder: placeholder.clone(),
-                    request_path: path_and_query.clone(),
+                    request_path: audit_path.clone(),
                     response_status: status_code,
                     tool_name: tool_name.clone(),
                 });
@@ -441,24 +468,59 @@ async fn proxy_handler(
         })
 }
 
-/// 从原始文本中提取匹配位置周围的上下文片段。
-/// 从 OpenAI 兼容格式的请求体中提取第一个工具名。
-/// 支持 `tools[0].function.name` 格式。
-fn extract_tool_name(body: &[u8]) -> String {
-    if let Ok(json) = serde_json::from_slice::<serde_json::Value>(body) {
-        if let Some(tools) = json.get("tools").and_then(|v| v.as_array()) {
-            for tool in tools {
-                if let Some(name) = tool
-                    .get("function")
-                    .and_then(|f| f.get("name"))
-                    .and_then(|n| n.as_str())
-                {
-                    return name.to_string();
-                }
-                if let Some(name) = tool.get("name").and_then(|n| n.as_str()) {
-                    return name.to_string();
+/// 从 HTTP 请求头中提取客户端/工具名。
+/// 优先级：X-Client-Name → User-Agent 中的已知工具名
+fn extract_client_name(headers: &axum::http::HeaderMap) -> String {
+    // 1) X-Client-Name 显式声明
+    if let Some(val) = headers.get("x-client-name") {
+        if let Ok(s) = val.to_str() {
+            let s = s.trim();
+            if !s.is_empty() {
+                return s.to_string();
+            }
+        }
+    }
+    // 2) 从 User-Agent 中识别已知工具
+    if let Some(ua) = headers.get("user-agent") {
+        if let Ok(ua_str) = ua.to_str() {
+            let ua_lower = ua_str.to_lowercase();
+            for (keyword, label) in KNOWN_CLIENTS {
+                if ua_lower.contains(keyword) {
+                    return label.to_string();
                 }
             }
+        }
+    }
+    String::new()
+}
+
+/// 已知客户端关键词 → 工具名映射
+const KNOWN_CLIENTS: &[(&str, &str)] = &[
+    ("openai", "OpenAI"),
+    ("langchain", "LangChain"),
+    ("copilot", "Copilot"),
+    ("cursor", "Cursor"),
+    ("continue", "Continue"),
+    ("codebuddy", "CodeBuddy"),
+    ("cline", "Cline"),
+    ("aider", "Aider"),
+    ("chatgpt", "ChatGPT"),
+    ("postman", "Postman"),
+    ("insomnia", "Insomnia"),
+    ("python", "Python"),
+    ("node", "Node.js"),
+    ("curl", "curl"),
+    ("go-http", "Go"),
+    ("java", "Java"),
+    ("axios", "Axios"),
+    ("reqwest", "Rust"),
+];
+
+/// 从 OpenAI 兼容格式的请求体中提取模型名。
+fn extract_model(body: &[u8]) -> String {
+    if let Ok(json) = serde_json::from_slice::<serde_json::Value>(body) {
+        if let Some(model) = json.get("model").and_then(|v| v.as_str()) {
+            return model.to_string();
         }
     }
     String::new()

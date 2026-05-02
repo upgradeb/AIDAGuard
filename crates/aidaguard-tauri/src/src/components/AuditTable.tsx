@@ -77,24 +77,15 @@ export default function AuditTable({
       ),
     },
     {
-      title: "请求路径",
+      title: "大模型/模型",
       dataIndex: "requestPath",
       key: "path",
-      width: 150,
+      width: 160,
       ellipsis: true,
       render: (val: string) => (
         <Typography.Text style={{ fontSize: 13 }} ellipsis>
           {val || "—"}
         </Typography.Text>
-      ),
-    },
-    {
-      title: "状态码",
-      dataIndex: "responseStatus",
-      key: "status",
-      width: 80,
-      render: (val: number) => (
-        <Tag color={val >= 200 && val < 300 ? "green" : "red"}>{val > 0 ? val : "—"}</Tag>
       ),
     },
     {

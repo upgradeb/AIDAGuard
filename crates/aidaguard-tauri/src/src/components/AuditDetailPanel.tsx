@@ -40,8 +40,8 @@ export default function AuditDetailPanel({ record }: AuditDetailPanelProps) {
         <Descriptions.Item label="占位符" span={2}>
           <Typography.Text code>{record.placeholder}</Typography.Text>
         </Descriptions.Item>
-        <Descriptions.Item label="请求路径" span={2}>
-          {record.requestPath || "/"}
+        <Descriptions.Item label="大模型/模型" span={2}>
+          {record.requestPath || "—"}
         </Descriptions.Item>
         <Descriptions.Item label="原始数据" span={2}>
           <Typography.Text
