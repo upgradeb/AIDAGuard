@@ -16,6 +16,8 @@ Aidaguard 是一个本地 API 网关代理，部署在 AI 客户端与大模型 
 | `c448014` | 配置系统、加密审计存储、健康检查端点、HTTP 转发器 |
 | `ada046f` | 代理增强：请求体大小限制、reasoning_content 还原、规则重载 API |
 | `9c75f9c` | Tauri 2.x 桌面应用 + aidaguard-core 安全加固 |
+| `81aedda` | 开发工作记录文档 |
+| `9fb8089` | 易用性改进：设置页解耦上游配置、规则目录关联配置、清理测试数据 |
 
 ---
 
@@ -176,6 +178,92 @@ Aidaguard 是一个本地 API 网关代理，部署在 AI 客户端与大模型 
 | 前端 `invoke()` 参数名使用 camelCase（如 `ruleIdFilter`） | 改为 snake_case 以匹配 Rust 参数名（Tauri v2 严格要求） |
 | `get_proxy_status` 未检测代理任务自行终止 | 添加 `JoinHandle::is_finished()` 检查，自动清空已完成的 handle |
 | 审计列表 `total` 未反映过滤条件 | 新增 `count_filtered()` 替换 `count()` |
+
+---
+
+## Phase 7: 启动测试
+
+### 环境验证
+- Tauri CLI (`cargo-tauri`) 已安装
+- Node.js v24.14.1 / npm 11.11.0
+- Rust toolchain 就绪
+- 前端依赖安装：177 packages
+
+### 编译与测试结果
+
+| 检查项 | 结果 |
+|--------|------|
+| `cargo check -p aidaguard-tauri` | 通过 |
+| `cargo build -p aidaguard-tauri` | 通过 |
+| `npx tsc --noEmit` (TypeScript) | 零错误 |
+| `cargo test -p aidaguard-core` (24 tests) | 全部通过 |
+
+### 运行状态
+
+```
+cargo tauri dev
+├── Vite dev server  → http://localhost:1420/  (HTTP 200)
+├── React HMR         → 正常编译 TSX 模块
+├── Tauri 窗口        → macOS 桌面可见 (aidaguard-tauri 进程)
+└── 热重载            → 监听 aidaguard-core 和 aidaguard-tauri 变更
+```
+
+---
+
+## Phase 8: 易用性与 UI 改进
+
+### 设置页重构
+
+| 变更 | 说明 |
+|------|------|
+| 移除 `target_url` 字段 | 上游 LLM API 地址不再在设置中直接输入 |
+| 移除 `api_key` 字段 | API Key 不再在设置中直接输入 |
+| 新增上游选择器 | 下拉切换默认上游，实时显示当前默认上游名称和地址 |
+| "管理"按钮 | 点击跳转到「大模型接入」页面 |
+| 新增 `rules_dir` 字段 | 在设置中配置规则文件目录 |
+
+### 代理启动逻辑增强
+
+- `start_proxy` 命令：当 `config.target_url` 为空时，自动从 `upstreams` 列表中查找 `default: true` 的上游，使用其 URL 和 API Key
+- 新增 `set_default_upstream` Tauri 命令：设置指定上游为默认（同时取消其他上游的默认标记）
+
+### 规则管理与配置关联
+
+- Settings 表单新增 `rules_dir` 输入框
+- `save_config` 命令保存时同步更新 `state.rules_dir` 运行时状态
+- 修改规则目录后无需重启应用即可生效
+
+### 配置清理
+
+- `default_target_url()` 返回值清空（原为千帆测试地址）
+- `config.toml` 删除明文 API Key `bce-v3/ALTAKSP-...`
+- `config.toml` 已被 `.gitignore` 排除，不再进入 git 追踪
+- `config.example.toml` 移除 `api_key` 和 `target_url` 顶级字段，加入 `[[upstreams]]` 示例
+
+### 端口一致性验证
+
+确认端口配置全链路一致：
+```
+config.port (default: 19000)
+  → AppState.proxy_port
+    → axum bind addr: 127.0.0.1:{port}
+      → Settings Form.Item name="port"
+```
+
+### 新增文件
+
+| 文件 | 变更类型 |
+|------|----------|
+| [commands/config.rs](../crates/aidaguard-tauri/src-tauri/src/commands/config.rs) | 修改 — 添加 rules_dir 同步 |
+| [commands/proxy.rs](../crates/aidaguard-tauri/src-tauri/src/commands/proxy.rs) | 修改 — 上游解析逻辑 |
+| [commands/upstream.rs](../crates/aidaguard-tauri/src-tauri/src/commands/upstream.rs) | 修改 — 新增 set_default_upstream |
+| [main.rs](../crates/aidaguard-tauri/src-tauri/src/main.rs) | 修改 — 注册新命令 |
+| [config.rs](../crates/aidaguard-core/src/config.rs) | 修改 — 清空测试 URL |
+| [Settings.tsx](../crates/aidaguard-tauri/src/src/pages/Settings.tsx) | 重写 — 移除上游字段，新增选择器和 rules_dir |
+| [useUpstreamStore.ts](../crates/aidaguard-tauri/src/src/store/useUpstreamStore.ts) | 修改 — 新增 setDefaultUpstream |
+| [api/upstream.ts](../crates/aidaguard-tauri/src/src/api/upstream.ts) | 修改 — 新增 setDefaultUpstream |
+| [config.toml](../config.toml) | 清理 — 删除测试 API Key |
+| [config.example.toml](../config.example.toml) | 更新 — 移除顶级 api_key/target_url |
 
 ---
 
