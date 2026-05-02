@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Row, Col, Card, Button, Tag, Typography, theme, Space } from "antd";
+import { Row, Col, Card, Button, Tag, Typography, theme, Space, Alert } from "antd";
 import {
   PlayCircleOutlined,
   PauseCircleOutlined,
@@ -19,6 +19,7 @@ export default function Dashboard() {
   const { token } = theme.useToken();
   const status = useProxyStore((s) => s.status);
   const loading = useProxyStore((s) => s.loading);
+  const error = useProxyStore((s) => s.error);
   const recentEvents = useProxyStore((s) => s.recentEvents);
   const start = useProxyStore((s) => s.startProxy);
   const stop = useProxyStore((s) => s.stopProxy);
@@ -53,6 +54,19 @@ export default function Dashboard() {
 
   return (
     <div>
+      {/* 错误提示 */}
+      {error && (
+        <Alert
+          type="error"
+          showIcon
+          message="代理操作失败"
+          description={error}
+          closable
+          onClose={() => useProxyStore.setState({ error: null })}
+          style={{ marginBottom: 16, borderRadius: 8 }}
+        />
+      )}
+
       {/* Status bar */}
       <Card
         size="small"

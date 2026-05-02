@@ -52,6 +52,14 @@ pub async fn start_proxy(
         }
     }
 
+    // 启动前校验
+    if config.target_url.is_empty() {
+        return Err("未设置上游地址。请先在「大模型接入」中添加一个上游，并设为默认。".into());
+    }
+    if config.api_key.is_empty() {
+        return Err("未设置 API Key。请先在「大模型接入」中为默认上游配置 API Key。".into());
+    }
+
     // 加载规则（使用已解析的 rules_dir）
     let resolved_rules_dir = state.rules_dir.read().await.clone();
     let mut detector = state.detector.write().await;
