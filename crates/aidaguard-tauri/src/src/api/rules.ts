@@ -5,7 +5,13 @@ export interface RuleWithCategory extends RuleDef {
   category: string;
 }
 
-export const getRules = (): Promise<RuleWithCategory[]> => invoke("get_rules");
+export interface GetRulesResponse {
+  rules: RuleWithCategory[];
+  files: string[];
+  rulesDir: string;
+}
+
+export const getRules = (): Promise<GetRulesResponse> => invoke("get_rules");
 
 export const saveRule = (rule: RuleDef, category: string): Promise<void> =>
   invoke("save_rule", { rule, category });

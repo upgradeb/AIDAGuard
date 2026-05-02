@@ -14,6 +14,7 @@ import type { RuleDef, TestRuleResult } from "../types";
 interface RulesState {
   rules: RuleWithCategory[];
   ruleFiles: string[];
+  rulesDir: string;
   testResult: TestRuleResult | null;
   loading: boolean;
   saving: boolean;
@@ -33,6 +34,7 @@ interface RulesState {
 export const useRulesStore = create<RulesState>((set) => ({
   rules: [],
   ruleFiles: [],
+  rulesDir: "",
   testResult: null,
   loading: false,
   saving: false,
@@ -42,8 +44,13 @@ export const useRulesStore = create<RulesState>((set) => ({
   fetchRules: async () => {
     set({ loading: true, error: null });
     try {
-      const [rules, files] = await Promise.all([getRules(), getRuleFiles()]);
-      set({ rules, ruleFiles: files, loading: false });
+      const resp = await getRules();
+      set({
+        rules: resp.rules,
+        ruleFiles: resp.files,
+        rulesDir: resp.rulesDir,
+        loading: false,
+      });
     } catch (e) {
       set({ error: String(e), loading: false });
     }

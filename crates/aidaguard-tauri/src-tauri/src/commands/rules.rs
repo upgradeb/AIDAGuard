@@ -16,6 +16,14 @@ pub struct RuleWithCategory {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct GetRulesResponse {
+    pub rules: Vec<RuleWithCategory>,
+    pub files: Vec<String>,
+    pub rules_dir: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TestRuleResult {
     pub matches: Vec<MatchInfo>,
     pub sanitized_text: String,
@@ -84,16 +92,21 @@ fn write_rule_file(dir: &std::path::Path, category: &str, file: &RuleFile) -> Re
 #[tauri::command]
 pub async fn get_rules(
     state: tauri::State<'_, AppState>,
-) -> Result<Vec<RuleWithCategory>, String> {
+) -> Result<GetRulesResponse, String> {
     let dir = rules_dir(&state);
     let files = read_rule_files(&dir)?;
+    let file_names: Vec<String> = files.iter().map(|(c, _)| c.clone()).collect();
     let mut rules = Vec::new();
     for (cat, file) in files {
         for def in file.rules {
             rules.push(RuleWithCategory { def, category: cat.clone() });
         }
     }
-    Ok(rules)
+    Ok(GetRulesResponse {
+        rules,
+        files: file_names,
+        rules_dir: dir.to_string_lossy().to_string(),
+    })
 }
 
 #[tauri::command]
