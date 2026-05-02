@@ -19,19 +19,19 @@ export const listAudit = (params: AuditListParams): Promise<AuditListResponse> =
   invoke("list_audit", {
     limit: params.limit,
     offset: params.offset,
-    rule_id_filter: params.ruleIdFilter ?? null,
-    path_filter: params.pathFilter ?? null,
-    date_from_ms: params.dateFromMs ?? null,
-    date_to_ms: params.dateToMs ?? null,
+    ruleIdFilter: params.ruleIdFilter ?? null,
+    pathFilter: params.pathFilter ?? null,
+    dateFromMs: params.dateFromMs ?? null,
+    dateToMs: params.dateToMs ?? null,
   });
 
 export const getAuditDetail = (
   recordId: string
 ): Promise<DetectionRecord | null> =>
-  invoke("get_audit_detail", { record_id: recordId });
+  invoke("get_audit_detail", { recordId });
 
 export const deleteAudit = (recordId: string): Promise<boolean> =>
-  invoke("delete_audit", { record_id: recordId });
+  invoke("delete_audit", { recordId });
 
 export const exportAudit = (params: {
   format: "csv" | "json";
@@ -41,9 +41,9 @@ export const exportAudit = (params: {
 }): Promise<string> =>
   invoke("export_audit", {
     format: params.format,
-    rule_id_filter: params.ruleIdFilter ?? null,
-    date_from_ms: params.dateFromMs ?? null,
-    date_to_ms: params.dateToMs ?? null,
+    ruleIdFilter: params.ruleIdFilter ?? null,
+    dateFromMs: params.dateFromMs ?? null,
+    dateToMs: params.dateToMs ?? null,
   });
 
 export const getAuditStats = (): Promise<AuditStats> =>

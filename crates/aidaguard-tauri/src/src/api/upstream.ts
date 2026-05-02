@@ -25,6 +25,6 @@ export const testConnectivity = (
 ): Promise<string> =>
   invoke("test_upstream_connectivity", {
     url,
-    api_key: apiKey,
-    timeout_secs: timeoutSecs,
+    apiKey,
+    timeoutSecs,
   });

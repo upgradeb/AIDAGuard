@@ -11,15 +11,15 @@ export const saveRule = (rule: RuleDef, category: string): Promise<void> =>
   invoke("save_rule", { rule, category });
 
 export const deleteRule = (ruleId: string, category: string): Promise<void> =>
-  invoke("delete_rule", { rule_id: ruleId, category });
+  invoke("delete_rule", { ruleId, category });
 
 export const toggleRule = (ruleId: string, enabled: boolean): Promise<void> =>
-  invoke("toggle_rule", { rule_id: ruleId, enabled });
+  invoke("toggle_rule", { ruleId, enabled });
 
 export const testRule = (
   pattern: string,
   testText: string
-): Promise<TestRuleResult> => invoke("test_rule", { pattern, test_text: testText });
+): Promise<TestRuleResult> => invoke("test_rule", { pattern, testText });
 
 export const reloadRules = (): Promise<string> => invoke("reload_rules");
 
