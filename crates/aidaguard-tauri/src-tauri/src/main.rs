@@ -8,7 +8,7 @@ use aidaguard_core::config::Config;
 use aidaguard_core::detector::Detector;
 
 use aidaguard_tauri::state::AppState;
-use aidaguard_tauri::{commands, tray};
+use aidaguard_tauri::{commands, resolve_rules_dir, tray};
 
 fn main() {
     // 初始化日志
@@ -30,20 +30,7 @@ fn main() {
             let config = Config::load_from(&config_path).unwrap_or_default();
 
             // 从配置中读取规则目录
-            let rules_dir = if std::path::Path::new(&config.rules_dir).is_absolute() {
-                config.rules_dir.clone()
-            } else {
-                // 优先尝试当前工作目录（开发模式兼容），再回退到 config 目录
-                let cwd_path = std::env::current_dir()
-                    .unwrap_or_default()
-                    .join(&config.rules_dir);
-                if cwd_path.exists() {
-                    cwd_path.to_string_lossy().to_string()
-                } else {
-                    let cfg_path = config_dir.join(&config.rules_dir);
-                    cfg_path.to_string_lossy().to_string()
-                }
-            };
+            let rules_dir = resolve_rules_dir(&config.rules_dir, &config_dir);
 
             let port = config.port;
 

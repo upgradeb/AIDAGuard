@@ -24,18 +24,7 @@ pub async fn save_config(
     let path = config_dir.join("config.toml");
 
     // 同步 rules_dir 到运行时状态
-    let rules_dir = if std::path::Path::new(&config.rules_dir).is_absolute() {
-        config.rules_dir.clone()
-    } else {
-        let cwd_path = std::env::current_dir()
-            .unwrap_or_default()
-            .join(&config.rules_dir);
-        if cwd_path.exists() {
-            cwd_path.to_string_lossy().to_string()
-        } else {
-            config_dir.join(&config.rules_dir).to_string_lossy().to_string()
-        }
-    };
+    let rules_dir = crate::resolve_rules_dir(&config.rules_dir, &config_dir);
     *state.rules_dir.write().await = rules_dir;
 
     config.save_to(&path).map_err(|e| format!("保存配置失败: {}", e))?;
