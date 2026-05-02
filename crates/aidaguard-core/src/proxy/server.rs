@@ -38,7 +38,22 @@ struct ProxyState {
 
 /// 启动代理服务器（便捷包装，用于 CLI 独立运行）。
 /// 内部创建 Detector / Storage 并永不主动关闭。
-pub async fn start(config: Config) -> Result<(), anyhow::Error> {
+pub async fn start(mut config: Config) -> Result<(), anyhow::Error> {
+    // 从默认上游解析 target_url 和 api_key（与 Tauri start_proxy 保持一致）
+    if config.target_url.is_empty() {
+        if let Some(up) = config.upstreams.iter().find(|u| u.default) {
+            config.target_url = up.url.clone();
+            if let Some(ref key) = up.api_key {
+                config.api_key = key.clone();
+            }
+        } else if let Some(up) = config.upstreams.first() {
+            config.target_url = up.url.clone();
+            if let Some(ref key) = up.api_key {
+                config.api_key = key.clone();
+            }
+        }
+    }
+
     let mut detector = Detector::new();
     let rules_path = std::path::Path::new(&config.rules_dir);
     if rules_path.exists() {
@@ -287,10 +302,10 @@ async fn proxy_handler(
         })?;
 
     // 6. 审计记录：在获知响应状态后写入 storage
+    let status_code = upstream_resp.status().as_u16();
     if let (Some(ref storage), Some(ref map), Some(ref sani_body), Some(ref hits), Some(ref orig_body)) =
         (&state.storage, &placeholder_map, &sanitized_body, &hits_for_audit, &original_body)
     {
-        let status_code = upstream_resp.status().as_u16();
         for placeholder in map.placeholders() {
             if let Some(original) = map.get(placeholder) {
                 let rule_id = placeholder
@@ -313,21 +328,31 @@ async fn proxy_handler(
                     sani_body,
                     status_code,
                 );
+            }
+        }
+    }
 
-                if let Some(ref tx) = state.event_tx {
-                    let now_ms = std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_millis() as i64;
-                    let _ = tx.send(DetectionEvent {
-                        timestamp_ms: now_ms,
-                        rule_id: rule_id.to_string(),
-                        strategy: "placeholder".to_string(),
-                        placeholder: placeholder.clone(),
-                        request_path: path_and_query.clone(),
-                        response_status: status_code,
-                    });
-                }
+    // 6b. 广播检测事件（无论 storage 是否启用）
+    if let Some(ref tx) = state.event_tx {
+        if let Some(ref map) = placeholder_map {
+            for placeholder in map.placeholders() {
+                let rule_id = placeholder
+                    .strip_prefix("[[")
+                    .and_then(|s| s.split_once('@'))
+                    .map(|(id, _)| id)
+                    .unwrap_or("unknown");
+                let now_ms = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_millis() as i64;
+                let _ = tx.send(DetectionEvent {
+                    timestamp_ms: now_ms,
+                    rule_id: rule_id.to_string(),
+                    strategy: "placeholder".to_string(),
+                    placeholder: placeholder.clone(),
+                    request_path: path_and_query.clone(),
+                    response_status: status_code,
+                });
             }
         }
     }
