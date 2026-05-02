@@ -14,6 +14,7 @@ const SALT_LEN: usize = 16;
 
 /// 一条检测审计记录
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DetectionRecord {
     pub id: String,
     pub timestamp_ms: i64,
@@ -25,10 +26,12 @@ pub struct DetectionRecord {
     pub request_path: String,
     pub sanitized_body: String,
     pub response_status: u16,
+    pub tool_name: String,
 }
 
 /// 规则命中统计
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct RuleCount {
     pub rule_id: String,
     pub count: usize,
@@ -36,6 +39,7 @@ pub struct RuleCount {
 
 /// 审计汇总统计数据
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AuditStats {
     pub total_count: usize,
     pub today_count: usize,
@@ -72,13 +76,19 @@ impl Storage {
                 context_encrypted BLOB NOT NULL DEFAULT (x''),
                 request_path TEXT NOT NULL DEFAULT '',
                 sanitized_body TEXT NOT NULL DEFAULT '',
-                response_status INTEGER NOT NULL DEFAULT 0
+                response_status INTEGER NOT NULL DEFAULT 0,
+                tool_name   TEXT NOT NULL DEFAULT ''
             );
 
             CREATE INDEX IF NOT EXISTS idx_detections_timestamp
                 ON detections(timestamp_ms DESC);
             ",
         )?;
+
+        // 向前兼容：为旧数据库添加 tool_name 列
+        let _ = conn.execute_batch(
+            "ALTER TABLE detections ADD COLUMN tool_name TEXT NOT NULL DEFAULT '';",
+        );
 
         let cipher = derive_cipher(db_path, encryption_key)?;
 
@@ -101,6 +111,7 @@ impl Storage {
         request_path: &str,
         sanitized_body: &str,
         response_status: u16,
+        tool_name: &str,
     ) -> Result<(), anyhow::Error> {
         let id = Uuid::new_v4().to_string();
         let timestamp_ms = SystemTime::now()
@@ -113,9 +124,9 @@ impl Storage {
 
         let conn = self.conn.lock().unwrap();
         conn.execute(
-            "INSERT INTO detections (id, timestamp_ms, rule_id, strategy, placeholder, original_encrypted, context_encrypted, request_path, sanitized_body, response_status)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
-            rusqlite::params![id, timestamp_ms, rule_id, strategy, placeholder, encrypted_original, encrypted_context, request_path, sanitized_body, response_status],
+            "INSERT INTO detections (id, timestamp_ms, rule_id, strategy, placeholder, original_encrypted, context_encrypted, request_path, sanitized_body, response_status, tool_name)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+            rusqlite::params![id, timestamp_ms, rule_id, strategy, placeholder, encrypted_original, encrypted_context, request_path, sanitized_body, response_status, tool_name],
         )?;
 
         tracing::debug!("detection recorded: {} -> {}", rule_id, placeholder);
@@ -126,7 +137,7 @@ impl Storage {
     pub fn list(&self, limit: usize, offset: usize) -> Result<Vec<DetectionRecord>, anyhow::Error> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT id, timestamp_ms, rule_id, strategy, placeholder, original_encrypted, context_encrypted, request_path, sanitized_body, response_status
+            "SELECT id, timestamp_ms, rule_id, strategy, placeholder, original_encrypted, context_encrypted, request_path, sanitized_body, response_status, tool_name
              FROM detections ORDER BY timestamp_ms DESC LIMIT ?1 OFFSET ?2",
         )?;
 
@@ -142,12 +153,13 @@ impl Storage {
                 row.get::<_, String>(7)?,
                 row.get::<_, String>(8)?,
                 row.get::<_, i64>(9)?,
+                row.get::<_, String>(10)?,
             ))
         })?;
 
         let mut records = Vec::new();
         for row in rows {
-            let (id, timestamp_ms, rule_id, strategy, placeholder, enc_original, enc_context, request_path, sanitized_body, response_status) = row?;
+            let (id, timestamp_ms, rule_id, strategy, placeholder, enc_original, enc_context, request_path, sanitized_body, response_status, tool_name) = row?;
             let original_bytes = self.decrypt(&enc_original)?;
             let original = String::from_utf8(original_bytes)
                 .unwrap_or_else(|_| "<非 UTF-8 数据>".to_string());
@@ -166,6 +178,7 @@ impl Storage {
                 request_path,
                 sanitized_body,
                 response_status: response_status as u16,
+                tool_name,
             });
         }
 
@@ -225,7 +238,7 @@ impl Storage {
         let conn = self.conn.lock().unwrap();
 
         let mut sql = String::from(
-            "SELECT id, timestamp_ms, rule_id, strategy, placeholder, original_encrypted, context_encrypted, request_path, sanitized_body, response_status FROM detections WHERE 1=1",
+            "SELECT id, timestamp_ms, rule_id, strategy, placeholder, original_encrypted, context_encrypted, request_path, sanitized_body, response_status, tool_name FROM detections WHERE 1=1",
         );
         let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
 
@@ -265,12 +278,13 @@ impl Storage {
                 row.get::<_, String>(7)?,
                 row.get::<_, String>(8)?,
                 row.get::<_, i64>(9)?,
+                row.get::<_, String>(10)?,
             ))
         })?;
 
         let mut records = Vec::new();
         for row in rows {
-            let (id, timestamp_ms, rule_id, strategy, placeholder, enc_original, enc_context, request_path, sanitized_body, response_status) = row?;
+            let (id, timestamp_ms, rule_id, strategy, placeholder, enc_original, enc_context, request_path, sanitized_body, response_status, tool_name) = row?;
             let original = self.decrypt_string(&enc_original);
             let context = self.decrypt_string(&enc_context);
             records.push(DetectionRecord {
@@ -284,6 +298,7 @@ impl Storage {
                 request_path,
                 sanitized_body,
                 response_status: response_status as u16,
+                tool_name,
             });
         }
         Ok(records)
@@ -293,7 +308,7 @@ impl Storage {
     pub fn get_by_id(&self, id: &str) -> Result<Option<DetectionRecord>, anyhow::Error> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
-            "SELECT id, timestamp_ms, rule_id, strategy, placeholder, original_encrypted, context_encrypted, request_path, sanitized_body, response_status FROM detections WHERE id = ?1",
+            "SELECT id, timestamp_ms, rule_id, strategy, placeholder, original_encrypted, context_encrypted, request_path, sanitized_body, response_status, tool_name FROM detections WHERE id = ?1",
         )?;
         let mut rows = stmt.query_map(rusqlite::params![id], |row| {
             Ok((
@@ -307,12 +322,13 @@ impl Storage {
                 row.get::<_, String>(7)?,
                 row.get::<_, String>(8)?,
                 row.get::<_, i64>(9)?,
+                row.get::<_, String>(10)?,
             ))
         })?;
 
         match rows.next() {
             Some(row) => {
-                let (id, ts, rule_id, strategy, placeholder, enc_orig, enc_ctx, path, body, status) = row?;
+                let (id, ts, rule_id, strategy, placeholder, enc_orig, enc_ctx, path, body, status, tool_name) = row?;
                 let original = self.decrypt_string(&enc_orig);
                 let context = self.decrypt_string(&enc_ctx);
                 Ok(Some(DetectionRecord {
@@ -326,6 +342,7 @@ impl Storage {
                     request_path: path,
                     sanitized_body: body,
                     response_status: status as u16,
+                    tool_name,
                 }))
             }
             None => Ok(None),
@@ -480,7 +497,7 @@ mod tests {
         let (storage, path) = temp_db();
 
         storage
-            .record("phone_cn", "placeholder", "[[PHONE_CN@abc12345]]", "13800001111", "...我的手机号13800001111，请记录...", "/v2/coding", "sanitized body", 200)
+            .record("phone_cn", "placeholder", "[[PHONE_CN@abc12345]]", "13800001111", "...我的手机号13800001111，请记录...", "/v2/coding", "sanitized body", 200, "")
             .unwrap();
 
         assert_eq!(storage.count().unwrap(), 1);
@@ -513,6 +530,7 @@ mod tests {
                     "/chat",
                     "body",
                     200,
+                    "",
                 )
                 .unwrap();
         }

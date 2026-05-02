@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 
 /// 检测事件，用于从代理任务向 Tauri 前端广播
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DetectionEvent {
     pub timestamp_ms: i64,
     pub rule_id: String,
@@ -18,4 +19,5 @@ pub struct DetectionEvent {
     pub placeholder: String,
     pub request_path: String,
     pub response_status: u16,
+    pub tool_name: String,
 }

@@ -28,6 +28,9 @@ export default function AuditDetailPanel({ record }: AuditDetailPanelProps) {
             {record.responseStatus}
           </Tag>
         </Descriptions.Item>
+        <Descriptions.Item label="工具名">
+          {record.toolName || "—"}
+        </Descriptions.Item>
         <Descriptions.Item label="规则">
           <Tag color="orange">{record.ruleId}</Tag>
         </Descriptions.Item>

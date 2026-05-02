@@ -261,7 +261,10 @@ async fn proxy_handler(
         debug!("📨 Request body: <binary {} bytes>", body_bytes.len());
     }
 
-    // 4. 敏感数据检测与替换
+    // 4. 提取工具名（从 OpenAI function calling 格式请求体中）
+    let tool_name = extract_tool_name(&body_bytes);
+
+    // 5. 敏感数据检测与替换
     let mut placeholder_map: Option<PlaceholderMap> = None;
     let mut sanitized_body: Option<String> = None;
     let mut original_body: Option<String> = None;
@@ -290,7 +293,7 @@ async fn proxy_handler(
         }
     }
 
-    // 5. 转发请求
+    // 6. 转发请求
     let body_vec = body_bytes.to_vec();
     let upstream_resp = state
         .forwarder
@@ -301,7 +304,7 @@ async fn proxy_handler(
             (StatusCode::BAD_GATEWAY, e.to_string())
         })?;
 
-    // 6. 审计记录：在获知响应状态后写入 storage
+    // 7. 审计记录：在获知响应状态后写入 storage
     let status_code = upstream_resp.status().as_u16();
     if let (Some(ref storage), Some(ref map), Some(ref sani_body), Some(ref hits), Some(ref orig_body)) =
         (&state.storage, &placeholder_map, &sanitized_body, &hits_for_audit, &original_body)
@@ -327,12 +330,13 @@ async fn proxy_handler(
                     &path_and_query,
                     sani_body,
                     status_code,
+                    &tool_name,
                 );
             }
         }
     }
 
-    // 6b. 广播检测事件（无论 storage 是否启用）
+    // 7b. 广播检测事件（无论 storage 是否启用）
     if let Some(ref tx) = state.event_tx {
         if let Some(ref map) = placeholder_map {
             for placeholder in map.placeholders() {
@@ -352,6 +356,7 @@ async fn proxy_handler(
                     placeholder: placeholder.clone(),
                     request_path: path_and_query.clone(),
                     response_status: status_code,
+                    tool_name: tool_name.clone(),
                 });
             }
         }
@@ -437,6 +442,28 @@ async fn proxy_handler(
 }
 
 /// 从原始文本中提取匹配位置周围的上下文片段。
+/// 从 OpenAI 兼容格式的请求体中提取第一个工具名。
+/// 支持 `tools[0].function.name` 格式。
+fn extract_tool_name(body: &[u8]) -> String {
+    if let Ok(json) = serde_json::from_slice::<serde_json::Value>(body) {
+        if let Some(tools) = json.get("tools").and_then(|v| v.as_array()) {
+            for tool in tools {
+                if let Some(name) = tool
+                    .get("function")
+                    .and_then(|f| f.get("name"))
+                    .and_then(|n| n.as_str())
+                {
+                    return name.to_string();
+                }
+                if let Some(name) = tool.get("name").and_then(|n| n.as_str()) {
+                    return name.to_string();
+                }
+            }
+        }
+    }
+    String::new()
+}
+
 fn extract_context(text: &str, start: usize, end: usize, radius: usize) -> String {
     let mut ctx_start = start.saturating_sub(radius);
     let mut ctx_end = (end + radius).min(text.len());

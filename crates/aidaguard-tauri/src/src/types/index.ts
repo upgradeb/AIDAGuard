@@ -26,6 +26,7 @@ export interface DetectionRecord {
   requestPath: string;
   sanitizedBody: string;
   responseStatus: number;
+  toolName: string;
 }
 
 export interface RuleDef {
@@ -86,4 +87,5 @@ export interface DetectionEvent {
   placeholder: string;
   requestPath: string;
   responseStatus: number;
+  toolName: string;
 }

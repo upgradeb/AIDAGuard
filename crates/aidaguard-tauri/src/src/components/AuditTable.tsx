@@ -34,27 +34,57 @@ export default function AuditTable({
       render: (val: number) => dayjs(val).format("YYYY-MM-DD HH:mm:ss"),
     },
     {
+      title: "工具名",
+      dataIndex: "toolName",
+      key: "tool",
+      width: 120,
+      render: (val: string) =>
+        val ? <Tag color="geekblue">{val}</Tag> : <Typography.Text type="secondary">—</Typography.Text>,
+    },
+    {
       title: "规则",
       dataIndex: "ruleId",
       key: "rule",
-      width: 140,
+      width: 120,
       render: (val: string) => <Tag color="orange">{val}</Tag>,
     },
     {
-      title: "策略",
-      dataIndex: "strategy",
-      key: "strategy",
-      width: 100,
-      render: (val: string) => <Tag>{val}</Tag>,
+      title: "原始数据",
+      dataIndex: "original",
+      key: "original",
+      width: 180,
+      ellipsis: true,
+      render: (val: string) => (
+        <Typography.Text
+          style={{ color: "#ef4444", fontSize: 13 }}
+          ellipsis
+          copyable
+        >
+          {val || "—"}
+        </Typography.Text>
+      ),
+    },
+    {
+      title: "占位符",
+      dataIndex: "placeholder",
+      key: "placeholder",
+      width: 180,
+      ellipsis: true,
+      render: (val: string) => (
+        <Typography.Text code style={{ fontSize: 12 }} ellipsis>
+          {val || "—"}
+        </Typography.Text>
+      ),
     },
     {
       title: "请求路径",
       dataIndex: "requestPath",
       key: "path",
+      width: 150,
       ellipsis: true,
       render: (val: string) => (
         <Typography.Text style={{ fontSize: 13 }} ellipsis>
-          {val || "/"}
+          {val || "—"}
         </Typography.Text>
       ),
     },
@@ -64,13 +94,13 @@ export default function AuditTable({
       key: "status",
       width: 80,
       render: (val: number) => (
-        <Tag color={val >= 200 && val < 300 ? "green" : "red"}>{val}</Tag>
+        <Tag color={val >= 200 && val < 300 ? "green" : "red"}>{val > 0 ? val : "—"}</Tag>
       ),
     },
     {
       title: "操作",
       key: "actions",
-      width: 120,
+      width: 100,
       render: (_, record) => (
         <Space size={4}>
           <Button
