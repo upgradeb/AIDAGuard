@@ -468,23 +468,10 @@ async fn proxy_handler(
         })
 }
 
-/// 从 HTTP 请求头中提取客户端/工具名。
-/// 优先级：User-Agent → X-Client-Name
+/// 从 HTTP 请求头中提取 User-Agent 原始值作为工具名。
 fn extract_client_name(headers: &axum::http::HeaderMap) -> String {
-    // 1) 从 User-Agent 中识别已知工具
     if let Some(ua) = headers.get("user-agent") {
-        if let Ok(ua_str) = ua.to_str() {
-            let ua_lower = ua_str.to_lowercase();
-            for (keyword, label) in KNOWN_CLIENTS {
-                if ua_lower.contains(keyword) {
-                    return label.to_string();
-                }
-            }
-        }
-    }
-    // 2) X-Client-Name 显式声明（备用）
-    if let Some(val) = headers.get("x-client-name") {
-        if let Ok(s) = val.to_str() {
+        if let Ok(s) = ua.to_str() {
             let s = s.trim();
             if !s.is_empty() {
                 return s.to_string();
@@ -493,39 +480,6 @@ fn extract_client_name(headers: &axum::http::HeaderMap) -> String {
     }
     String::new()
 }
-
-/// 已知客户端关键词 → 工具名映射（按匹配优先级排序，先匹配先返回）
-const KNOWN_CLIENTS: &[(&str, &str)] = &[
-    ("roo-code", "Roo Code"),
-    ("roocode", "Roo Code"),
-    ("roo code", "Roo Code"),
-    ("roo", "Roo"),
-    ("windsurf", "Windsurf"),
-    ("trae", "Trae"),
-    ("augment", "Augment"),
-    ("cody", "Cody"),
-    ("sourcegraph", "Sourcegraph"),
-    ("cline", "Cline"),
-    ("continue", "Continue"),
-    ("codebuddy", "CodeBuddy"),
-    ("aider", "Aider"),
-    ("copilot", "Copilot"),
-    ("cursor", "Cursor"),
-    ("openai", "OpenAI"),
-    ("langchain", "LangChain"),
-    ("chatgpt", "ChatGPT"),
-    ("gemini", "Gemini"),
-    ("claude", "Claude"),
-    ("postman", "Postman"),
-    ("insomnia", "Insomnia"),
-    ("python", "Python"),
-    ("node", "Node.js"),
-    ("curl", "curl"),
-    ("go-http", "Go"),
-    ("java", "Java"),
-    ("axios", "Axios"),
-    ("reqwest", "Rust"),
-];
 
 /// 从 OpenAI 兼容格式的请求体中提取模型名。
 fn extract_model(body: &[u8]) -> String {
