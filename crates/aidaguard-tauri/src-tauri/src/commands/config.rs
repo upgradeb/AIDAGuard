@@ -27,10 +27,14 @@ pub async fn save_config(
     let rules_dir = if std::path::Path::new(&config.rules_dir).is_absolute() {
         config.rules_dir.clone()
     } else {
-        config_dir
-            .join(&config.rules_dir)
-            .to_string_lossy()
-            .to_string()
+        let cwd_path = std::env::current_dir()
+            .unwrap_or_default()
+            .join(&config.rules_dir);
+        if cwd_path.exists() {
+            cwd_path.to_string_lossy().to_string()
+        } else {
+            config_dir.join(&config.rules_dir).to_string_lossy().to_string()
+        }
     };
     *state.rules_dir.write().await = rules_dir;
 

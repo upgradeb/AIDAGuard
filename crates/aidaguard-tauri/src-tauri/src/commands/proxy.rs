@@ -52,15 +52,16 @@ pub async fn start_proxy(
         }
     }
 
-    // 加载规则
+    // 加载规则（使用已解析的 rules_dir）
+    let resolved_rules_dir = state.rules_dir.read().await.clone();
     let mut detector = state.detector.write().await;
-    let rules_path = std::path::Path::new(&config.rules_dir);
+    let rules_path = std::path::Path::new(&resolved_rules_dir);
     if rules_path.exists() {
         detector
             .load_from_dir(rules_path)
             .map_err(|e| format!("规则加载失败: {}", e))?;
     } else {
-        warn!("规则目录不存在: {}", config.rules_dir);
+        warn!("规则目录不存在: {}", resolved_rules_dir);
     }
     let _rules_count = detector.rule_count();
     drop(detector);

@@ -11,6 +11,7 @@ import {
   Popconfirm,
   message,
   theme,
+  Alert,
 } from "antd";
 import {
   PlusOutlined,
@@ -18,9 +19,11 @@ import {
   DeleteOutlined,
   ReloadOutlined,
   ExperimentOutlined,
+  FolderOpenOutlined,
 } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import { useRulesStore } from "../store/useRulesStore";
+import { useConfigStore } from "../store/useConfigStore";
 import RuleEditor from "../components/RuleEditor";
 import RuleTestPanel from "../components/RuleTestPanel";
 import type { RuleWithCategory } from "../api/rules";
@@ -40,6 +43,8 @@ export default function Rules() {
   const test = useRulesStore((s) => s.testRule);
   const reload = useRulesStore((s) => s.reloadRules);
   const clearTestResult = useRulesStore((s) => s.clearTestResult);
+
+  const rulesDir = useConfigStore((s) => s.config?.rules_dir);
 
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<RuleWithCategory | null>(null);
@@ -192,6 +197,44 @@ export default function Rules() {
           border: `1px solid ${token.colorBorderSecondary}`,
         }}
       >
+        {/* 无规则提示 */}
+        {!loading && rules.length === 0 && (
+          <Alert
+            type="warning"
+            showIcon
+            message="未发现规则文件"
+            description={
+              <span>
+                规则目录：<code>{rulesDir || "未设置"}</code>
+                。请确保目录下存在 <code>.yaml</code> 规则文件，或在「设置」中修改规则文件目录。
+              </span>
+            }
+            style={{ marginBottom: 16, borderRadius: 8 }}
+          />
+        )}
+
+        {/* 状态栏 */}
+        <div
+          style={{
+            marginBottom: 12,
+            padding: "6px 12px",
+            borderRadius: 6,
+            background: token.colorFillSecondary,
+            display: "flex",
+            alignItems: "center",
+            gap: 16,
+            fontSize: 12,
+          }}
+        >
+          <span>
+            <FolderOpenOutlined style={{ marginRight: 4 }} />
+            规则目录：<code style={{ fontSize: 12 }}>{rulesDir || "未设置"}</code>
+          </span>
+          <span style={{ color: token.colorTextSecondary }}>
+            共 <strong>{rules.length}</strong> 条规则 · <strong>{ruleFiles.length}</strong> 个文件
+          </span>
+        </div>
+
         {/* Toolbar */}
         <Space
           wrap

@@ -29,14 +29,20 @@ fn main() {
             // 加载配置
             let config = Config::load_from(&config_path).unwrap_or_default();
 
-            // 从配置中读取规则目录（相对于 config 目录）
+            // 从配置中读取规则目录
             let rules_dir = if std::path::Path::new(&config.rules_dir).is_absolute() {
                 config.rules_dir.clone()
             } else {
-                config_dir
-                    .join(&config.rules_dir)
-                    .to_string_lossy()
-                    .to_string()
+                // 优先尝试当前工作目录（开发模式兼容），再回退到 config 目录
+                let cwd_path = std::env::current_dir()
+                    .unwrap_or_default()
+                    .join(&config.rules_dir);
+                if cwd_path.exists() {
+                    cwd_path.to_string_lossy().to_string()
+                } else {
+                    let cfg_path = config_dir.join(&config.rules_dir);
+                    cfg_path.to_string_lossy().to_string()
+                }
             };
 
             let port = config.port;
