@@ -2,14 +2,8 @@
 # 复制此文件为 config.toml 并填入实际值
 # 所有字段均为可选，未设置时使用默认值。
 
-# 上游 LLM API 认证 Key（必填）
-api_key = ""
-
 # 本地监听端口
 # port = 19000
-
-# 上游 LLM API 地址
-# target_url = "https://qianfan.baidubce.com/v2/coding"
 
 # YAML 规则文件目录
 # rules_dir = "./rules"
@@ -27,3 +21,13 @@ enabled = false
 # db_path = "./data/aidaguard.db"
 # 加密密钥（可选，不设置使用内置默认密钥）
 # encryption_key = "your-secret-key"
+
+# 上游 LLM 接入通过桌面应用的「大模型接入」页面管理，
+# 也可直接在此配置（示例）：
+# [[upstreams]]
+# name = "example"
+# url = "https://api.example.com/v1/chat/completions"
+# api_key = "sk-..."
+# default = true
+# timeout_secs = 300
+# models = ["gpt-4"]

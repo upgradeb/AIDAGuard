@@ -93,6 +93,7 @@ fn main() {
             commands::upstream::add_upstream,
             commands::upstream::update_upstream,
             commands::upstream::delete_upstream,
+            commands::upstream::set_default_upstream,
             commands::upstream::test_upstream_connectivity,
         ])
         .run(tauri::generate_context!())

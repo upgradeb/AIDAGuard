@@ -4,6 +4,7 @@ import {
   addUpstream,
   updateUpstream,
   deleteUpstream,
+  setDefaultUpstream,
   testConnectivity,
 } from "../api/upstream";
 import type { UpstreamConfig } from "../types";
@@ -20,6 +21,7 @@ interface UpstreamState {
   addUpstream: (upstream: UpstreamConfig) => Promise<void>;
   updateUpstream: (name: string, upstream: UpstreamConfig) => Promise<void>;
   deleteUpstream: (name: string) => Promise<void>;
+  setDefaultUpstream: (name: string) => Promise<void>;
   testConnectivity: (name: string, url: string, apiKey: string, timeoutSecs: number) => Promise<void>;
   clearTestResult: () => void;
 }
@@ -68,6 +70,16 @@ export const useUpstreamStore = create<UpstreamState>((set) => ({
     set({ error: null });
     try {
       await deleteUpstream(name);
+    } catch (e) {
+      set({ error: String(e) });
+      throw e;
+    }
+  },
+
+  setDefaultUpstream: async (name) => {
+    set({ error: null });
+    try {
+      await setDefaultUpstream(name);
     } catch (e) {
       set({ error: String(e) });
       throw e;

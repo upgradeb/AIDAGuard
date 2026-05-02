@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 fn default_port() -> u16 { 19000 }
-fn default_target_url() -> String { "https://qianfan.baidubce.com/v2/coding".to_string() }
+fn default_target_url() -> String { String::new() }
 fn default_rules_dir() -> String { "./rules".to_string() }
 fn default_log_level() -> String { "info".to_string() }
 fn default_api_key() -> String { String::new() }

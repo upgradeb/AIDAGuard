@@ -79,6 +79,29 @@ pub async fn delete_upstream(
 }
 
 #[tauri::command]
+pub async fn set_default_upstream(
+    app: AppHandle,
+    state: tauri::State<'_, AppState>,
+    name: String,
+) -> Result<(), String> {
+    let config_dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| format!("无法获取配置目录: {}", e))?;
+    let path = config_dir.join("config.toml");
+
+    let mut config = state.config.write().await;
+    for u in &mut config.upstreams {
+        u.default = u.name == name;
+    }
+    config
+        .save_to(&path)
+        .map_err(|e| format!("保存配置失败: {}", e))?;
+
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn test_upstream_connectivity(
     url: String,
     api_key: String,

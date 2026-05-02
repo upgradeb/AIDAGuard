@@ -35,7 +35,22 @@ pub async fn start_proxy(
         }
     }
 
-    let config = state.config.read().await.clone();
+    let mut config = state.config.read().await.clone();
+
+    // 从默认上游解析 target_url 和 api_key
+    if config.target_url.is_empty() {
+        if let Some(up) = config.upstreams.iter().find(|u| u.default) {
+            config.target_url = up.url.clone();
+            if let Some(ref key) = up.api_key {
+                config.api_key = key.clone();
+            }
+        } else if let Some(up) = config.upstreams.first() {
+            config.target_url = up.url.clone();
+            if let Some(ref key) = up.api_key {
+                config.api_key = key.clone();
+            }
+        }
+    }
 
     // 加载规则
     let mut detector = state.detector.write().await;

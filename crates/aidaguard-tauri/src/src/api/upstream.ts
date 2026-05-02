@@ -15,6 +15,9 @@ export const updateUpstream = (
 export const deleteUpstream = (name: string): Promise<void> =>
   invoke("delete_upstream", { name });
 
+export const setDefaultUpstream = (name: string): Promise<void> =>
+  invoke("set_default_upstream", { name });
+
 export const testConnectivity = (
   url: string,
   apiKey: string,

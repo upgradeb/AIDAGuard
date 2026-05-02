@@ -10,23 +10,31 @@ import {
   Descriptions,
   message,
   theme,
+  Typography,
 } from "antd";
-import { SaveOutlined } from "@ant-design/icons";
+import { SaveOutlined, LinkOutlined } from "@ant-design/icons";
+import { useNavigate } from "react-router-dom";
 import { useConfigStore } from "../store/useConfigStore";
+import { useUpstreamStore } from "../store/useUpstreamStore";
 import ThemeSwitcher from "../components/ThemeSwitcher";
 import type { Config } from "../types";
 
 export default function Settings() {
   const { token } = theme.useToken();
+  const navigate = useNavigate();
   const config = useConfigStore((s) => s.config);
   const saving = useConfigStore((s) => s.saving);
   const fetchConfig = useConfigStore((s) => s.fetchConfig);
   const save = useConfigStore((s) => s.saveConfig);
+  const upstreams = useUpstreamStore((s) => s.upstreams);
+  const fetchUpstreams = useUpstreamStore((s) => s.fetchUpstreams);
+  const setDefaultUpstream = useUpstreamStore((s) => s.setDefaultUpstream);
 
   const [form] = Form.useForm<Config>();
 
   useEffect(() => {
     fetchConfig();
+    fetchUpstreams();
   }, []);
 
   useEffect(() => {
@@ -44,6 +52,8 @@ export default function Settings() {
       message.error(String(e));
     }
   };
+
+  const defaultUpstream = upstreams.find((u) => u.default);
 
   const cardStyle = {
     borderRadius: 12,
@@ -69,17 +79,11 @@ export default function Settings() {
             <InputNumber min={1024} max={65535} style={{ width: 200 }} />
           </Form.Item>
           <Form.Item
-            name="target_url"
-            label="上游 LLM API 地址"
-            rules={[{ required: true }]}
+            name="rules_dir"
+            label="规则文件目录"
+            extra="YAML 规则文件存放路径"
           >
-            <Input placeholder="https://qianfan.baidubce.com/v2/coding" />
-          </Form.Item>
-          <Form.Item
-            name="api_key"
-            label="API Key"
-          >
-            <Input.Password placeholder="sk-..." />
+            <Input placeholder="./rules" />
           </Form.Item>
           <Form.Item
             name="max_body_size_mb"
@@ -87,6 +91,57 @@ export default function Settings() {
           >
             <InputNumber min={1} max={100} style={{ width: 200 }} />
           </Form.Item>
+
+          {/* 上游选择 — 引用大模型接入 */}
+          <div
+            style={{
+              padding: "12px 16px",
+              background: token.colorFillSecondary,
+              borderRadius: 8,
+              marginBottom: 16,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <div>
+                <Typography.Text strong>上游 LLM 接入</Typography.Text>
+                <br />
+                <Typography.Text style={{ fontSize: 12, color: token.colorTextSecondary }}>
+                  {defaultUpstream
+                    ? `当前默认：${defaultUpstream.name} (${defaultUpstream.url})`
+                    : "未设置默认上游，请在「大模型接入」中配置"}
+                </Typography.Text>
+              </div>
+              <Button
+                type="link"
+                icon={<LinkOutlined />}
+                onClick={() => navigate("/upstreams")}
+              >
+                管理
+              </Button>
+            </div>
+            {upstreams.length > 0 && (
+              <Select
+                placeholder="切换默认上游"
+                style={{ width: "100%", marginTop: 12 }}
+                value={defaultUpstream?.name || undefined}
+                onChange={async (name) => {
+                  await setDefaultUpstream(name);
+                  message.success(`默认上游已切换为: ${name}`);
+                  fetchUpstreams();
+                }}
+                options={upstreams.map((u) => ({
+                  value: u.name,
+                  label: `${u.name} — ${u.url}`,
+                }))}
+              />
+            )}
+          </div>
         </Card>
 
         {/* 存储设置 */}
