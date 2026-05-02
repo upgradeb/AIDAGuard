@@ -1,12 +1,16 @@
+use anyhow::{Context, Result};
 use aes_gcm::aead::{Aead, OsRng};
 use aes_gcm::{AeadCore, Aes256Gcm, KeyInit};
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
+use sha2::Sha256;
 use std::path::Path;
 use std::sync::Mutex;
 use std::time::SystemTime;
 use uuid::Uuid;
+
+const PBKDF2_ITERATIONS: u32 = 600_000;
+const SALT_LEN: usize = 16;
 
 /// 一条检测审计记录
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -23,6 +27,23 @@ pub struct DetectionRecord {
     pub response_status: u16,
 }
 
+/// 规则命中统计
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuleCount {
+    pub rule_id: String,
+    pub count: usize,
+}
+
+/// 审计汇总统计数据
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuditStats {
+    pub total_count: usize,
+    pub today_count: usize,
+    pub week_count: usize,
+    pub rule_distribution: Vec<RuleCount>,
+    pub db_size_bytes: u64,
+}
+
 /// 加密持久化存储
 ///
 /// SQLite + AES-256-GCM，用于审计记录敏感数据检测历史。
@@ -35,7 +56,8 @@ pub struct Storage {
 impl Storage {
     /// 打开（或创建）数据库。
     ///
-    /// `encryption_key` 为任意长度的密钥字符串，内部使用 SHA-256 派生 32 字节 AES 密钥。
+    /// `encryption_key` 为任意长度的密钥字符串，内部使用 PBKDF2-HMAC-SHA256
+    /// (600,000 迭代) + 随机 salt 派生 32 字节 AES-256 密钥。
     pub fn open(db_path: &Path, encryption_key: &str) -> Result<Self, anyhow::Error> {
         let conn = Connection::open(db_path)?;
 
@@ -58,11 +80,7 @@ impl Storage {
             ",
         )?;
 
-        let mut hasher = Sha256::new();
-        hasher.update(encryption_key.as_bytes());
-        let key_bytes = hasher.finalize();
-        let key = aes_gcm::Key::<Aes256Gcm>::from_slice(&key_bytes);
-        let cipher = Aes256Gcm::new(key);
+        let cipher = derive_cipher(db_path, encryption_key)?;
 
         tracing::info!("Storage opened: {}", db_path.display());
 
@@ -156,10 +174,233 @@ impl Storage {
 
     /// 检测记录总数
     pub fn count(&self) -> Result<usize, anyhow::Error> {
+        self.count_filtered(None, None, None, None)
+    }
+
+    /// 按过滤条件统计记录数，参数含义与 `list_filtered` 一致。
+    pub fn count_filtered(
+        &self,
+        rule_id_filter: Option<&str>,
+        path_filter: Option<&str>,
+        date_from_ms: Option<i64>,
+        date_to_ms: Option<i64>,
+    ) -> Result<usize, anyhow::Error> {
         let conn = self.conn.lock().unwrap();
-        let count: i64 =
-            conn.query_row("SELECT COUNT(*) FROM detections", [], |row| row.get(0))?;
+
+        let mut sql = String::from("SELECT COUNT(*) FROM detections WHERE 1=1");
+        let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+
+        if let Some(rule_id) = rule_id_filter {
+            sql.push_str(" AND rule_id = ?");
+            params.push(Box::new(rule_id.to_string()));
+        }
+        if let Some(path) = path_filter {
+            sql.push_str(" AND request_path LIKE ?");
+            params.push(Box::new(format!("%{}%", path)));
+        }
+        if let Some(from) = date_from_ms {
+            sql.push_str(" AND timestamp_ms >= ?");
+            params.push(Box::new(from));
+        }
+        if let Some(to) = date_to_ms {
+            sql.push_str(" AND timestamp_ms <= ?");
+            params.push(Box::new(to));
+        }
+
+        let param_refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
+        let count: i64 = conn.query_row(&sql, param_refs.as_slice(), |row| row.get(0))?;
         Ok(count as usize)
+    }
+
+    /// 按条件过滤的分页查询。未提供的过滤条件不做筛选。
+    pub fn list_filtered(
+        &self,
+        limit: usize,
+        offset: usize,
+        rule_id_filter: Option<&str>,
+        path_filter: Option<&str>,
+        date_from_ms: Option<i64>,
+        date_to_ms: Option<i64>,
+    ) -> Result<Vec<DetectionRecord>, anyhow::Error> {
+        let conn = self.conn.lock().unwrap();
+
+        let mut sql = String::from(
+            "SELECT id, timestamp_ms, rule_id, strategy, placeholder, original_encrypted, context_encrypted, request_path, sanitized_body, response_status FROM detections WHERE 1=1",
+        );
+        let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+
+        if let Some(rule_id) = rule_id_filter {
+            sql.push_str(" AND rule_id = ?");
+            params.push(Box::new(rule_id.to_string()));
+        }
+        if let Some(path) = path_filter {
+            sql.push_str(" AND request_path LIKE ?");
+            params.push(Box::new(format!("%{}%", path)));
+        }
+        if let Some(from) = date_from_ms {
+            sql.push_str(" AND timestamp_ms >= ?");
+            params.push(Box::new(from));
+        }
+        if let Some(to) = date_to_ms {
+            sql.push_str(" AND timestamp_ms <= ?");
+            params.push(Box::new(to));
+        }
+
+        sql.push_str(" ORDER BY timestamp_ms DESC LIMIT ? OFFSET ?");
+        params.push(Box::new(limit as i64));
+        params.push(Box::new(offset as i64));
+
+        let param_refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
+
+        let mut stmt = conn.prepare(&sql)?;
+        let rows = stmt.query_map(param_refs.as_slice(), |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, i64>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+                row.get::<_, String>(4)?,
+                row.get::<_, Vec<u8>>(5)?,
+                row.get::<_, Vec<u8>>(6)?,
+                row.get::<_, String>(7)?,
+                row.get::<_, String>(8)?,
+                row.get::<_, i64>(9)?,
+            ))
+        })?;
+
+        let mut records = Vec::new();
+        for row in rows {
+            let (id, timestamp_ms, rule_id, strategy, placeholder, enc_original, enc_context, request_path, sanitized_body, response_status) = row?;
+            let original = self.decrypt_string(&enc_original);
+            let context = self.decrypt_string(&enc_context);
+            records.push(DetectionRecord {
+                id,
+                timestamp_ms,
+                rule_id,
+                strategy,
+                placeholder,
+                original,
+                context,
+                request_path,
+                sanitized_body,
+                response_status: response_status as u16,
+            });
+        }
+        Ok(records)
+    }
+
+    /// 按 ID 的单条查询。
+    pub fn get_by_id(&self, id: &str) -> Result<Option<DetectionRecord>, anyhow::Error> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, timestamp_ms, rule_id, strategy, placeholder, original_encrypted, context_encrypted, request_path, sanitized_body, response_status FROM detections WHERE id = ?1",
+        )?;
+        let mut rows = stmt.query_map(rusqlite::params![id], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, i64>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+                row.get::<_, String>(4)?,
+                row.get::<_, Vec<u8>>(5)?,
+                row.get::<_, Vec<u8>>(6)?,
+                row.get::<_, String>(7)?,
+                row.get::<_, String>(8)?,
+                row.get::<_, i64>(9)?,
+            ))
+        })?;
+
+        match rows.next() {
+            Some(row) => {
+                let (id, ts, rule_id, strategy, placeholder, enc_orig, enc_ctx, path, body, status) = row?;
+                let original = self.decrypt_string(&enc_orig);
+                let context = self.decrypt_string(&enc_ctx);
+                Ok(Some(DetectionRecord {
+                    id,
+                    timestamp_ms: ts,
+                    rule_id,
+                    strategy,
+                    placeholder,
+                    original,
+                    context,
+                    request_path: path,
+                    sanitized_body: body,
+                    response_status: status as u16,
+                }))
+            }
+            None => Ok(None),
+        }
+    }
+
+    /// 删除单条记录。
+    pub fn delete(&self, id: &str) -> Result<bool, anyhow::Error> {
+        let conn = self.conn.lock().unwrap();
+        let affected = conn.execute("DELETE FROM detections WHERE id = ?1", rusqlite::params![id])?;
+        Ok(affected > 0)
+    }
+
+    /// 汇总统计数据。
+    pub fn stats(&self) -> Result<AuditStats, anyhow::Error> {
+        let conn = self.conn.lock().unwrap();
+
+        let total: i64 =
+            conn.query_row("SELECT COUNT(*) FROM detections", [], |row| row.get(0))?;
+
+        // 今天零点 (UTC ms)
+        let now_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as i64;
+        let day_ms: i64 = 24 * 60 * 60 * 1000;
+        let today_start = now_ms - (now_ms % day_ms);
+
+        let today: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM detections WHERE timestamp_ms >= ?1",
+            rusqlite::params![today_start],
+            |row| row.get(0),
+        )?;
+
+        let week_start = today_start - 7 * day_ms;
+        let week: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM detections WHERE timestamp_ms >= ?1",
+            rusqlite::params![week_start],
+            |row| row.get(0),
+        )?;
+
+        // 规则分布
+        let mut stmt = conn.prepare(
+            "SELECT rule_id, COUNT(*) as cnt FROM detections GROUP BY rule_id ORDER BY cnt DESC",
+        )?;
+        let rule_dist: Vec<RuleCount> = stmt
+            .query_map([], |row| {
+                Ok(RuleCount {
+                    rule_id: row.get(0)?,
+                    count: row.get::<_, i64>(1)? as usize,
+                })
+            })?
+            .filter_map(|r| r.ok())
+            .collect();
+
+        // 数据库文件大小
+        let db_size = std::fs::metadata(
+            conn.query_row::<String, _, _>("PRAGMA database_list", [], |row| row.get(2))?
+        )
+        .map(|m| m.len())
+        .unwrap_or(0);
+
+        Ok(AuditStats {
+            total_count: total as usize,
+            today_count: today as usize,
+            week_count: week as usize,
+            rule_distribution: rule_dist,
+            db_size_bytes: db_size,
+        })
+    }
+
+    fn decrypt_string(&self, data: &[u8]) -> String {
+        self.decrypt(data)
+            .map(|bytes| String::from_utf8(bytes).unwrap_or_else(|_| "<非 UTF-8 数据>".to_string()))
+            .unwrap_or_else(|_| "<解密失败>".to_string())
     }
 
     fn encrypt(&self, plaintext: &[u8]) -> Result<Vec<u8>, anyhow::Error> {
@@ -183,6 +424,43 @@ impl Storage {
             .decrypt(nonce, ciphertext)
             .map_err(|e| anyhow::anyhow!("decryption failed: {}", e))
     }
+}
+
+/// 使用 PBKDF2-HMAC-SHA256 从密码派生 AES-256 密钥。
+/// Salt 存储在 `{db_path}.salt` 文件中，首次使用时自动生成。
+fn derive_cipher(db_path: &Path, encryption_key: &str) -> Result<Aes256Gcm, anyhow::Error> {
+    let salt_path = db_path.with_extension("db.salt");
+
+    let salt: [u8; SALT_LEN] = if salt_path.exists() {
+        let bytes = std::fs::read(&salt_path)
+            .with_context(|| format!("无法读取 salt 文件: {}", salt_path.display()))?;
+        if bytes.len() != SALT_LEN {
+            return Err(anyhow::anyhow!(
+                "salt 文件长度异常: 期望 {} 字节，实际 {} 字节",
+                SALT_LEN, bytes.len()
+            ));
+        }
+        let mut arr = [0u8; SALT_LEN];
+        arr.copy_from_slice(&bytes);
+        arr
+    } else {
+        use rand::RngCore;
+        let mut arr = [0u8; SALT_LEN];
+        rand::rngs::OsRng.fill_bytes(&mut arr);
+        if let Some(parent) = salt_path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(&salt_path, arr)?;
+        arr
+    };
+
+    let key_bytes = pbkdf2::pbkdf2_hmac_array::<Sha256, 32>(
+        encryption_key.as_bytes(),
+        &salt,
+        PBKDF2_ITERATIONS,
+    );
+    let key = aes_gcm::Key::<Aes256Gcm>::from_slice(&key_bytes);
+    Ok(Aes256Gcm::new(key))
 }
 
 #[cfg(test)]

@@ -1,14 +1,26 @@
 use anyhow::{Context, Result};
 use notify::{EventKind, RecursiveMode, Watcher};
-use regex::Regex;
-use serde::Deserialize;
+use regex::{Regex, RegexBuilder};
+use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{info, warn};
 
+/// 安全编译正则，设置 size_limit 防止 ReDoS 攻击。
+fn compile_regex(pattern: &str) -> Result<Regex> {
+    // 限制模式长度，防止极端情况
+    if pattern.len() > 2000 {
+        return Err(anyhow::anyhow!("正则模式过长 ({} bytes)，上限 2000", pattern.len()));
+    }
+    RegexBuilder::new(pattern)
+        .size_limit(1 << 20) // 1 MB DFA 大小限制
+        .build()
+        .with_context(|| format!("正则编译失败: {}", pattern))
+}
+
 /// 替换策略
-#[derive(Debug, Clone, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum Strategy {
     /// 整体替换为占位符，如 [[PHONE_a1b2c3d4]]
@@ -28,7 +40,7 @@ fn default_priority() -> u32 {
 }
 
 /// YAML 中单条规则的定义（未编译）
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct RuleDef {
     pub id: String,
     pub name: String,
@@ -42,15 +54,15 @@ pub struct RuleDef {
 }
 
 /// YAML 规则文件顶层结构
-#[derive(Debug, Deserialize)]
-struct RuleFile {
+#[derive(Debug, Deserialize, Serialize)]
+pub struct RuleFile {
     #[allow(dead_code)]
-    version: String,
+    pub version: String,
     #[allow(dead_code)]
-    name: String,
+    pub name: String,
     #[allow(dead_code)]
-    description: String,
-    rules: Vec<RuleDef>,
+    pub description: String,
+    pub rules: Vec<RuleDef>,
 }
 
 /// 编译后的规则
@@ -113,7 +125,7 @@ impl Detector {
 
     /// 追加单条规则
     pub fn add_rule(&mut self, def: RuleDef) -> Result<()> {
-        let regex = Regex::new(&def.pattern)
+        let regex = compile_regex(&def.pattern)
             .with_context(|| format!("规则 [{}] 的正则编译失败: {}", def.id, def.pattern))?;
         self.rules.push(CompiledRule { def, regex });
         Ok(())
@@ -125,7 +137,7 @@ impl Detector {
             if !def.enabled {
                 continue;
             }
-            match Regex::new(&def.pattern) {
+            match compile_regex(&def.pattern) {
                 Ok(regex) => compiled.push(CompiledRule { def, regex }),
                 Err(e) => warn!("规则 [{}] 正则编译失败: {}", def.id, e),
             }

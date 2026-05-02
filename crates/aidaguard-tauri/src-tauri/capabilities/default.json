@@ -1,0 +1,11 @@
+{
+  "identifier": "default",
+  "description": "Default permissions for Aidaguard",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-show",
+    "core:window:allow-close",
+    "core:window:allow-set-focus"
+  ]
+}

@@ -7,6 +7,7 @@ use axum::{
     Json, Router,
 };
 use reqwest::Method;
+use std::future::Future;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::RwLock;
@@ -18,6 +19,7 @@ use crate::replacer::{self, PlaceholderMap};
 use crate::storage::Storage;
 use super::forwarder::Forwarder;
 use super::stream;
+use super::DetectionEvent;
 
 /// 代理共享状态
 #[derive(Clone)]
@@ -31,22 +33,12 @@ struct ProxyState {
     version: &'static str,
     max_body_size: usize,
     rules_dir: Arc<String>,
+    event_tx: Option<tokio::sync::broadcast::Sender<DetectionEvent>>,
 }
 
-/// 启动代理服务器
+/// 启动代理服务器（便捷包装，用于 CLI 独立运行）。
+/// 内部创建 Detector / Storage 并永不主动关闭。
 pub async fn start(config: Config) -> Result<(), anyhow::Error> {
-    let api_key = if config.api_key.is_empty() {
-        return Err(anyhow::anyhow!(
-            "API Key 未设置，请在 config.toml 中配置 api_key"
-        ));
-    } else {
-        config.api_key
-    };
-
-    info!("API Key 已加载（前8位：{}...）", &api_key[..8.min(api_key.len())]);
-    info!("Target URL: {}", config.target_url);
-    info!("Rules dir: {}", config.rules_dir);
-
     let mut detector = Detector::new();
     let rules_path = std::path::Path::new(&config.rules_dir);
     if rules_path.exists() {
@@ -56,21 +48,39 @@ pub async fn start(config: Config) -> Result<(), anyhow::Error> {
     }
     let detector = Arc::new(RwLock::new(detector));
 
-    let storage = if config.storage.enabled {
-        if let Some(parent) = std::path::Path::new(&config.storage.db_path).parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-        let enc_key = config
-            .storage
-            .encryption_key
-            .as_deref()
-            .unwrap_or("aidaguard-internal-key");
-        let s = Storage::open(std::path::Path::new(&config.storage.db_path), enc_key)?;
-        info!("Storage enabled: {}", config.storage.db_path);
-        Some(Arc::new(s))
+    let storage = open_storage(&config);
+
+    start_with_state(config, detector, storage, None, std::future::pending()).await
+}
+
+/// 启动代理服务器，接受外部管理的 Detector / Storage 及关闭信号。
+///
+/// * `config` — 代理配置
+/// * `detector` — 外部管理的检测器（与 Tauri 命令共享）
+/// * `storage` — 外部管理的审计存储（与 Tauri 命令共享）
+/// * `event_tx` — 可选，检测事件广播通道
+/// * `shutdown_signal` — 触发后开始优雅关闭（axum graceful shutdown）
+pub async fn start_with_state<F>(
+    config: Config,
+    detector: Arc<RwLock<Detector>>,
+    storage: Option<Arc<Storage>>,
+    event_tx: Option<tokio::sync::broadcast::Sender<DetectionEvent>>,
+    shutdown_signal: F,
+) -> Result<(), anyhow::Error>
+where
+    F: Future<Output = ()> + Send + 'static,
+{
+    let api_key = if config.api_key.is_empty() {
+        return Err(anyhow::anyhow!(
+            "API Key 未设置，请在 config.toml 中配置 api_key"
+        ));
     } else {
-        None
+        config.api_key.clone()
     };
+
+    info!("API Key 已加载（前8位：{}...）", &api_key[..8.min(api_key.len())]);
+    info!("Target URL: {}", config.target_url);
+    info!("Rules dir: {}", config.rules_dir);
 
     let forwarder = Forwarder::new()?;
 
@@ -87,6 +97,7 @@ pub async fn start(config: Config) -> Result<(), anyhow::Error> {
         version: crate::VERSION,
         max_body_size,
         rules_dir: rules_dir.clone(),
+        event_tx,
     };
 
     let app = Router::new()
@@ -101,8 +112,40 @@ pub async fn start(config: Config) -> Result<(), anyhow::Error> {
 
     info!("Aidaguard proxy listening on http://{}", addr);
 
-    axum::serve(listener, app).await?;
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal)
+        .await?;
+
+    info!("Aidaguard proxy stopped");
     Ok(())
+}
+
+fn open_storage(config: &Config) -> Option<Arc<Storage>> {
+    if config.storage.enabled {
+        if let Some(parent) = std::path::Path::new(&config.storage.db_path).parent() {
+            if let Err(e) = std::fs::create_dir_all(parent) {
+                warn!("无法创建存储目录: {}", e);
+                return None;
+            }
+        }
+        let enc_key = config
+            .storage
+            .encryption_key
+            .as_deref()
+            .unwrap_or("aidaguard-internal-key");
+        match Storage::open(std::path::Path::new(&config.storage.db_path), enc_key) {
+            Ok(s) => {
+                info!("Storage enabled: {}", config.storage.db_path);
+                Some(Arc::new(s))
+            }
+            Err(e) => {
+                warn!("Storage 打开失败: {}", e);
+                None
+            }
+        }
+    } else {
+        None
+    }
 }
 
 /// GET /health — 健康检查端点
@@ -213,15 +256,16 @@ async fn proxy_handler(
         let d = state.detector.read().await;
         let hits = d.detect(text);
         if !hits.is_empty() {
-            warn!("══════════════════════════════════════════");
-            warn!("🔍 检测到敏感数据: {} 处", hits.len());
+            info!("检测到敏感数据: {} 处", hits.len());
             for m in &hits {
-                warn!("  规则: {} | 内容: \"{}\" | 策略: {:?}", m.rule_id, m.text, m.strategy);
+                info!(
+                    "  规则: {} | 策略: {:?} | 位置: {}..{}",
+                    m.rule_id, m.strategy, m.start, m.end
+                );
             }
 
             let (sanitized, map) = replacer::replace(text, &hits);
-            warn!("📝 替换后: {}", sanitized);
-            warn!("══════════════════════════════════════════");
+            debug!("替换后: {}", sanitized);
 
             original_body = Some(text.to_string());
             hits_for_audit = Some(hits);
@@ -269,6 +313,21 @@ async fn proxy_handler(
                     sani_body,
                     status_code,
                 );
+
+                if let Some(ref tx) = state.event_tx {
+                    let now_ms = std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_millis() as i64;
+                    let _ = tx.send(DetectionEvent {
+                        timestamp_ms: now_ms,
+                        rule_id: rule_id.to_string(),
+                        strategy: "placeholder".to_string(),
+                        placeholder: placeholder.clone(),
+                        request_path: path_and_query.clone(),
+                        response_status: status_code,
+                    });
+                }
             }
         }
     }

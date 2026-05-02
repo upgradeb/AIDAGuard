@@ -1,5 +1,5 @@
-use serde::Deserialize;
-use std::path::PathBuf;
+use serde::{Deserialize, Serialize};
+use std::path::Path;
 
 fn default_port() -> u16 { 19000 }
 fn default_target_url() -> String { "https://qianfan.baidubce.com/v2/coding".to_string() }
@@ -11,7 +11,7 @@ fn default_storage_enabled() -> bool { false }
 fn default_storage_db_path() -> String { "./data/aidaguard.db".to_string() }
 
 /// 存储子配置
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct StorageConfig {
     /// 是否启用审计记录
     #[serde(default = "default_storage_enabled")]
@@ -36,8 +36,41 @@ impl Default for StorageConfig {
     }
 }
 
+/// 上游 LLM 接入配置
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct UpstreamConfig {
+    pub name: String,
+    pub url: String,
+    #[serde(default)]
+    pub api_key: Option<String>,
+    #[serde(default)]
+    pub default: bool,
+    #[serde(default = "default_timeout")]
+    pub timeout_secs: u64,
+    #[serde(default)]
+    pub rate_limit_qps: u32,
+    #[serde(default)]
+    pub models: Vec<String>,
+}
+
+fn default_timeout() -> u64 { 300 }
+
+impl Default for UpstreamConfig {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            url: String::new(),
+            api_key: None,
+            default: false,
+            timeout_secs: default_timeout(),
+            rate_limit_qps: 0,
+            models: Vec::new(),
+        }
+    }
+}
+
 /// Aidaguard 配置
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Config {
     #[serde(default = "default_api_key")]
     pub api_key: String,
@@ -60,6 +93,10 @@ pub struct Config {
 
     #[serde(default)]
     pub storage: StorageConfig,
+
+    /// 上游 LLM 列表
+    #[serde(default)]
+    pub upstreams: Vec<UpstreamConfig>,
 }
 
 impl Default for Config {
@@ -72,6 +109,7 @@ impl Default for Config {
             log_level: default_log_level(),
             max_body_size_mb: default_max_body_size_mb(),
             storage: StorageConfig::default(),
+            upstreams: Vec::new(),
         }
     }
 }
@@ -79,15 +117,15 @@ impl Default for Config {
 impl Config {
     /// 从 config.toml 文件加载配置，文件不存在时使用默认值。
     pub fn load() -> Self {
-        Self::load_file().unwrap_or_default()
+        Self::load_from(Path::new("config.toml")).unwrap_or_default()
     }
 
-    fn load_file() -> Option<Self> {
-        let path = PathBuf::from("config.toml");
+    /// 从指定路径加载配置。
+    pub fn load_from(path: &Path) -> Option<Self> {
         if !path.exists() {
             return None;
         }
-        let content = std::fs::read_to_string(&path).ok()?;
+        let content = std::fs::read_to_string(path).ok()?;
         match toml::from_str(&content) {
             Ok(c) => {
                 tracing::info!("已加载配置文件: {}", path.display());
@@ -98,5 +136,16 @@ impl Config {
                 None
             }
         }
+    }
+
+    /// 将配置写入 TOML 文件。
+    pub fn save_to(&self, path: &Path) -> anyhow::Result<()> {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let content = toml::to_string_pretty(self)?;
+        std::fs::write(path, content)?;
+        tracing::info!("配置已保存: {}", path.display());
+        Ok(())
     }
 }

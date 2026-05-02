@@ -4,8 +4,9 @@ Cargo.lock
 
 # Tauri
 crates/aidaguard-tauri/src-tauri/target
-crates/aidaguard-tauri/node_modules
-crates/aidaguard-tauri/dist
+crates/aidaguard-tauri/src-tauri/gen
+crates/aidaguard-tauri/src/node_modules
+crates/aidaguard-tauri/src/dist
 
 # 用户数据（本地运行时生成，不提交）
 ~/.aidaguard/
