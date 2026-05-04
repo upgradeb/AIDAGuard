@@ -8,6 +8,7 @@ description = "Aidaguard desktop client built with Tauri"
 
 [build-dependencies]
 tauri-build.workspace = true
+serde_json.workspace = true
 
 [dependencies]
 tauri.workspace = true

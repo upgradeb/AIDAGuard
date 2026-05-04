@@ -3,6 +3,11 @@ use tauri::Manager;
 use crate::state::AppState;
 
 #[tauri::command]
+pub fn get_app_version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
+}
+
+#[tauri::command]
 pub async fn get_config(
     state: tauri::State<'_, AppState>,
 ) -> Result<Config, String> {

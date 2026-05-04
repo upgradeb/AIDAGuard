@@ -105,29 +105,6 @@ export default function App() {
           </h1>
         </div>
 
-        {/* Proxy status indicator */}
-        <div
-          style={{
-            padding: "12px 16px",
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            fontSize: 13,
-            color: token.colorTextSecondary,
-          }}
-        >
-          <span
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: "50%",
-              background: statusColor,
-              display: "inline-block",
-            }}
-          />
-          {status?.status === "running" ? t("代理运行中") : t("代理已停止")}
-        </div>
-
         {/* Navigation */}
         <div style={{ padding: "8px 12px", flex: 1 }}>
           {menuItems.map((item) => {
@@ -162,23 +139,6 @@ export default function App() {
           })}
         </div>
 
-        {/* Language switcher */}
-        <div
-          style={{
-            padding: "12px 16px",
-            borderTop: `1px solid ${token.colorBorderSecondary}`,
-          }}
-        >
-          <Button
-            type="text"
-            size="small"
-            block
-            onClick={switchLang}
-            style={{ fontSize: 12, color: token.colorTextSecondary }}
-          >
-            {i18n.language === "zh" ? "EN" : "中文"}
-          </Button>
-        </div>
       </Sider>
 
       <Layout>
@@ -197,6 +157,29 @@ export default function App() {
             {menuItems.find((m) => m.key === location.pathname)?.label ||
               t("仪表盘")}
           </span>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <span
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                background: statusColor,
+                display: "inline-block",
+              }}
+            />
+            <span style={{ fontSize: 13, color: token.colorTextSecondary }}>
+              {status?.status === "running" ? t("代理运行中") : t("代理已停止")}
+            </span>
+            <Button
+              type="text"
+              size="small"
+              onClick={switchLang}
+              style={{ fontSize: 12, color: token.colorTextSecondary }}
+            >
+              {i18n.language === "zh" ? "EN" : "中文"}
+            </Button>
+          </div>
         </Header>
 
         <Content

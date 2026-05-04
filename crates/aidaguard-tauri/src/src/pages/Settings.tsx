@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Card,
@@ -11,32 +11,27 @@ import {
   Descriptions,
   message,
   theme,
-  Typography,
 } from "antd";
-import { SaveOutlined, LinkOutlined } from "@ant-design/icons";
-import { useNavigate } from "react-router-dom";
+import { SaveOutlined } from "@ant-design/icons";
 import { useConfigStore } from "../store/useConfigStore";
-import { useUpstreamStore } from "../store/useUpstreamStore";
+import { getAppVersion } from "../api/config";
 import ThemeSwitcher from "../components/ThemeSwitcher";
 import type { Config } from "../types";
 
 export default function Settings() {
   const { t } = useTranslation();
   const { token } = theme.useToken();
-  const navigate = useNavigate();
   const config = useConfigStore((s) => s.config);
   const saving = useConfigStore((s) => s.saving);
   const fetchConfig = useConfigStore((s) => s.fetchConfig);
   const save = useConfigStore((s) => s.saveConfig);
-  const upstreams = useUpstreamStore((s) => s.upstreams);
-  const fetchUpstreams = useUpstreamStore((s) => s.fetchUpstreams);
-  const setDefaultUpstream = useUpstreamStore((s) => s.setDefaultUpstream);
+  const [appVersion, setAppVersion] = useState("");
 
   const [form] = Form.useForm<Config>();
 
   useEffect(() => {
     fetchConfig();
-    fetchUpstreams();
+    getAppVersion().then(setAppVersion).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -55,8 +50,6 @@ export default function Settings() {
     }
   };
 
-  const defaultUpstream = upstreams.find((u) => u.default);
-
   const cardStyle = {
     borderRadius: 12,
     border: `1px solid ${token.colorBorderSecondary}`,
@@ -64,7 +57,7 @@ export default function Settings() {
   };
 
   return (
-    <div style={{ maxWidth: 720, height: "100%", overflow: "auto" }}>
+    <div style={{ height: "100%", overflow: "auto" }}>
       <Form
         form={form}
         layout="vertical"
@@ -93,57 +86,6 @@ export default function Settings() {
           >
             <InputNumber min={1} max={100} style={{ width: 200 }} />
           </Form.Item>
-
-          {/* 上游选择 — 引用大模型接入 */}
-          <div
-            style={{
-              padding: "12px 16px",
-              background: token.colorFillSecondary,
-              borderRadius: 8,
-              marginBottom: 16,
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
-              <div>
-                <Typography.Text strong>{t("上游 LLM 接入")}</Typography.Text>
-                <br />
-                <Typography.Text style={{ fontSize: 12, color: token.colorTextSecondary }}>
-                  {defaultUpstream
-                    ? t("当前默认：{{name}} ({{url}})", { name: defaultUpstream.name, url: defaultUpstream.url })
-                    : t("未设置默认上游，请在「大模型接入」中配置")}
-                </Typography.Text>
-              </div>
-              <Button
-                type="link"
-                icon={<LinkOutlined />}
-                onClick={() => navigate("/upstreams")}
-              >
-                {t("管理")}
-              </Button>
-            </div>
-            {upstreams.length > 0 && (
-              <Select
-                placeholder={t("切换默认上游")}
-                style={{ width: "100%", marginTop: 12 }}
-                value={defaultUpstream?.name || undefined}
-                onChange={async (name) => {
-                  await setDefaultUpstream(name);
-                  message.success(t("默认上游已切换为: {{name}}", { name }));
-                  fetchUpstreams();
-                }}
-                options={upstreams.map((u) => ({
-                  value: u.name,
-                  label: `${u.name} — ${u.url}`,
-                }))}
-              />
-            )}
-          </div>
         </Card>
 
         {/* 存储设置 */}
@@ -217,7 +159,7 @@ export default function Settings() {
         <Card title={t("关于")} size="small" style={cardStyle}>
           <Descriptions column={1} size="small">
             <Descriptions.Item label={t("产品")}>Aidaguard</Descriptions.Item>
-            <Descriptions.Item label={t("版本")}>0.1.0</Descriptions.Item>
+            <Descriptions.Item label={t("版本")}>{appVersion || "—"}</Descriptions.Item>
             <Descriptions.Item label={t("许可证")}>MIT</Descriptions.Item>
           </Descriptions>
         </Card>
