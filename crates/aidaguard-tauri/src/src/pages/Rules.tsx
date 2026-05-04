@@ -9,6 +9,8 @@ import {
   Input,
   Select,
   Popconfirm,
+  Modal,
+  Typography,
   message,
   theme,
   Alert,
@@ -20,13 +22,26 @@ import {
   ReloadOutlined,
   ExperimentOutlined,
   FolderOpenOutlined,
+  SettingOutlined,
+  RobotOutlined,
 } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import { useRulesStore } from "../store/useRulesStore";
 import RuleEditor from "../components/RuleEditor";
 import RuleTestPanel from "../components/RuleTestPanel";
+import GenerateRuleModal from "../components/GenerateRuleModal";
 import type { RuleWithCategory } from "../api/rules";
 import type { RuleDef } from "../types";
+
+function groupByCategory(rules: RuleWithCategory[]): Map<string, RuleWithCategory[]> {
+  const map = new Map<string, RuleWithCategory[]>();
+  for (const r of rules) {
+    const cat = r.category || "未分类";
+    if (!map.has(cat)) map.set(cat, []);
+    map.get(cat)!.push(r);
+  }
+  return map;
+}
 
 export default function Rules() {
   const { token } = theme.useToken();
@@ -44,12 +59,20 @@ export default function Rules() {
   const test = useRulesStore((s) => s.testRule);
   const reload = useRulesStore((s) => s.reloadRules);
   const clearTestResult = useRulesStore((s) => s.clearTestResult);
+  const createCat = useRulesStore((s) => s.createCategory);
+  const deleteCat = useRulesStore((s) => s.deleteCategory);
+  const renameCat = useRulesStore((s) => s.renameCategory);
 
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<RuleWithCategory | null>(null);
   const [testOpen, setTestOpen] = useState(false);
+  const [generateOpen, setGenerateOpen] = useState(false);
   const [filterCat, setFilterCat] = useState<string>("");
   const [searchText, setSearchText] = useState("");
+  const [catModalOpen, setCatModalOpen] = useState(false);
+  const [newCatName, setNewCatName] = useState("");
+  const [renameTarget, setRenameTarget] = useState<string | null>(null);
+  const [renameNewName, setRenameNewName] = useState("");
 
   useEffect(() => {
     fetchRules();
@@ -61,6 +84,9 @@ export default function Rules() {
       return false;
     return true;
   });
+
+  const grouped = groupByCategory(filtered);
+  const categories = Array.from(grouped.keys()).sort();
 
   const handleSave = async (rule: RuleDef, category: string) => {
     try {
@@ -84,6 +110,89 @@ export default function Rules() {
     }
   };
 
+  const handleToggleMode = async (record: RuleWithCategory) => {
+    const newMode = record.mode === "filter" ? "detect" : "filter";
+    const updated: RuleDef = {
+      id: record.id,
+      name: record.name,
+      pattern: record.pattern,
+      strategy: record.strategy,
+      mode: newMode,
+      priority: record.priority,
+      enabled: record.enabled,
+    };
+    try {
+      await save(updated, record.category);
+      fetchRules();
+    } catch (e) {
+      message.error(String(e));
+    }
+  };
+
+  const handleCreateCategory = async () => {
+    const name = newCatName.trim();
+    if (!name) return;
+    try {
+      await createCat(name);
+      message.success(`分类 ${name} 已创建`);
+      setNewCatName("");
+      fetchRules();
+    } catch (e) {
+      message.error(String(e));
+    }
+  };
+
+  const handleDeleteCategory = async (name: string) => {
+    try {
+      await deleteCat(name);
+      message.success(`分类 ${name} 已删除`);
+      fetchRules();
+    } catch (e) {
+      message.error(String(e));
+    }
+  };
+
+  const handleRenameCategory = async () => {
+    if (!renameTarget) return;
+    const newName = renameNewName.trim();
+    if (!newName) return;
+    try {
+      await renameCat(renameTarget, newName);
+      message.success(`已重命名为 ${newName}`);
+      setRenameTarget(null);
+      setRenameNewName("");
+      fetchRules();
+    } catch (e) {
+      message.error(String(e));
+    }
+  };
+
+  const handleBulkToggleEnabled = async (category: string, enabled: boolean) => {
+    const catRules = rules.filter((r) => r.category === category);
+    for (const r of catRules) {
+      const updated: RuleDef = {
+        id: r.id, name: r.name, pattern: r.pattern,
+        strategy: r.strategy, mode: r.mode, priority: r.priority,
+        enabled,
+      };
+      try { await save(updated, category); } catch { /* continue */ }
+    }
+    fetchRules();
+  };
+
+  const handleBulkToggleMode = async (category: string, mode: "detect" | "filter") => {
+    const catRules = rules.filter((r) => r.category === category);
+    for (const r of catRules) {
+      const updated: RuleDef = {
+        id: r.id, name: r.name, pattern: r.pattern,
+        strategy: r.strategy, mode, priority: r.priority,
+        enabled: r.enabled,
+      };
+      try { await save(updated, category); } catch { /* continue */ }
+    }
+    fetchRules();
+  };
+
   const columns: ColumnsType<RuleWithCategory> = [
     {
       title: "启用",
@@ -98,6 +207,21 @@ export default function Rules() {
             toggle(record.id, checked);
             fetchRules();
           }}
+        />
+      ),
+    },
+    {
+      title: "模式",
+      dataIndex: "mode",
+      key: "mode",
+      width: 80,
+      render: (val: string, record) => (
+        <Switch
+          size="small"
+          checked={val === "filter"}
+          checkedChildren="过滤"
+          unCheckedChildren="检测"
+          onChange={() => handleToggleMode(record)}
         />
       ),
     },
@@ -119,9 +243,7 @@ export default function Rules() {
       dataIndex: "pattern",
       key: "pattern",
       ellipsis: true,
-      render: (v: string) => (
-        <code style={{ fontSize: 12 }}>{v}</code>
-      ),
+      render: (v: string) => <code style={{ fontSize: 12 }}>{v}</code>,
     },
     {
       title: "策略",
@@ -137,13 +259,6 @@ export default function Rules() {
       dataIndex: "priority",
       key: "priority",
       width: 70,
-    },
-    {
-      title: "分类",
-      dataIndex: "category",
-      key: "category",
-      width: 90,
-      render: (v: string) => <Tag color="green">{v}</Tag>,
     },
     {
       title: "操作",
@@ -188,15 +303,9 @@ export default function Rules() {
   ];
 
   return (
-    <div>
-      <Card
-        size="small"
-        style={{
-          borderRadius: 12,
-          border: `1px solid ${token.colorBorderSecondary}`,
-        }}
-      >
-        {/* 错误提示 */}
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", gap: 12 }}>
+      {/* 顶部信息栏 + 工具栏 */}
+      <div style={{ flexShrink: 0 }}>
         {error && (
           <Alert
             type="error"
@@ -204,11 +313,10 @@ export default function Rules() {
             message="规则加载失败"
             description={error}
             closable
-            style={{ marginBottom: 16, borderRadius: 8 }}
+            style={{ marginBottom: 12, borderRadius: 8 }}
           />
         )}
 
-        {/* 无规则提示 */}
         {!loading && !error && rules.length === 0 && (
           <Alert
             type="warning"
@@ -220,11 +328,10 @@ export default function Rules() {
                 。请确保目录下存在 <code>.yaml</code> 规则文件，或在「设置」中修改规则文件目录。
               </span>
             }
-            style={{ marginBottom: 16, borderRadius: 8 }}
+            style={{ marginBottom: 12, borderRadius: 8 }}
           />
         )}
 
-        {/* 状态栏 */}
         {rulesDir && (
           <div
             style={{
@@ -248,10 +355,15 @@ export default function Rules() {
           </div>
         )}
 
-        {/* Toolbar */}
-        <Space
-          wrap
-          style={{ marginBottom: 16, width: "100%", justifyContent: "space-between" }}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: 8,
+            marginBottom: 12,
+          }}
         >
           <Space wrap>
             <Select
@@ -273,27 +385,128 @@ export default function Rules() {
               重载规则
             </Button>
           </Space>
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => {
-              setEditingRule(null);
-              setEditorOpen(true);
-            }}
-          >
-            添加规则
-          </Button>
-        </Space>
+          <Space>
+            <Button
+              icon={<SettingOutlined />}
+              onClick={() => setCatModalOpen(true)}
+            >
+              管理分类
+            </Button>
+            <Button
+              icon={<RobotOutlined />}
+              onClick={() => setGenerateOpen(true)}
+            >
+              生成规则
+            </Button>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => {
+                setEditingRule(null);
+                setEditorOpen(true);
+              }}
+            >
+              添加规则
+            </Button>
+          </Space>
+        </div>
+      </div>
 
-        <Table
-          columns={columns}
-          dataSource={filtered}
-          rowKey="id"
-          loading={loading}
-          size="small"
-          pagination={false}
-        />
-      </Card>
+      {/* 规则明细 — 仅此区域滚动 */}
+      <div
+        style={{
+          flex: 1,
+          overflow: "auto",
+          minHeight: 0,
+        }}
+      >
+        {categories.map((cat) => {
+          const catRules = grouped.get(cat)!;
+          const allEnabled = catRules.every((r) => r.enabled);
+          const allFilter = catRules.every((r) => r.mode === "filter");
+          return (
+            <Card
+              key={cat}
+              size="small"
+              title={
+                <Space>
+                  <Tag color="green">{cat}</Tag>
+                  <span style={{ fontSize: 12, color: token.colorTextSecondary }}>
+                    {catRules.length} 条规则
+                  </span>
+                </Space>
+              }
+              extra={
+                <Space size={8}>
+                  <Space size={2}>
+                    <Typography.Text style={{ fontSize: 11, color: token.colorTextQuaternary }}>启用</Typography.Text>
+                    <Switch
+                      size="small"
+                      checked={allEnabled}
+                      onChange={(v) => handleBulkToggleEnabled(cat, v)}
+                    />
+                  </Space>
+                  <Space size={2}>
+                    <Typography.Text style={{ fontSize: 11, color: token.colorTextQuaternary }}>过滤</Typography.Text>
+                    <Switch
+                      size="small"
+                      checked={allFilter}
+                      checkedChildren="过滤"
+                      unCheckedChildren="检测"
+                      onChange={(v) => handleBulkToggleMode(cat, v ? "filter" : "detect")}
+                    />
+                  </Space>
+                  <Button
+                    type="link"
+                    size="small"
+                    style={{ fontSize: 12 }}
+                    onClick={() => {
+                      setRenameTarget(cat);
+                      setRenameNewName(cat);
+                    }}
+                  >
+                    重命名
+                  </Button>
+                  <Popconfirm
+                    title={`确定删除分类 ${cat}？将同时删除该分类下的所有规则。`}
+                    onConfirm={() => handleDeleteCategory(cat)}
+                    okText="删除"
+                    cancelText="取消"
+                  >
+                    <Button
+                      type="link"
+                      size="small"
+                      danger
+                      style={{ fontSize: 12 }}
+                    >
+                      删除
+                    </Button>
+                  </Popconfirm>
+                </Space>
+              }
+              style={{ marginBottom: 12, borderRadius: 8 }}
+              styles={{ body: { padding: 0 } }}
+            >
+              <Table
+                columns={columns}
+                dataSource={catRules}
+                rowKey="id"
+                loading={loading}
+                size="small"
+                pagination={false}
+              />
+            </Card>
+          );
+        })}
+
+        {filtered.length === 0 && !loading && (
+          <Alert
+            type="info"
+            message="无匹配规则"
+            style={{ borderRadius: 8 }}
+          />
+        )}
+      </div>
 
       <RuleEditor
         open={editorOpen}
@@ -316,6 +529,114 @@ export default function Rules() {
           clearTestResult();
         }}
       />
+
+      <GenerateRuleModal
+        open={generateOpen}
+        onApply={(rule) => {
+          setEditingRule({
+            id: "",
+            name: rule.name,
+            pattern: rule.pattern,
+            strategy: rule.strategy as "placeholder" | "mask",
+            mode: rule.mode as "detect" | "filter",
+            priority: rule.priority,
+            enabled: true,
+            category: ruleFiles[0] || "custom",
+          });
+          setEditorOpen(true);
+        }}
+        onClose={() => setGenerateOpen(false)}
+      />
+
+      {/* 分类管理弹窗 */}
+      <Modal
+        title="管理分类"
+        open={catModalOpen}
+        onCancel={() => {
+          setCatModalOpen(false);
+          setNewCatName("");
+        }}
+        footer={null}
+        width={480}
+      >
+        <Space direction="vertical" style={{ width: "100%" }} size={16}>
+          <div>
+            <Space.Compact style={{ width: "100%" }}>
+              <Input
+                placeholder="输入新分类名（字母、数字、_、-）"
+                value={newCatName}
+                onChange={(e) => setNewCatName(e.target.value)}
+                onPressEnter={handleCreateCategory}
+              />
+              <Button type="primary" onClick={handleCreateCategory}>
+                创建
+              </Button>
+            </Space.Compact>
+          </div>
+
+          <div>
+            <Typography.Text strong style={{ display: "block", marginBottom: 8 }}>
+              现有分类
+            </Typography.Text>
+            {ruleFiles.map((f) => {
+              const catRules = rules.filter((r) => r.category === f);
+              return (
+                <div
+                  key={f}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "8px 0",
+                    borderBottom: "1px solid #f0f0f0",
+                  }}
+                >
+                  <Space>
+                    <Tag color="green">{f}</Tag>
+                    <span style={{ fontSize: 12, color: "#999" }}>
+                      {catRules.length} 条规则
+                    </span>
+                  </Space>
+                  <Popconfirm
+                    title={`确定删除分类 ${f}？将同时删除该分类下的所有规则。`}
+                    onConfirm={() => handleDeleteCategory(f)}
+                    okText="删除"
+                    cancelText="取消"
+                  >
+                    <Button type="link" size="small" danger>
+                      <DeleteOutlined />
+                    </Button>
+                  </Popconfirm>
+                </div>
+              );
+            })}
+            {ruleFiles.length === 0 && (
+              <Typography.Text type="secondary">暂无分类</Typography.Text>
+            )}
+          </div>
+        </Space>
+      </Modal>
+
+      {/* 重命名分类弹窗 */}
+      <Modal
+        title={`重命名分类: ${renameTarget || ""}`}
+        open={!!renameTarget}
+        onOk={handleRenameCategory}
+        onCancel={() => {
+          setRenameTarget(null);
+          setRenameNewName("");
+        }}
+        okText="保存"
+        cancelText="取消"
+        width={400}
+      >
+        <Input
+          placeholder="输入新名称"
+          value={renameNewName}
+          onChange={(e) => setRenameNewName(e.target.value)}
+          onPressEnter={handleRenameCategory}
+        />
+      </Modal>
     </div>
   );
 }

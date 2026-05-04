@@ -6,6 +6,7 @@ import {
   SafetyOutlined,
   ApiOutlined,
   SettingOutlined,
+  ToolOutlined,
 } from "@ant-design/icons";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useEffect } from "react";
@@ -14,6 +15,7 @@ import AuditLog from "./pages/AuditLog";
 import Rules from "./pages/Rules";
 import Settings from "./pages/Settings";
 import Upstreams from "./pages/Upstreams";
+import ToolsConfig from "./pages/ToolsConfig";
 import { useProxyStore } from "./store/useProxyStore";
 import { useNotification } from "./hooks/useNotification";
 
@@ -24,6 +26,7 @@ const menuItems = [
   { key: "/audit", icon: <AuditOutlined />, label: "审计记录" },
   { key: "/rules", icon: <SafetyOutlined />, label: "规则管理" },
   { key: "/upstreams", icon: <ApiOutlined />, label: "大模型接入" },
+  { key: "/tools", icon: <ToolOutlined />, label: "AI 工具配置" },
   { key: "/settings", icon: <SettingOutlined />, label: "设置" },
 ];
 
@@ -154,7 +157,8 @@ export default function App() {
           style={{
             padding: 24,
             background: token.colorBgLayout,
-            overflow: "auto",
+            overflow: "hidden",
+            height: "calc(100vh - 64px)",
           }}
         >
           <Routes>
@@ -162,6 +166,7 @@ export default function App() {
             <Route path="/audit" element={<AuditLog />} />
             <Route path="/rules" element={<Rules />} />
             <Route path="/upstreams" element={<Upstreams />} />
+            <Route path="/tools" element={<ToolsConfig />} />
             <Route path="/settings" element={<Settings />} />
           </Routes>
         </Content>

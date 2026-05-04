@@ -293,9 +293,9 @@ config.port (default: 19000)
 
 ## 测试覆盖
 
-24 个单元测试全部通过：
+25 个单元测试全部通过：
 
-- **detector**: 7 个（匹配、去重、空输入、重叠、身份证校验位）
+- **detector**: 8 个（匹配、去重、空输入、重叠、身份证校验位、email 排除误报）
 - **replacer**: 6 个（替换、还原、掩码、空匹配）
 - **proxy/stream**: 5 个（SSE 安全截断、部分占位符）
 - **storage**: 6 个（加密往返、CRUD、空数据库、无效数据）
@@ -304,7 +304,315 @@ TypeScript 编译零错误。
 
 ---
 
-## 项目结构总览
+## Phase 9: 规则增强与 UI 优化
+
+### 9.1 检测模式（Detect/Filter）
+
+为规则引擎新增 `Mode` 枚举，支持两种工作模式：
+
+| 模式 | 行为 |
+|------|------|
+| `Filter` | 检测并替换为占位符（原有行为） |
+| `Detect` | 仅检测，记录审计但不替换请求体 |
+
+**涉及文件：**
+- [detector/mod.rs](../crates/aidaguard-core/src/detector/mod.rs) — 新增 `Mode` 枚举 + `Match` 增加 `mode` 字段
+- [server.rs](../crates/aidaguard-core/src/proxy/server.rs) — 审计记录逻辑重构：分离 filter 和 detect 命中写入
+- [Rules.tsx](../crates/aidaguard-tauri/src/src/pages/Rules.tsx) — 模式切换列 + 批量模式切换
+- [RuleEditor.tsx](../crates/aidaguard-tauri/src/src/components/RuleEditor.tsx) — 模式选择下拉框
+
+### 9.2 规则名持久化到数据库
+
+审计记录中新增 `rule_name` 列，不再依赖前端加载规则来映射 ID → 名称。
+
+**涉及文件：**
+- [storage/mod.rs](../crates/aidaguard-core/src/storage/mod.rs) — `DetectionRecord` 增加 `rule_name` 字段 + `ALTER TABLE ADD COLUMN` 迁移 + 所有 CRUD 查询适配
+- [server.rs](../crates/aidaguard-core/src/proxy/server.rs) — `storage.record()` 传入 `rule_name`，通过 `detector.rule_name()` 查询
+- [AuditTable.tsx](../crates/aidaguard-tauri/src/src/components/AuditTable.tsx) — 直接使用 `record.ruleName`
+- [AuditDetailPanel.tsx](../crates/aidaguard-tauri/src/src/components/AuditDetailPanel.tsx) — 同上
+
+### 9.3 detect 模式审计记录修复
+
+**Bug**: 全部规则设为 `detect` 时，审计记录不写入。根因：写入逻辑 gated on `placeholder_map.is_some()`，但 detect 模式不创建占位符。
+
+**修复：** 重构审计写入逻辑，detect 命中在独立循环中写入，placeholder 为空字符串。
+
+### 9.4 规则分类管理
+
+**新增命令：**
+
+| 命令 | 功能 |
+|------|------|
+| `create_category` | 创建新的规则分类（.yaml 文件），校验命名规则 |
+| `delete_category` | 删除分类及其文件，同时重载检测器 |
+| `rename_category` | 重命名分类文件，同时重载检测器 |
+
+**前端：**
+- 分类管理弹窗（创建 / 删除）
+- 每个分类 Card 上的重命名和删除按钮
+
+### 9.5 批量操作
+
+每个分类 Card 的 extra 区域增加两个批量开关：
+
+| 开关 | 功能 |
+|------|------|
+| 启用 | 批量启用/禁用该分类下全部规则 |
+| 过滤/检测 | 批量切换该分类下全部规则的 mode |
+
+### 9.6 正则误报排除机制
+
+**Bug**: 邮箱规则 `[\w.+-]+@[\w-]+\.\w+` 误匹配 Retina 图片文件名（如 `128x128@2x.png`），但不能简单要求 local part 包含字母（`123456@qq.com` 是合法邮箱）。
+
+**方案**: `RuleDef` 新增可选字段 `exclude`，命中文本若同时匹配排除正则则跳过。
+
+```
+检测命中 → exclude_regex.is_match(命中文本)
+              ├─ true  → 跳过（误报）
+              └─ false → 保留
+```
+
+**涉及文件：**
+- [detector/mod.rs](../crates/aidaguard-core/src/detector/mod.rs) — `RuleDef` 增加 `exclude: Option<String>`，`CompiledRule` 增加 `exclude_regex: Option<Regex>`，`detect()` 中过滤
+- [general.yaml](../rules/general.yaml) — 邮箱规则增加 `exclude: '@\d+x\.(?:png|jpg|jpeg|gif|svg|webp|ico|pdf)\b'`
+- [types/index.ts](../crates/aidaguard-tauri/src/src/types/index.ts) — `RuleDef` 增加 `exclude?: string`
+
+### 9.7 UI 滚动优化
+
+**问题**: 规则管理页和审计记录页出现页面级竖向滚动条，规则明细区域无法独立滚动。
+
+**方案**: Content 改为 `height: calc(100vh - 64px)` + `overflow: hidden`，禁止页面级滚动。各页面内部自行管理滚动。
+
+| 页面 | 滚动策略 |
+|------|---------|
+| Dashboard | 外层 div `overflow: auto` |
+| 审计记录 | 表格 `scroll.y` 仅表体滚动，操作列 `fixed: right` |
+| 规则管理 | Flex 布局，工具栏固定顶部，仅规则明细区域 `overflow: auto` |
+| 设置 | 外层 div `overflow: auto` |
+| 大模型接入 | 外层 div `overflow: auto` |
+
+### 9.8 其他修复
+
+| 问题 | 修复 |
+|------|------|
+| RuleEditor Modal 过高，Save 按钮被遮挡 | 表单 `maxHeight: 60vh` + `overflow: auto` |
+| 审计表格"规则"列标题 | 改为"规则名" |
+| 审计列表表头列名为"规则" | 与详情面板统一为"规则名" |
+| 审计记录无代理运行时无法查看 | main.rs 启动时初始化 Storage，start_proxy 复用已有实例 |
+| 审计记录无数据时表格区域不可见 | 添加 `scroll.y` 确保表格区域始终可见 |
+
+---
+
+## Phase 10: 后续功能计划
+
+### 10.1 系统通知集成
+
+对接操作系统通知栏，检测到敏感数据时发送桌面通知。
+
+**技术方案：**
+- 后端：在 events relay 中，收到 `DetectionEvent` 后调用 `tauri::Notification` API（Tauri 2.x 内置）
+- 通知内容：规则名 + 策略 + 请求路径摘要
+- 频率限制：同一规则 1 分钟内最多 1 次通知，避免刷屏
+- 通知点击：点击通知导航到审计日志详情
+- 设置页：通知开关 + 频率限制配置
+
+**涉及文件：**
+- `events.rs` — relay 中新增通知发送逻辑
+- `tauri.conf.json` — 开启 notification 权限
+- `capabilities/default.json` — 添加 `notification:default`
+- `Settings.tsx` — 通知开关配置
+
+### 10.2 大模型生成检测规则
+
+输入测试样例文本，由大语言模型自动生成检测规则（正则表达式）。
+
+**技术方案：**
+- 前端：测试样例输入框 + "生成规则"按钮
+- 后端：调用当前默认上游 LLM API，构造 prompt 让模型根据样例生成正则规则
+- Prompt 模板：提供样例 + 要求输出格式（Regex + 策略 + 模式）
+- 解析模型返回的正则，写入规则编辑表单供用户确认和调整
+- 用户确认后保存到规则文件
+
+**涉及文件：**
+- [commands/rules.rs](../crates/aidaguard-tauri/src-tauri/src/commands/rules.rs) — 新增 `generate_rule` 命令
+- [forwarder.rs](../crates/aidaguard-core/src/proxy/forwarder.rs) — 复用 HTTP 转发能力调用 LLM
+- [Rules.tsx](../crates/aidaguard-tauri/src/src/pages/Rules.tsx) — "生成规则"按钮入口
+- 新增 [components/GenerateRuleModal.tsx](../crates/aidaguard-tauri/src/src/components/GenerateRuleModal.tsx)
+
+### 10.3 仪表盘增强
+
+将上游 LLM 配置从设置页移到仪表盘，提升操作效率。
+
+**变更：**
+- 仪表盘新增"代理信息"区域：显示代理地址 + 端口（绿色/灰色状态指示）
+- 仪表盘新增"活跃规则"计数：显示当前启用的规则数 / 总规则数
+- 仪表盘新增"当前模型"选择器：下拉切换默认上游 LLM（直接复用上游列表），显示当前模型的名称和地址
+- `start_proxy` 命令适配：支持在仪表盘切换模型后自动更新代理目标
+- 设置页移除上游相关配置（已在 Phase 8 完成），保留"管理上游"跳转链接
+
+**涉及文件：**
+- [Dashboard.tsx](../crates/aidaguard-tauri/src/src/pages/Dashboard.tsx) — 新增代理信息卡片 + 模型选择器
+- [commands/proxy.rs](../crates/aidaguard-tauri/src-tauri/src/commands/proxy.rs) — 支持运行时切换上游
+- [useProxyStore.ts](../crates/aidaguard-tauri/src/src/store/useProxyStore.ts) — 新增上游切换 action
+- [Settings.tsx](../crates/aidaguard-tauri/src/src/pages/Settings.tsx) — 进一步精简上游字段
+
+### 10.4 一键配置 AI 工具
+
+代理启动后，自动检测并修改主流 AI 工具的 LLM 配置，将所有 API 请求指向本地代理。支持备份原始配置和一键恢复。
+
+#### 架构设计
+
+```
+┌──────────────────────────────────────────────────┐
+│                   Frontend                        │
+│  ┌─────────────────────────────────────────────┐ │
+│  │  AI 工具配置页                               │ │
+│  │  ├─ 检测结果列表 (工具名 / 状态 / 当前端点)  │ │
+│  │  ├─ 配置预览 (before → after diff)           │ │
+│  │  ├─ [一键配置] [一键恢复]                     │ │
+│  │  └─ 手动切换每个工具的启用/禁用               │ │
+│  └─────────────────────────────────────────────┘ │
+└──────────────────────┬───────────────────────────┘
+                       │ Tauri invoke
+┌──────────────────────┴───────────────────────────┐
+│                   Backend (Rust)                  │
+│  ┌─────────────────────────────────────────────┐ │
+│  │  tools/                                      │ │
+│  │  ├─ mod.rs          ToolAdapter trait        │ │
+│  │  ├─ detect.rs       文件检测 + 路径解析      │ │
+│  │  ├─ backup.rs       备份/恢复管理            │ │
+│  │  └─ adapters/       各工具适配器             │ │
+│  │      ├─ roo_code.rs                          │ │
+│  │      ├─ cline.rs                             │ │
+│  │      ├─ continue.rs                          │ │
+│  │      ├─ cursor.rs                            │ │
+│  │      ├─ windsurf.rs                          │ │
+│  │      ├─ zed.rs                               │ │
+│  │      ├─ aider.rs                             │ │
+│  │      └─ claude_code.rs                       │ │
+│  └─────────────────────────────────────────────┘ │
+└──────────────────────────────────────────────────┘
+```
+
+#### ToolAdapter Trait
+
+```rust
+pub trait ToolAdapter: Send + Sync {
+    /// 工具标识
+    fn id(&self) -> &str;
+    /// 工具显示名称
+    fn name(&self) -> &str;
+    /// 检测工具是否已安装（配置文件是否存在）
+    fn detect(&self) -> Result<bool, String>;
+    /// 读取当前配置
+    fn read_config(&self) -> Result<ToolConfig, String>;
+    /// 备份原始配置
+    fn backup(&self) -> Result<(), String>;
+    /// 将 API 端点重定向到代理
+    fn configure(&self, proxy_url: &str) -> Result<(), String>;
+    /// 从备份恢复原始配置
+    fn restore(&self) -> Result<(), String>;
+    /// 获取配置文件路径（用于前端展示）
+    fn config_path(&self) -> &str;
+}
+```
+
+#### 各工具配置详情
+
+| 工具 | 平台 | 配置文件 | 修改字段 | 复杂度 |
+|------|------|---------|---------|--------|
+| **Roo Code** | VS Code | `~/Library/Application Support/Code/User/globalStorage/rooveterinaryinc.roo-cline/settings/` | `apiProvider`, `apiBase` (改为 `http://127.0.0.1:{port}`), `apiKey` (改为 aidaguard key) | 中 — JSON 文件 + VS Code settings.json |
+| **Cline** | VS Code | `~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/` | 同上 | 中 — 类似 Roo Code |
+| **Continue** | VS Code / JetBrains | `~/.continue/config.json` | `models[].apiBase` → proxy URL | 低 — 标准 JSON，结构清晰 |
+| **Aider** | CLI | `~/.aider.conf.yml` | `openai-api-base`, `anthropic-api-base` | 低 — 标准 YAML |
+| **Claude Code** | CLI | `~/.claude/settings.json` 或环境变量 | `ANTHROPIC_BASE_URL` | 低 — JSON / env |
+| **Cursor** | IDE | `~/Library/Application Support/Cursor/User/settings.json` | `cursor.apiBase` | 中 — JSON，需处理已有键 |
+| **Windsurf** | IDE | `~/.codeium/windsurf/config.json` | API endpoint 配置 | 中 — 需调研具体字段 |
+| **Zed** | IDE | `~/.config/zed/settings.json` | `openai_api_url` | 低 — 标准 JSON |
+
+> 注：路径为 macOS 示例。Rust 端通过 `dirs` crate 或 Tauri path resolver 获取跨平台路径。
+
+#### 安全设计
+
+```
+配置流程：
+1. detect()  → 扫描已安装工具，列出可配置项
+2. backup()  → 将原始配置复制到 ~/.aidaguard/backups/{tool_id}/{timestamp}/
+3. 展示 diff → 前端显示每个工具配置的前后对比
+4. configure() → 用户确认后写入新配置
+5. restore() → 停用代理时一键恢复所有原始配置
+```
+
+**关键约束：**
+- 绝不删除原始配置，backup 保留完整副本（含时间戳）
+- 只修改 API endpoint 和 key 字段，保留其他配置不变
+- 每个工具可独立勾选，不强制全部修改
+- 恢复时校验备份完整性，防止部分恢复
+
+#### 前端交互
+
+```
+┌─────────────────────────────────────────────────┐
+│  AI 工具配置                          [一键配置] │
+│                                                 │
+│  ☑ Roo Code         已检测 ✓   3 个配置文件     │
+│    当前端点: https://api.openai.com              │
+│    → 将修改为: http://127.0.0.1:19000           │
+│                                                 │
+│  ☑ Continue         已检测 ✓   ~/.continue/     │
+│    当前端点: http://localhost:11434              │
+│    → 将修改为: http://127.0.0.1:19000           │
+│                                                 │
+│  ☐ Cline            未安装 —   跳过             │
+│                                                 │
+│  ☑ Claude Code      已检测 ✓   settings.json    │
+│    当前端点: (默认)                              │
+│    → 将修改为: http://127.0.0.1:19000           │
+│                                                 │
+│  ─────────────────────────────────────          │
+│  备份位置: ~/.aidaguard/backups/                │
+│  [恢复全部原始配置]                              │
+└─────────────────────────────────────────────────┘
+```
+
+#### Tauri 命令
+
+| 命令 | 功能 |
+|------|------|
+| `detect_tools` | 扫描所有支持的 AI 工具，返回安装状态和当前配置摘要 |
+| `preview_tool_config` | 预览单个工具的配置变更（before/after） |
+| `apply_tool_config` | 备份并写入指定工具的新配置 |
+| `restore_tool_config` | 从备份恢复指定工具的原始配置 |
+| `restore_all_tools` | 恢复所有已修改工具的原始配置 |
+
+#### 涉及文件
+
+| 文件 | 变更类型 |
+|------|----------|
+| `crates/aidaguard-tauri/src-tauri/src/tools/mod.rs` | 新增 — ToolAdapter trait + 统一入口 |
+| `crates/aidaguard-tauri/src-tauri/src/tools/detect.rs` | 新增 — 工具检测 + 路径解析 |
+| `crates/aidaguard-tauri/src-tauri/src/tools/backup.rs` | 新增 — 备份/恢复管理 |
+| `crates/aidaguard-tauri/src-tauri/src/tools/adapters/*.rs` | 新增 — 8 个工具适配器 |
+| `crates/aidaguard-tauri/src-tauri/src/commands/tools.rs` | 新增 — 5 个 Tauri 命令 |
+| `crates/aidaguard-tauri/src-tauri/src/main.rs` | 修改 — 注册 tools 模块和命令 |
+| `crates/aidaguard-tauri/src-tauri/src/state.rs` | 修改 — 可能新增 backups_dir |
+| `crates/aidaguard-tauri/src-tauri/Cargo.toml` | 修改 — 新增 dirs crate 依赖 |
+| [pages/ToolsConfig.tsx](../crates/aidaguard-tauri/src/src/pages/ToolsConfig.tsx) | 新增 — AI 工具配置页 |
+| [api/tools.ts](../crates/aidaguard-tauri/src/src/api/tools.ts) | 新增 — Tauri invoke 封装 |
+| [store/useToolsStore.ts](../crates/aidaguard-tauri/src/src/store/useToolsStore.ts) | 新增 — Zustand store |
+| [App.tsx](../crates/aidaguard-tauri/src/src/App.tsx) | 修改 — 新增路由 + 侧边栏菜单项 |
+| [types/index.ts](../crates/aidaguard-tauri/src/src/types/index.ts) | 修改 — 新增 ToolInfo, ToolConfig 类型 |
+
+---
+
+## 优先级建议
+
+| 优先级 | 功能 | 理由 |
+|--------|------|------|
+| 1 | **10.1 系统通知** | 投入小、Tauri 原生支持、用户感知强 |
+| 2 | **10.3 仪表盘增强** | 核心交互流程优化，代理信息一目了然 |
+| 3 | **10.4 一键配置 AI 工具** | 工作量大（8 个适配器），但对用户价值最高 |
+| 4 | **10.2 LLM 生成规则** | 锦上添花，依赖上游 LLM 可用性 |
 
 ```
 aidaguard/

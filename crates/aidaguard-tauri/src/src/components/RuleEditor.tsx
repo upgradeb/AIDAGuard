@@ -28,6 +28,7 @@ export default function RuleEditor({
         name: editing.name,
         pattern: editing.pattern,
         strategy: editing.strategy,
+        mode: editing.mode || "filter",
         priority: editing.priority,
         enabled: editing.enabled,
         category: editing.category,
@@ -36,6 +37,7 @@ export default function RuleEditor({
       form.resetFields();
       form.setFieldsValue({
         strategy: "placeholder",
+        mode: "filter",
         priority: 100,
         enabled: true,
         category: ruleFiles[0] || "custom",
@@ -50,6 +52,7 @@ export default function RuleEditor({
       name: values.name,
       pattern: values.pattern,
       strategy: values.strategy,
+      mode: values.mode,
       priority: values.priority,
       enabled: values.enabled,
     };
@@ -68,7 +71,11 @@ export default function RuleEditor({
       cancelText="取消"
       width={560}
     >
-      <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
+      <Form
+        form={form}
+        layout="vertical"
+        style={{ marginTop: 16, maxHeight: "60vh", overflow: "auto", paddingRight: 8 }}
+      >
         <Form.Item
           name="id"
           label="规则 ID"
@@ -98,6 +105,14 @@ export default function RuleEditor({
             options={[
               { value: "placeholder", label: "Placeholder — 整体替换为占位符" },
               { value: "mask", label: "Mask — 部分掩码" },
+            ]}
+          />
+        </Form.Item>
+        <Form.Item name="mode" label="模式">
+          <Select
+            options={[
+              { value: "filter", label: "过滤 — 检测并替换为占位符" },
+              { value: "detect", label: "检测 — 仅记录，不替换" },
             ]}
           />
         </Form.Item>

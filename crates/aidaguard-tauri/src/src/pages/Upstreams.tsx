@@ -183,7 +183,7 @@ export default function Upstreams() {
   ];
 
   return (
-    <div style={{ maxWidth: 960 }}>
+    <div style={{ maxWidth: 960, height: "100%", overflow: "auto" }}>
       <Card
         size="small"
         style={{

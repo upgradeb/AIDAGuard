@@ -1,9 +1,31 @@
 pub mod commands;
 pub mod events;
 pub mod state;
+pub mod tools;
 pub mod tray;
 
 pub use state::AppState;
+
+/// 解析存储数据库路径：绝对路径直接用，相对路径依次尝试 CWD → config 目录
+pub fn resolve_storage_path(db_path: &str, config_dir: &std::path::Path) -> String {
+    use std::path::Path;
+
+    if Path::new(db_path).is_absolute() {
+        return db_path.to_string();
+    }
+
+    let cwd_path = std::env::current_dir()
+        .unwrap_or_default()
+        .join(db_path);
+    if cwd_path.parent().map_or(false, |p| p.exists()) {
+        return cwd_path.to_string_lossy().to_string();
+    }
+
+    config_dir
+        .join(db_path)
+        .to_string_lossy()
+        .to_string()
+}
 
 /// 解析规则目录：绝对路径直接用，相对路径依次尝试 CWD → 可执行文件上溯 → config 目录
 pub fn resolve_rules_dir(rules_dir: &str, config_dir: &std::path::Path) -> String {

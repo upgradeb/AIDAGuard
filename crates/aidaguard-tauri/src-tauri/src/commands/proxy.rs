@@ -1,6 +1,7 @@
 use serde::Serialize;
 use std::sync::Arc;
 use std::time::Instant;
+use tauri::Manager;
 use tracing::{error, info, warn};
 
 use aidaguard_core::detector::watch_rules;
@@ -9,6 +10,7 @@ use aidaguard_core::storage::Storage;
 use aidaguard_core::DetectionEvent;
 
 use crate::events;
+use crate::resolve_storage_path;
 use crate::state::AppState;
 
 #[derive(Debug, Clone, Serialize)]
@@ -83,24 +85,34 @@ pub async fn start_proxy(
     let _rules_count = detector.rule_count();
     drop(detector);
 
-    // 打开存储
+    // 打开存储（如果尚未打开）
     let storage = if config.storage.enabled {
-        if let Some(parent) = std::path::Path::new(&config.storage.db_path).parent() {
-            let _ = std::fs::create_dir_all(parent);
-        }
-        let enc_key = config
-            .storage
-            .encryption_key
-            .as_deref()
-            .unwrap_or("aidaguard-internal-key");
-        match Storage::open(std::path::Path::new(&config.storage.db_path), enc_key) {
-            Ok(s) => {
-                info!("Storage enabled: {}", config.storage.db_path);
-                Some(Arc::new(s))
+        let existing = state.storage.lock().await.clone();
+        if existing.is_some() {
+            existing
+        } else {
+            let config_dir = app
+                .path()
+                .app_config_dir()
+                .unwrap_or_else(|_| std::path::PathBuf::from("."));
+            let db_path = resolve_storage_path(&config.storage.db_path, &config_dir);
+            if let Some(parent) = std::path::Path::new(&db_path).parent() {
+                let _ = std::fs::create_dir_all(parent);
             }
-            Err(e) => {
-                warn!("Storage 打开失败: {}", e);
-                None
+            let enc_key = config
+                .storage
+                .encryption_key
+                .as_deref()
+                .unwrap_or("aidaguard-internal-key");
+            match Storage::open(std::path::Path::new(&db_path), enc_key) {
+                Ok(s) => {
+                    info!("Storage enabled: {}", db_path);
+                    Some(Arc::new(s))
+                }
+                Err(e) => {
+                    warn!("Storage 打开失败: {}", e);
+                    None
+                }
             }
         }
     } else {
@@ -113,10 +125,11 @@ pub async fn start_proxy(
     // 创建事件广播通道
     let (event_tx, event_rx) = tokio::sync::broadcast::channel::<DetectionEvent>(256);
 
-    // 启动事件转发任务
+    // 启动事件转发任务（含桌面通知）
     let app_handle = app.clone();
+    let notify_cfg = config.notification.clone();
     tokio::spawn(async move {
-        events::relay_events(app_handle, event_rx).await;
+        events::relay_events(app_handle, event_rx, notify_cfg).await;
     });
 
     // 创建关闭信号

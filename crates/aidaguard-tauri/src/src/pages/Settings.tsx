@@ -62,7 +62,7 @@ export default function Settings() {
   };
 
   return (
-    <div style={{ maxWidth: 720 }}>
+    <div style={{ maxWidth: 720, height: "100%", overflow: "auto" }}>
       <Form
         form={form}
         layout="vertical"
@@ -182,6 +182,25 @@ export default function Settings() {
                 { value: "error", label: "error" },
               ]}
             />
+          </Form.Item>
+        </Card>
+
+        {/* 通知设置 */}
+        <Card title="通知设置" size="small" style={cardStyle}>
+          <Form.Item
+            name={["notification", "enabled"]}
+            label="桌面通知"
+            valuePropName="checked"
+            extra="检测到敏感数据时发送系统通知，重启代理后生效"
+          >
+            <Switch />
+          </Form.Item>
+          <Form.Item
+            name={["notification", "rate_limit_secs"]}
+            label="通知间隔 (秒)"
+            extra="同一规则最短通知间隔，避免刷屏"
+          >
+            <InputNumber min={10} max={600} style={{ width: 200 }} />
           </Form.Item>
         </Card>
 

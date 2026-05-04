@@ -7,6 +7,9 @@ import {
   testRule,
   reloadRules,
   getRuleFiles,
+  createCategory,
+  deleteCategory,
+  renameCategory,
 } from "../api/rules";
 import type { RuleWithCategory } from "../api/rules";
 import type { RuleDef, TestRuleResult } from "../types";
@@ -29,6 +32,9 @@ interface RulesState {
   reloadRules: () => Promise<void>;
   fetchRuleFiles: () => Promise<void>;
   clearTestResult: () => void;
+  createCategory: (name: string) => Promise<void>;
+  deleteCategory: (name: string) => Promise<void>;
+  renameCategory: (oldName: string, newName: string) => Promise<void>;
 }
 
 export const useRulesStore = create<RulesState>((set) => ({
@@ -111,4 +117,28 @@ export const useRulesStore = create<RulesState>((set) => ({
   },
 
   clearTestResult: () => set({ testResult: null }),
+
+  createCategory: async (name) => {
+    try {
+      await createCategory(name);
+    } catch (e) {
+      throw e;
+    }
+  },
+
+  deleteCategory: async (name) => {
+    try {
+      await deleteCategory(name);
+    } catch (e) {
+      throw e;
+    }
+  },
+
+  renameCategory: async (oldName, newName) => {
+    try {
+      await renameCategory(oldName, newName);
+    } catch (e) {
+      throw e;
+    }
+  },
 }));

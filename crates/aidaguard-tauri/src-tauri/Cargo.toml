@@ -11,6 +11,7 @@ tauri-build.workspace = true
 
 [dependencies]
 tauri.workspace = true
+tauri-plugin-notification = "2"
 tokio-util.workspace = true
 aidaguard-core = { path = "../../aidaguard-core" }
 tokio.workspace = true

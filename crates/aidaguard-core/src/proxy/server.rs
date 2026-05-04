@@ -299,24 +299,37 @@ async fn proxy_handler(
 
     if let Ok(text) = std::str::from_utf8(&body_bytes) {
         let d = state.detector.read().await;
-        let hits = d.detect(text);
-        if !hits.is_empty() {
-            info!("检测到敏感数据: {} 处", hits.len());
-            for m in &hits {
+        let all_hits = d.detect(text);
+        if !all_hits.is_empty() {
+            info!("检测到敏感数据: {} 处", all_hits.len());
+            for m in &all_hits {
                 info!(
-                    "  规则: {} | 策略: {:?} | 位置: {}..{}",
-                    m.rule_id, m.strategy, m.start, m.end
+                    "  规则: {} | 策略: {:?} | 模式: {:?} | 位置: {}..{}",
+                    m.rule_id, m.strategy, m.mode, m.start, m.end
                 );
             }
 
-            let (sanitized, map) = replacer::replace(text, &hits);
-            debug!("替换后: {}", sanitized);
+            // 分离 filter（替换）和 detect（仅检测）命中
+            let filter_hits: Vec<crate::detector::Match> = all_hits
+                .iter()
+                .filter(|m| m.mode == crate::detector::Mode::Filter)
+                .cloned()
+                .collect();
 
             original_body = Some(text.to_string());
-            hits_for_audit = Some(hits);
-            sanitized_body = Some(sanitized.clone());
-            body_bytes = axum::body::Bytes::from(sanitized);
-            placeholder_map = Some(map);
+
+            if !filter_hits.is_empty() {
+                let (sanitized, map) = replacer::replace(text, &filter_hits);
+                debug!("替换后: {}", sanitized);
+                sanitized_body = Some(sanitized.clone());
+                body_bytes = axum::body::Bytes::from(sanitized);
+                placeholder_map = Some(map);
+            } else {
+                // 全部为 detect 模式，不替换，sanitized_body 用原始文本
+                sanitized_body = Some(text.to_string());
+            }
+
+            hits_for_audit = Some(all_hits);
         }
     }
 
@@ -333,26 +346,53 @@ async fn proxy_handler(
 
     // 8. 审计记录：在获知响应状态后写入 storage
     let status_code = upstream_resp.status().as_u16();
-    if let (Some(ref storage), Some(ref map), Some(ref sani_body), Some(ref hits), Some(ref orig_body)) =
-        (&state.storage, &placeholder_map, &sanitized_body, &hits_for_audit, &original_body)
+    if let (Some(ref storage), Some(ref sani_body), Some(ref hits), Some(ref orig_body)) =
+        (&state.storage, &sanitized_body, &hits_for_audit, &original_body)
     {
-        for placeholder in map.placeholders() {
-            if let Some(original) = map.get(placeholder) {
-                let rule_id = placeholder
-                    .strip_prefix("[[")
-                    .and_then(|s| s.split_once('@'))
-                    .map(|(id, _)| id)
-                    .unwrap_or("unknown");
-                let context = hits
-                    .iter()
-                    .find(|m| m.text == *original)
-                    .map(|m| extract_context(orig_body, m.start, m.end, 80))
-                    .unwrap_or_default();
+        let detector = state.detector.read().await;
+
+        // 写入有占位符的 filter 命中
+        if let Some(ref map) = placeholder_map {
+            for placeholder in map.placeholders() {
+                if let Some(original) = map.get(placeholder) {
+                    let rule_id = placeholder
+                        .strip_prefix("[[")
+                        .and_then(|s| s.split_once('@'))
+                        .map(|(id, _)| id)
+                        .unwrap_or("unknown");
+                    let rule_name = detector.rule_name(rule_id).unwrap_or(rule_id);
+                    let context = hits
+                        .iter()
+                        .find(|m| m.text == *original)
+                        .map(|m| extract_context(orig_body, m.start, m.end, 80))
+                        .unwrap_or_default();
+                    let _ = storage.record(
+                        rule_id,
+                        rule_name,
+                        "placeholder",
+                        placeholder,
+                        original,
+                        &context,
+                        &audit_path,
+                        sani_body,
+                        status_code,
+                        &tool_name,
+                    );
+                }
+            }
+        }
+
+        // 写入仅检测的 detect 命中（无占位符，不替换）
+        for m in hits {
+            if m.mode == crate::detector::Mode::Detect {
+                let rule_name = detector.rule_name(&m.rule_id).unwrap_or(&m.rule_id);
+                let context = extract_context(orig_body, m.start, m.end, 80);
                 let _ = storage.record(
-                    rule_id,
-                    "placeholder",
-                    placeholder,
-                    original,
+                    &m.rule_id,
+                    rule_name,
+                    "detect",
+                    "",
+                    &m.text,
                     &context,
                     &audit_path,
                     sani_body,
@@ -365,6 +405,12 @@ async fn proxy_handler(
 
     // 8b. 广播检测事件（无论 storage 是否启用）
     if let Some(ref tx) = state.event_tx {
+        let now_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as i64;
+
+        // filter 命中事件
         if let Some(ref map) = placeholder_map {
             for placeholder in map.placeholders() {
                 let rule_id = placeholder
@@ -372,15 +418,26 @@ async fn proxy_handler(
                     .and_then(|s| s.split_once('@'))
                     .map(|(id, _)| id)
                     .unwrap_or("unknown");
-                let now_ms = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_millis() as i64;
                 let _ = tx.send(DetectionEvent {
                     timestamp_ms: now_ms,
                     rule_id: rule_id.to_string(),
                     strategy: "placeholder".to_string(),
                     placeholder: placeholder.clone(),
+                    request_path: audit_path.clone(),
+                    response_status: status_code,
+                    tool_name: tool_name.clone(),
+                });
+            }
+        }
+
+        // detect 命中事件
+        if let Some(ref hits) = hits_for_audit {
+            for m in hits.iter().filter(|m| m.mode == crate::detector::Mode::Detect) {
+                let _ = tx.send(DetectionEvent {
+                    timestamp_ms: now_ms,
+                    rule_id: m.rule_id.clone(),
+                    strategy: "detect".to_string(),
+                    placeholder: String::new(),
                     request_path: audit_path.clone(),
                     response_status: status_code,
                     tool_name: tool_name.clone(),

@@ -29,11 +29,24 @@ pub enum Strategy {
     Mask,
 }
 
+/// 规则模式：仅检测 或 检测+过滤替换
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum Mode {
+    /// 仅检测，记录但不替换
+    Detect,
+    /// 检测并过滤替换
+    Filter,
+}
+
 fn default_enabled() -> bool {
     true
 }
 fn default_strategy() -> Strategy {
     Strategy::Placeholder
+}
+fn default_mode() -> Mode {
+    Mode::Filter
 }
 fn default_priority() -> u32 {
     100
@@ -45,10 +58,14 @@ pub struct RuleDef {
     pub id: String,
     pub name: String,
     pub pattern: String,
+    #[serde(default)]
+    pub exclude: Option<String>,
     #[serde(default = "default_enabled")]
     pub enabled: bool,
     #[serde(default = "default_strategy")]
     pub strategy: Strategy,
+    #[serde(default = "default_mode")]
+    pub mode: Mode,
     #[serde(default = "default_priority")]
     pub priority: u32,
 }
@@ -70,6 +87,7 @@ pub struct RuleFile {
 pub struct CompiledRule {
     pub def: RuleDef,
     pub regex: Regex,
+    pub exclude_regex: Option<Regex>,
 }
 
 /// 检测命中
@@ -81,6 +99,7 @@ pub struct Match {
     pub text: String,
     pub priority: u32,
     pub strategy: Strategy,
+    pub mode: Mode,
 }
 
 /// 敏感数据检测器
@@ -127,7 +146,13 @@ impl Detector {
     pub fn add_rule(&mut self, def: RuleDef) -> Result<()> {
         let regex = compile_regex(&def.pattern)
             .with_context(|| format!("规则 [{}] 的正则编译失败: {}", def.id, def.pattern))?;
-        self.rules.push(CompiledRule { def, regex });
+        let exclude_regex = if let Some(ref excl) = def.exclude {
+            Some(compile_regex(excl)
+                .with_context(|| format!("规则 [{}] 的排除正则编译失败: {}", def.id, excl))?)
+        } else {
+            None
+        };
+        self.rules.push(CompiledRule { def, regex, exclude_regex });
         Ok(())
     }
 
@@ -138,7 +163,18 @@ impl Detector {
                 continue;
             }
             match compile_regex(&def.pattern) {
-                Ok(regex) => compiled.push(CompiledRule { def, regex }),
+                Ok(regex) => {
+                    let exclude_regex = def.exclude.as_ref().and_then(|excl| {
+                        match compile_regex(excl) {
+                            Ok(re) => Some(re),
+                            Err(e) => {
+                                warn!("规则 [{}] 的排除正则编译失败: {}", def.id, e);
+                                None
+                            }
+                        }
+                    });
+                    compiled.push(CompiledRule { def, regex, exclude_regex });
+                }
                 Err(e) => warn!("规则 [{}] 正则编译失败: {}", def.id, e),
             }
         }
@@ -147,12 +183,17 @@ impl Detector {
         self.rules = compiled;
     }
 
-    /// 在文本中检测敏感数据，返回去重且无重叠的命中列表
     /// 已编译的规则数量
     pub fn rule_count(&self) -> usize {
         self.rules.len()
     }
 
+    /// 根据规则 ID 查询规则名称
+    pub fn rule_name(&self, id: &str) -> Option<&str> {
+        self.rules.iter().find(|r| r.def.id == id).map(|r| r.def.name.as_str())
+    }
+
+    /// 在文本中检测敏感数据，返回去重且无重叠的命中列表
     pub fn detect(&self, text: &str) -> Vec<Match> {
         if self.rules.is_empty() {
             return Vec::new();
@@ -162,13 +203,21 @@ impl Detector {
         let mut matches: Vec<Match> = Vec::new();
         for rule in &self.rules {
             for m in rule.regex.find_iter(text) {
+                let match_text = m.as_str();
+                // 如果匹配的文本也命中排除正则，则跳过（误报过滤）
+                if let Some(ref excl) = rule.exclude_regex {
+                    if excl.is_match(match_text) {
+                        continue;
+                    }
+                }
                 matches.push(Match {
                     rule_id: rule.def.id.clone(),
                     start: m.start(),
                     end: m.end(),
-                    text: m.as_str().to_string(),
+                    text: match_text.to_string(),
                     priority: rule.def.priority,
                     strategy: rule.def.strategy.clone(),
+                    mode: rule.def.mode.clone(),
                 });
             }
         }
@@ -262,8 +311,10 @@ mod tests {
             id: "phone".into(),
             name: "手机号".into(),
             pattern: r"1[3-9]\d{9}".into(),
+            exclude: None,
             enabled: true,
             strategy: Strategy::Placeholder,
+            mode: Mode::Filter,
             priority: 100,
         })
         .unwrap();
@@ -271,8 +322,10 @@ mod tests {
             id: "id_card".into(),
             name: "身份证".into(),
             pattern: r"\d{17}[\dXx]".into(),
+            exclude: None,
             enabled: true,
             strategy: Strategy::Placeholder,
+            mode: Mode::Filter,
             priority: 100,
         })
         .unwrap();
@@ -280,8 +333,10 @@ mod tests {
             id: "email".into(),
             name: "邮箱".into(),
             pattern: r"[\w.+-]+@[\w-]+\.\w+".into(),
+            exclude: None,
             enabled: true,
             strategy: Strategy::Mask,
+            mode: Mode::Filter,
             priority: 90,
         })
         .unwrap();
@@ -344,5 +399,34 @@ mod tests {
         let d = make_detector();
         let hits = d.detect("");
         assert_eq!(hits.len(), 0);
+    }
+
+    #[test]
+    fn test_email_exclude_retina() {
+        let mut d = Detector::new();
+        d.add_rule(RuleDef {
+            id: "email".into(),
+            name: "邮箱".into(),
+            pattern: r"[\w.+-]+@[\w-]+\.\w+".into(),
+            exclude: Some(r"@\d+x\.(?:png|jpg|jpeg|gif|svg|webp|ico|pdf)\b".into()),
+            enabled: true,
+            strategy: Strategy::Mask,
+            mode: Mode::Filter,
+            priority: 90,
+        })
+        .unwrap();
+
+        // 真实邮箱应该被检测
+        let hits = d.detect("联系 test@example.com 或 123456@qq.com");
+        assert_eq!(hits.len(), 2);
+
+        // Retina 文件名不应被检测
+        let hits = d.detect("图标文件 icon@2x.png 和 logo@3x.jpg");
+        assert_eq!(hits.len(), 0);
+
+        // 混合场景
+        let hits = d.detect("图片 icon@2x.png，邮箱 admin@foo.com");
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].text, "admin@foo.com");
     }
 }

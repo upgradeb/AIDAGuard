@@ -115,6 +115,7 @@ mod tests {
             text: text.into(),
             priority: 100,
             strategy,
+            mode: crate::detector::Mode::Filter,
         }
     }
 

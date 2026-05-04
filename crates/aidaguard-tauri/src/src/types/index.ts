@@ -19,6 +19,7 @@ export interface DetectionRecord {
   id: string;
   timestampMs: number;
   ruleId: string;
+  ruleName: string;
   strategy: string;
   placeholder: string;
   original: string;
@@ -33,8 +34,10 @@ export interface RuleDef {
   id: string;
   name: string;
   pattern: string;
+  exclude?: string;
   enabled: boolean;
   strategy: "placeholder" | "mask";
+  mode: "detect" | "filter";
   priority: number;
   category?: string;
 }
@@ -46,6 +49,7 @@ export interface MatchInfo {
   text: string;
   priority: number;
   strategy: "placeholder" | "mask";
+  mode: "detect" | "filter";
 }
 
 export interface TestRuleResult {
@@ -59,6 +63,11 @@ export interface StorageConfig {
   encryption_key?: string;
 }
 
+export interface NotificationConfig {
+  enabled: boolean;
+  rate_limit_secs: number;
+}
+
 export interface Config {
   api_key: string;
   port: number;
@@ -68,6 +77,7 @@ export interface Config {
   max_body_size_mb: number;
   storage: StorageConfig;
   upstreams: UpstreamConfig[];
+  notification: NotificationConfig;
 }
 
 export interface UpstreamConfig {
@@ -88,4 +98,15 @@ export interface DetectionEvent {
   requestPath: string;
   responseStatus: number;
   toolName: string;
+}
+
+export interface ToolInfo {
+  toolId: string;
+  toolName: string;
+  installed: boolean;
+  configured: boolean;
+  configPath: string;
+  currentEndpoint?: string;
+  currentModel?: string;
+  previewEndpoint?: string;
 }

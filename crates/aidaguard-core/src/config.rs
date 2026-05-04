@@ -9,6 +9,8 @@ fn default_api_key() -> String { String::new() }
 fn default_max_body_size_mb() -> usize { 10 }
 fn default_storage_enabled() -> bool { false }
 fn default_storage_db_path() -> String { "./data/aidaguard.db".to_string() }
+fn default_notification_enabled() -> bool { true }
+fn default_notification_rate_limit_secs() -> u64 { 60 }
 
 /// 存储子配置
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -69,6 +71,26 @@ impl Default for UpstreamConfig {
     }
 }
 
+/// 通知子配置
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct NotificationConfig {
+    #[serde(default = "default_notification_enabled")]
+    pub enabled: bool,
+
+    /// 同一规则最短通知间隔（秒），默认 60
+    #[serde(default = "default_notification_rate_limit_secs")]
+    pub rate_limit_secs: u64,
+}
+
+impl Default for NotificationConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_notification_enabled(),
+            rate_limit_secs: default_notification_rate_limit_secs(),
+        }
+    }
+}
+
 /// Aidaguard 配置
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Config {
@@ -97,6 +119,10 @@ pub struct Config {
     /// 上游 LLM 列表
     #[serde(default)]
     pub upstreams: Vec<UpstreamConfig>,
+
+    /// 桌面通知配置
+    #[serde(default)]
+    pub notification: NotificationConfig,
 }
 
 impl Default for Config {
@@ -110,6 +136,7 @@ impl Default for Config {
             max_body_size_mb: default_max_body_size_mb(),
             storage: StorageConfig::default(),
             upstreams: Vec::new(),
+            notification: NotificationConfig::default(),
         }
     }
 }

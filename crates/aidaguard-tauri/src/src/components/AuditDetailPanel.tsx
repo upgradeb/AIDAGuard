@@ -31,8 +31,8 @@ export default function AuditDetailPanel({ record }: AuditDetailPanelProps) {
         <Descriptions.Item label="工具名">
           {record.toolName || "—"}
         </Descriptions.Item>
-        <Descriptions.Item label="规则">
-          <Tag color="orange">{record.ruleId}</Tag>
+        <Descriptions.Item label="规则名">
+          <Tag color="orange">{record.ruleName || record.ruleId}</Tag>
         </Descriptions.Item>
         <Descriptions.Item label="策略">
           <Tag>{record.strategy}</Tag>

@@ -30,3 +30,23 @@ export const testRule = (
 export const reloadRules = (): Promise<string> => invoke("reload_rules");
 
 export const getRuleFiles = (): Promise<string[]> => invoke("get_rule_files");
+
+export const createCategory = (name: string): Promise<void> =>
+  invoke("create_category", { name });
+
+export const deleteCategory = (name: string): Promise<void> =>
+  invoke("delete_category", { name });
+
+export const renameCategory = (oldName: string, newName: string): Promise<void> =>
+  invoke("rename_category", { oldName, newName });
+
+export interface GeneratedRule {
+  name: string;
+  pattern: string;
+  strategy: string;
+  mode: string;
+  priority: number;
+}
+
+export const generateRule = (sampleText: string): Promise<GeneratedRule> =>
+  invoke("generate_rule", { sampleText });

@@ -82,6 +82,9 @@ export default function RuleTestPanel({
                       pos {m.start}-{m.end}
                     </Typography.Text>
                     <Tag>{m.strategy}</Tag>
+                    <Tag color={m.mode === "filter" ? "blue" : "default"}>
+                      {m.mode === "filter" ? "过滤" : "检测"}
+                    </Tag>
                   </Space>
                 </div>
               ))}
