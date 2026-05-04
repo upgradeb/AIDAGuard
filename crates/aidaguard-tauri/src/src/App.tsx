@@ -24,9 +24,9 @@ const { Sider, Header, Content } = Layout;
 const menuItems = [
   { key: "/", icon: <DashboardOutlined />, label: "仪表盘" },
   { key: "/audit", icon: <AuditOutlined />, label: "审计记录" },
-  { key: "/rules", icon: <SafetyOutlined />, label: "规则管理" },
   { key: "/upstreams", icon: <ApiOutlined />, label: "大模型接入" },
   { key: "/tools", icon: <ToolOutlined />, label: "AI 工具配置" },
+  { key: "/rules", icon: <SafetyOutlined />, label: "规则管理" },
   { key: "/settings", icon: <SettingOutlined />, label: "设置" },
 ];
 

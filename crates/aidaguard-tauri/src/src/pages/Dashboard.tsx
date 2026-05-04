@@ -18,6 +18,7 @@ import { useUpstreamStore } from "../store/useUpstreamStore";
 import StatCard from "../components/StatCard";
 import EventFeed from "../components/EventFeed";
 import RuleHitChart from "../components/RuleHitChart";
+import OperationGuide from "../components/OperationGuide";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -84,6 +85,9 @@ export default function Dashboard() {
           style={{ marginBottom: 16, borderRadius: 8 }}
         />
       )}
+
+      {/* 操作指引 */}
+      <OperationGuide />
 
       {/* 代理信息卡片 */}
       <Card size="small" style={{ ...cardStyle, marginBottom: 24 }}>
