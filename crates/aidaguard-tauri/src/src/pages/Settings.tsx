@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Card,
   Form,
@@ -20,6 +21,7 @@ import ThemeSwitcher from "../components/ThemeSwitcher";
 import type { Config } from "../types";
 
 export default function Settings() {
+  const { t } = useTranslation();
   const { token } = theme.useToken();
   const navigate = useNavigate();
   const config = useConfigStore((s) => s.config);
@@ -47,7 +49,7 @@ export default function Settings() {
     const values = await form.validateFields();
     try {
       await save(values);
-      message.success("配置已保存");
+      message.success(t("配置已保存"));
     } catch (e) {
       message.error(String(e));
     }
@@ -69,25 +71,25 @@ export default function Settings() {
         initialValues={config || undefined}
       >
         {/* 代理设置 */}
-        <Card title="代理设置" size="small" style={cardStyle}>
+        <Card title={t("代理设置")} size="small" style={cardStyle}>
           <Form.Item
             name="port"
-            label="监听端口"
+            label={t("监听端口")}
             rules={[{ required: true }]}
-            extra="默认 19000，修改后需重启代理"
+            extra={t("默认 19000，修改后需重启代理")}
           >
             <InputNumber min={1024} max={65535} style={{ width: 200 }} />
           </Form.Item>
           <Form.Item
             name="rules_dir"
-            label="规则文件目录"
-            extra="YAML 规则文件存放路径"
+            label={t("规则文件目录")}
+            extra={t("YAML 规则文件存放路径")}
           >
             <Input placeholder="./rules" />
           </Form.Item>
           <Form.Item
             name="max_body_size_mb"
-            label="请求体大小限制 (MB)"
+            label={t("请求体大小限制 (MB)")}
           >
             <InputNumber min={1} max={100} style={{ width: 200 }} />
           </Form.Item>
@@ -109,12 +111,12 @@ export default function Settings() {
               }}
             >
               <div>
-                <Typography.Text strong>上游 LLM 接入</Typography.Text>
+                <Typography.Text strong>{t("上游 LLM 接入")}</Typography.Text>
                 <br />
                 <Typography.Text style={{ fontSize: 12, color: token.colorTextSecondary }}>
                   {defaultUpstream
-                    ? `当前默认：${defaultUpstream.name} (${defaultUpstream.url})`
-                    : "未设置默认上游，请在「大模型接入」中配置"}
+                    ? t("当前默认：{{name}} ({{url}})", { name: defaultUpstream.name, url: defaultUpstream.url })
+                    : t("未设置默认上游，请在「大模型接入」中配置")}
                 </Typography.Text>
               </div>
               <Button
@@ -122,17 +124,17 @@ export default function Settings() {
                 icon={<LinkOutlined />}
                 onClick={() => navigate("/upstreams")}
               >
-                管理
+                {t("管理")}
               </Button>
             </div>
             {upstreams.length > 0 && (
               <Select
-                placeholder="切换默认上游"
+                placeholder={t("切换默认上游")}
                 style={{ width: "100%", marginTop: 12 }}
                 value={defaultUpstream?.name || undefined}
                 onChange={async (name) => {
                   await setDefaultUpstream(name);
-                  message.success(`默认上游已切换为: ${name}`);
+                  message.success(t("默认上游已切换为: {{name}}", { name }));
                   fetchUpstreams();
                 }}
                 options={upstreams.map((u) => ({
@@ -145,33 +147,33 @@ export default function Settings() {
         </Card>
 
         {/* 存储设置 */}
-        <Card title="存储设置" size="small" style={cardStyle}>
+        <Card title={t("存储设置")} size="small" style={cardStyle}>
           <Form.Item
             name={["storage", "enabled"]}
-            label="启用审计记录"
+            label={t("启用审计记录")}
             valuePropName="checked"
-            extra="开启后敏感数据检测记录将被持久化存储"
+            extra={t("开启后敏感数据检测记录将被持久化存储")}
           >
             <Switch />
           </Form.Item>
           <Form.Item
             name={["storage", "db_path"]}
-            label="数据库文件路径"
+            label={t("数据库文件路径")}
           >
             <Input placeholder="./data/aidaguard.db" />
           </Form.Item>
           <Form.Item
             name={["storage", "encryption_key"]}
-            label="加密密钥"
-            extra="用于加密存储的敏感数据原文"
+            label={t("加密密钥")}
+            extra={t("用于加密存储的敏感数据原文")}
           >
-            <Input.Password placeholder="留空使用内置默认密钥" />
+            <Input.Password placeholder={t("留空使用内置默认密钥")} />
           </Form.Item>
         </Card>
 
         {/* 日志设置 */}
-        <Card title="日志设置" size="small" style={cardStyle}>
-          <Form.Item name="log_level" label="日志级别">
+        <Card title={t("日志设置")} size="small" style={cardStyle}>
+          <Form.Item name="log_level" label={t("日志级别")}>
             <Select
               style={{ width: 160 }}
               options={[
@@ -186,37 +188,37 @@ export default function Settings() {
         </Card>
 
         {/* 通知设置 */}
-        <Card title="通知设置" size="small" style={cardStyle}>
+        <Card title={t("通知设置")} size="small" style={cardStyle}>
           <Form.Item
             name={["notification", "enabled"]}
-            label="桌面通知"
+            label={t("桌面通知")}
             valuePropName="checked"
-            extra="检测到敏感数据时发送系统通知，重启代理后生效"
+            extra={t("检测到敏感数据时发送系统通知，重启代理后生效")}
           >
             <Switch />
           </Form.Item>
           <Form.Item
             name={["notification", "rate_limit_secs"]}
-            label="通知间隔 (秒)"
-            extra="同一规则最短通知间隔，避免刷屏"
+            label={t("通知间隔 (秒)")}
+            extra={t("同一规则最短通知间隔，避免刷屏")}
           >
             <InputNumber min={10} max={600} style={{ width: 200 }} />
           </Form.Item>
         </Card>
 
         {/* 外观 */}
-        <Card title="外观" size="small" style={cardStyle}>
+        <Card title={t("外观")} size="small" style={cardStyle}>
           <div style={{ marginBottom: 8 }}>
             <ThemeSwitcher />
           </div>
         </Card>
 
         {/* 关于 */}
-        <Card title="关于" size="small" style={cardStyle}>
+        <Card title={t("关于")} size="small" style={cardStyle}>
           <Descriptions column={1} size="small">
-            <Descriptions.Item label="产品">Aidaguard</Descriptions.Item>
-            <Descriptions.Item label="版本">0.1.0</Descriptions.Item>
-            <Descriptions.Item label="许可证">MIT</Descriptions.Item>
+            <Descriptions.Item label={t("产品")}>Aidaguard</Descriptions.Item>
+            <Descriptions.Item label={t("版本")}>0.1.0</Descriptions.Item>
+            <Descriptions.Item label={t("许可证")}>MIT</Descriptions.Item>
           </Descriptions>
         </Card>
 
@@ -228,7 +230,7 @@ export default function Settings() {
           loading={saving}
           style={{ marginTop: 8 }}
         >
-          保存设置
+          {t("保存设置")}
         </Button>
       </Form>
     </div>

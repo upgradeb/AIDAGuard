@@ -12,6 +12,7 @@ import {
   SafetyOutlined,
   GlobalOutlined,
 } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 import { useProxyStore } from "../store/useProxyStore";
 import { useAuditStore } from "../store/useAuditStore";
 import { useUpstreamStore } from "../store/useUpstreamStore";
@@ -23,6 +24,7 @@ import OperationGuide from "../components/OperationGuide";
 export default function Dashboard() {
   const navigate = useNavigate();
   const { token } = theme.useToken();
+  const { t } = useTranslation();
   const status = useProxyStore((s) => s.status);
   const loading = useProxyStore((s) => s.loading);
   const error = useProxyStore((s) => s.error);
@@ -78,7 +80,7 @@ export default function Dashboard() {
         <Alert
           type="error"
           showIcon
-          message="代理操作失败"
+          message={t("代理操作失败")}
           description={error}
           closable
           onClose={() => useProxyStore.setState({ error: null })}
@@ -113,7 +115,7 @@ export default function Dashboard() {
                 }}
               />
               <Typography.Text strong style={{ fontSize: 15 }}>
-                {isRunning ? "代理运行中" : "代理已停止"}
+                {isRunning ? t("代理运行中") : t("代理已停止")}
               </Typography.Text>
             </Space>
 
@@ -124,13 +126,13 @@ export default function Dashboard() {
             {isRunning && (
               <>
                 <Tag icon={<ClockCircleOutlined />}>
-                  运行 {formatUptime(status?.uptimeSecs || 0)}
+                  {t("运行 {{uptime}}", { uptime: formatUptime(status?.uptimeSecs || 0) })}
                 </Tag>
                 <Tag icon={<SafetyOutlined />}>
-                  {status?.rulesCount ?? 0} 条规则
+                  {t("{{count}} 条规则", { count: status?.rulesCount ?? 0 })}
                 </Tag>
                 <Tag icon={<DatabaseOutlined />}>
-                  存储 {status?.storageEnabled ? "开" : "关"}
+                  {t("存储")} {status?.storageEnabled ? t("开") : t("关")}
                 </Tag>
               </>
             )}
@@ -150,7 +152,7 @@ export default function Dashboard() {
                 onClick={stop}
                 loading={loading}
               >
-                停止
+                {t("停止")}
               </Button>
             ) : (
               <Button
@@ -160,7 +162,7 @@ export default function Dashboard() {
                 onClick={start}
                 loading={loading}
               >
-                启动代理
+                {t("启动代理")}
               </Button>
             )}
           </Space>
@@ -180,11 +182,11 @@ export default function Dashboard() {
         >
           <Space size={8}>
             <ApiOutlined style={{ color: token.colorPrimary }} />
-            <Typography.Text style={{ fontSize: 13 }}>对接模型</Typography.Text>
+            <Typography.Text style={{ fontSize: 13 }}>{t("对接模型")}</Typography.Text>
           </Space>
           <Select
             style={{ minWidth: 280 }}
-            placeholder="选择默认上游 LLM"
+            placeholder={t("选择默认上游 LLM")}
             value={defaultUpstream?.name || undefined}
             onChange={async (name) => {
               await setDefaultUpstream(name);
@@ -196,7 +198,7 @@ export default function Dashboard() {
             }))}
             notFoundContent={
               <Typography.Text type="secondary" style={{ padding: 8, display: "block" }}>
-                暂无上游，请前往「大模型接入」添加
+                {t("暂无上游，请前往「大模型接入」添加")}
               </Typography.Text>
             }
           />
@@ -208,7 +210,7 @@ export default function Dashboard() {
             </Tag>
           )}
           <Typography.Text type="secondary" style={{ fontSize: 11 }}>
-            {isRunning ? "切换后需重启代理生效" : "启动代理前选择目标模型"}
+            {isRunning ? t("切换后需重启代理生效") : t("启动代理前选择目标模型")}
           </Typography.Text>
         </div>
       </Card>
@@ -217,7 +219,7 @@ export default function Dashboard() {
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         <Col xs={24} sm={12} lg={6}>
           <StatCard
-            title="今日检测"
+            title={t("今日检测")}
             value={stats?.todayCount ?? 0}
             icon={<ThunderboltOutlined />}
             color="#3b82f6"
@@ -225,7 +227,7 @@ export default function Dashboard() {
         </Col>
         <Col xs={24} sm={12} lg={6}>
           <StatCard
-            title="本周检测"
+            title={t("本周检测")}
             value={stats?.weekCount ?? 0}
             icon={<ThunderboltOutlined />}
             color="#8b5cf6"
@@ -233,7 +235,7 @@ export default function Dashboard() {
         </Col>
         <Col xs={24} sm={12} lg={6}>
           <StatCard
-            title="总计检测"
+            title={t("总计检测")}
             value={stats?.totalCount ?? 0}
             icon={<ThunderboltOutlined />}
             color="#f59e0b"
@@ -241,7 +243,7 @@ export default function Dashboard() {
         </Col>
         <Col xs={24} sm={12} lg={6}>
           <StatCard
-            title="数据库大小"
+            title={t("数据库大小")}
             value={formatBytes(stats?.dbSizeBytes ?? 0)}
             icon={<DatabaseOutlined />}
             color="#22c55e"
@@ -253,7 +255,7 @@ export default function Dashboard() {
       <Row gutter={[16, 16]}>
         <Col xs={24} lg={12}>
           <Card
-            title="规则命中分布"
+            title={t("规则命中分布")}
             size="small"
             style={cardStyle}
           >
@@ -262,7 +264,7 @@ export default function Dashboard() {
         </Col>
         <Col xs={24} lg={12}>
           <Card
-            title="最近事件"
+            title={t("最近事件")}
             size="small"
             style={{ ...cardStyle, maxHeight: 380, overflow: "auto" }}
           >

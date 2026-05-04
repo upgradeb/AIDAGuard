@@ -1,5 +1,6 @@
 import { List, Space, Tag, Typography, theme } from "antd";
 import { WarningOutlined } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 import type { DetectionRecord } from "../types";
 import dayjs from "dayjs";
 
@@ -8,15 +9,16 @@ interface EventFeedProps {
   onClickRecord?: (id: string) => void;
 }
 
-function strategyLabel(strategy: string) {
+function useStrategyLabel(strategy: string) {
+  const { t } = useTranslation();
   switch (strategy) {
     case "placeholder":
     case "filter":
-      return { label: "已过滤", color: "#22c55e" as const };
+      return { label: t("已过滤"), color: "#22c55e" as const };
     case "detect":
-      return { label: "仅检测", color: "#f59e0b" as const };
+      return { label: t("仅检测"), color: "#f59e0b" as const };
     case "mask":
-      return { label: "已掩码", color: "#8b5cf6" as const };
+      return { label: t("已掩码"), color: "#8b5cf6" as const };
     default:
       return { label: strategy, color: "#3b82f6" as const };
   }
@@ -24,6 +26,7 @@ function strategyLabel(strategy: string) {
 
 export default function EventFeed({ records, onClickRecord }: EventFeedProps) {
   const { token } = theme.useToken();
+  const { t } = useTranslation();
 
   if (records.length === 0) {
     return (
@@ -36,7 +39,7 @@ export default function EventFeed({ records, onClickRecord }: EventFeedProps) {
       >
         <WarningOutlined style={{ fontSize: 32, marginBottom: 8 }} />
         <br />
-        暂无检测事件
+        {t("暂无检测事件")}
       </div>
     );
   }
@@ -45,7 +48,7 @@ export default function EventFeed({ records, onClickRecord }: EventFeedProps) {
     <List
       dataSource={records}
       renderItem={(item) => {
-        const strat = strategyLabel(item.strategy);
+        const strat = useStrategyLabel(item.strategy);
         return (
           <List.Item
             style={{

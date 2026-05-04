@@ -1,4 +1,5 @@
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { useTranslation } from "react-i18next";
 
 interface RuleDistribution {
   ruleId: string;
@@ -22,6 +23,8 @@ interface RuleHitChartProps {
 }
 
 export default function RuleHitChart({ data }: RuleHitChartProps) {
+  const { t } = useTranslation();
+
   if (data.length === 0) {
     return (
       <div
@@ -32,7 +35,7 @@ export default function RuleHitChart({ data }: RuleHitChartProps) {
           fontSize: 14,
         }}
       >
-        暂无数据
+        {t("暂无数据")}
       </div>
     );
   }

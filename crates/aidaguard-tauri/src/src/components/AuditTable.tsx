@@ -1,5 +1,6 @@
 import { Table, Tag, Typography, Space, Button, Popconfirm, Badge } from "antd";
 import { EyeOutlined, DeleteOutlined } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 import type { ColumnsType } from "antd/es/table";
 import type { AuditGroup, DetectionRecord } from "../types";
 import dayjs from "dayjs";
@@ -33,27 +34,29 @@ export default function AuditTable({
   onViewDetail,
   onDelete,
 }: AuditTableProps) {
+  const { t } = useTranslation();
+
   const groupColumns: ColumnsType<AuditGroup> = [
     {
-      title: "最新时间",
+      title: t("最新时间"),
       dataIndex: "latestTimestampMs",
       key: "latestTime",
       width: 170,
       render: (val: number) => dayjs(val).format("YYYY-MM-DD HH:mm:ss"),
     },
     {
-      title: "审计策略",
+      title: t("审计策略"),
       dataIndex: "strategy",
       key: "strategy",
       width: 100,
       render: (val: string) => {
-        if (val === "detect") return <Tag color="orange">仅检测</Tag>;
-        if (val === "mask") return <Tag color="purple">部分掩码</Tag>;
-        return <Tag color="blue">占位符替换</Tag>;
+        if (val === "detect") return <Tag color="orange">{t("仅检测")}</Tag>;
+        if (val === "mask") return <Tag color="purple">{t("部分掩码")}</Tag>;
+        return <Tag color="blue">{t("占位符替换")}</Tag>;
       },
     },
     {
-      title: "规则名",
+      title: t("规则名"),
       dataIndex: "ruleName",
       key: "rule",
       width: 160,
@@ -65,7 +68,7 @@ export default function AuditTable({
       ),
     },
     {
-      title: "命中次数",
+      title: t("命中次数"),
       dataIndex: "count",
       key: "count",
       width: 80,
@@ -78,14 +81,14 @@ export default function AuditTable({
 
   const recordColumns: ColumnsType<DetectionRecord> = [
     {
-      title: "时间",
+      title: t("时间"),
       dataIndex: "timestampMs",
       key: "time",
       width: 150,
       render: (val: number) => dayjs(val).format("YYYY-MM-DD HH:mm:ss"),
     },
     {
-      title: "原始数据",
+      title: t("原始数据"),
       dataIndex: "original",
       key: "original",
       width: 140,
@@ -97,7 +100,7 @@ export default function AuditTable({
       ),
     },
     {
-      title: "占位符",
+      title: t("占位符"),
       dataIndex: "placeholder",
       key: "placeholder",
       width: 160,
@@ -109,7 +112,7 @@ export default function AuditTable({
       ),
     },
     {
-      title: "工具名",
+      title: t("工具名"),
       dataIndex: "toolName",
       key: "tool",
       width: 100,
@@ -118,7 +121,7 @@ export default function AuditTable({
         val ? <Tag color="geekblue">{val}</Tag> : <Typography.Text type="secondary">—</Typography.Text>,
     },
     {
-      title: "模型",
+      title: t("模型"),
       dataIndex: "requestPath",
       key: "path",
       width: 140,
@@ -130,7 +133,7 @@ export default function AuditTable({
       ),
     },
     {
-      title: "操作",
+      title: t("操作"),
       key: "actions",
       width: 90,
       render: (_, record) => (
@@ -142,10 +145,10 @@ export default function AuditTable({
             onClick={() => onViewDetail(record.id)}
           />
           <Popconfirm
-            title="确定删除此记录？"
+            title={t("确定删除此记录？")}
             onConfirm={() => onDelete(record.id, record.ruleId, record.strategy)}
-            okText="删除"
-            cancelText="取消"
+            okText={t("删除")}
+            cancelText={t("取消")}
           >
             <Button type="link" size="small" danger icon={<DeleteOutlined />} />
           </Popconfirm>
@@ -193,7 +196,7 @@ export default function AuditTable({
         showSizeChanger: true,
         pageSizeOptions: ["10", "20", "50"],
         onChange: onPageChange,
-        showTotal: (t) => `共 ${t} 组`,
+        showTotal: (total) => t("共 {{count}} 组", { count: total }),
       }}
     />
   );

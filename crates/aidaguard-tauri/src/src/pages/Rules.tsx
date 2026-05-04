@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Card,
   Table,
@@ -45,6 +46,7 @@ function groupByCategory(rules: RuleWithCategory[]): Map<string, RuleWithCategor
 }
 
 export default function Rules() {
+  const { t } = useTranslation();
   const { token } = theme.useToken();
   const rules = useRulesStore((s) => s.rules);
   const ruleFiles = useRulesStore((s) => s.ruleFiles);
@@ -69,7 +71,7 @@ export default function Rules() {
   const defaultUpstream = upstreams.find((u) => u.default) || upstreams[0];
   const defaultModelLabel = defaultUpstream
     ? `${defaultUpstream.name} / ${defaultUpstream.models?.[0] || "—"}`
-    : "未配置（请先在「大模型接入」中添加）";
+    : t("未配置（请先在「大模型接入」中添加）");
 
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<RuleWithCategory | null>(null);
@@ -100,7 +102,7 @@ export default function Rules() {
   const handleSave = async (rule: RuleDef, category: string) => {
     try {
       await save(rule, category);
-      message.success("规则已保存");
+      message.success(t("规则已保存"));
       setEditorOpen(false);
       setEditingRule(null);
       fetchRules();
@@ -112,7 +114,7 @@ export default function Rules() {
   const handleDelete = async (ruleId: string, category: string) => {
     try {
       await remove(ruleId, category);
-      message.success("规则已删除");
+      message.success(t("规则已删除"));
       fetchRules();
     } catch (e) {
       message.error(String(e));
@@ -143,7 +145,7 @@ export default function Rules() {
     if (!name) return;
     try {
       await createCat(name);
-      message.success(`分类 ${name} 已创建`);
+      message.success(t("分类 {{name}} 已创建", { name }));
       setNewCatName("");
       fetchRules();
     } catch (e) {
@@ -154,7 +156,7 @@ export default function Rules() {
   const handleDeleteCategory = async (name: string) => {
     try {
       await deleteCat(name);
-      message.success(`分类 ${name} 已删除`);
+      message.success(t("分类 {{name}} 已删除", { name }));
       fetchRules();
     } catch (e) {
       message.error(String(e));
@@ -167,7 +169,7 @@ export default function Rules() {
     if (!newName) return;
     try {
       await renameCat(renameTarget, newName);
-      message.success(`已重命名为 ${newName}`);
+      message.success(t("已重命名为 {{newName}}", { newName }));
       setRenameTarget(null);
       setRenameNewName("");
       fetchRules();
@@ -204,7 +206,7 @@ export default function Rules() {
 
   const columns: ColumnsType<RuleWithCategory> = [
     {
-      title: "启用",
+      title: t("启用"),
       dataIndex: "enabled",
       key: "enabled",
       width: 60,
@@ -220,7 +222,7 @@ export default function Rules() {
       ),
     },
     {
-      title: "模式",
+      title: t("模式"),
       dataIndex: "mode",
       key: "mode",
       width: 80,
@@ -228,34 +230,34 @@ export default function Rules() {
         <Switch
           size="small"
           checked={val === "filter"}
-          checkedChildren="过滤"
-          unCheckedChildren="检测"
+          checkedChildren={t("过滤")}
+          unCheckedChildren={t("检测")}
           onChange={() => handleToggleMode(record)}
         />
       ),
     },
     {
-      title: "规则名",
+      title: t("规则名"),
       dataIndex: "name",
       key: "name",
       width: 140,
     },
     {
-      title: "ID",
+      title: t("ID"),
       dataIndex: "id",
       key: "id",
       width: 150,
       render: (v: string) => <Tag>{v}</Tag>,
     },
     {
-      title: "正则",
+      title: t("正则"),
       dataIndex: "pattern",
       key: "pattern",
       ellipsis: true,
       render: (v: string) => <code style={{ fontSize: 12 }}>{v}</code>,
     },
     {
-      title: "策略",
+      title: t("策略"),
       dataIndex: "strategy",
       key: "strategy",
       width: 100,
@@ -264,13 +266,13 @@ export default function Rules() {
       ),
     },
     {
-      title: "优先级",
+      title: t("优先级"),
       dataIndex: "priority",
       key: "priority",
       width: 70,
     },
     {
-      title: "操作",
+      title: t("操作"),
       key: "actions",
       width: 130,
       render: (_, record) => (
@@ -294,10 +296,10 @@ export default function Rules() {
             }}
           />
           <Popconfirm
-            title="确定删除此规则？"
+            title={t("确定删除此规则？")}
             onConfirm={() => handleDelete(record.id, record.category)}
-            okText="删除"
-            cancelText="取消"
+            okText={t("删除")}
+            cancelText={t("取消")}
           >
             <Button
               type="link"
@@ -319,7 +321,7 @@ export default function Rules() {
           <Alert
             type="error"
             showIcon
-            message="规则加载失败"
+            message={t("规则加载失败")}
             description={error}
             closable
             style={{ marginBottom: 12, borderRadius: 8 }}
@@ -330,11 +332,11 @@ export default function Rules() {
           <Alert
             type="warning"
             showIcon
-            message="未发现规则文件"
+            message={t("未发现规则文件")}
             description={
               <span>
-                规则目录：<code>{rulesDir || "未知"}</code>
-                。请确保目录下存在 <code>.yaml</code> 规则文件，或在「设置」中修改规则文件目录。
+                {t("规则目录：")}<code>{rulesDir || t("未知")}</code>
+                {t("。请确保目录下存在 ")}<code>.yaml</code>{t(" 规则文件，或在「设置」中修改规则文件目录。")}
               </span>
             }
             style={{ marginBottom: 12, borderRadius: 8 }}
@@ -356,10 +358,10 @@ export default function Rules() {
           >
             <span>
               <FolderOpenOutlined style={{ marginRight: 4 }} />
-              规则目录：<code style={{ fontSize: 12 }}>{rulesDir}</code>
+              {t("规则目录：")}<code style={{ fontSize: 12 }}>{rulesDir}</code>
             </span>
             <span style={{ color: token.colorTextSecondary }}>
-              共 <strong>{rules.length}</strong> 条规则 · <strong>{ruleFiles.length}</strong> 个文件
+              {t("共 {{ruleCount}} 条规则 · {{fileCount}} 个文件", { ruleCount: rules.length, fileCount: ruleFiles.length })}
             </span>
           </div>
         )}
@@ -376,7 +378,7 @@ export default function Rules() {
         >
           <Space wrap>
             <Select
-              placeholder="分类筛选"
+              placeholder={t("分类筛选")}
               allowClear
               style={{ width: 140 }}
               value={filterCat || undefined}
@@ -384,14 +386,14 @@ export default function Rules() {
               options={ruleFiles.map((f) => ({ value: f, label: f }))}
             />
             <Input.Search
-              placeholder="搜索规则名/ID"
+              placeholder={t("搜索规则名/ID")}
               style={{ width: 220 }}
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
               allowClear
             />
             <Button icon={<ReloadOutlined />} onClick={reload}>
-              重载规则
+              {t("重载规则")}
             </Button>
           </Space>
           <Space>
@@ -399,13 +401,13 @@ export default function Rules() {
               icon={<SettingOutlined />}
               onClick={() => setCatModalOpen(true)}
             >
-              管理分类
+              {t("管理分类")}
             </Button>
             <Button
               icon={<RobotOutlined />}
               onClick={() => setGenerateOpen(true)}
             >
-              生成规则
+              {t("生成规则")}
             </Button>
             <Button
               type="primary"
@@ -415,7 +417,7 @@ export default function Rules() {
                 setEditorOpen(true);
               }}
             >
-              添加规则
+              {t("添加规则")}
             </Button>
           </Space>
         </div>
@@ -441,14 +443,14 @@ export default function Rules() {
                 <Space>
                   <Tag color="green">{cat}</Tag>
                   <span style={{ fontSize: 12, color: token.colorTextSecondary }}>
-                    {catRules.length} 条规则
+                    {t("{{count}} 条规则", { count: catRules.length })}
                   </span>
                 </Space>
               }
               extra={
                 <Space size={8}>
                   <Space size={2}>
-                    <Typography.Text style={{ fontSize: 11, color: token.colorTextQuaternary }}>启用</Typography.Text>
+                    <Typography.Text style={{ fontSize: 11, color: token.colorTextQuaternary }}>{t("启用")}</Typography.Text>
                     <Switch
                       size="small"
                       checked={allEnabled}
@@ -456,12 +458,12 @@ export default function Rules() {
                     />
                   </Space>
                   <Space size={2}>
-                    <Typography.Text style={{ fontSize: 11, color: token.colorTextQuaternary }}>过滤</Typography.Text>
+                    <Typography.Text style={{ fontSize: 11, color: token.colorTextQuaternary }}>{t("过滤")}</Typography.Text>
                     <Switch
                       size="small"
                       checked={allFilter}
-                      checkedChildren="过滤"
-                      unCheckedChildren="检测"
+                      checkedChildren={t("过滤")}
+                      unCheckedChildren={t("检测")}
                       onChange={(v) => handleBulkToggleMode(cat, v ? "filter" : "detect")}
                     />
                   </Space>
@@ -474,13 +476,13 @@ export default function Rules() {
                       setRenameNewName(cat);
                     }}
                   >
-                    重命名
+                    {t("重命名")}
                   </Button>
                   <Popconfirm
-                    title={`确定删除分类 ${cat}？将同时删除该分类下的所有规则。`}
+                    title={t("确定删除分类 {{cat}}？将同时删除该分类下的所有规则。", { cat })}
                     onConfirm={() => handleDeleteCategory(cat)}
-                    okText="删除"
-                    cancelText="取消"
+                    okText={t("删除")}
+                    cancelText={t("取消")}
                   >
                     <Button
                       type="link"
@@ -488,7 +490,7 @@ export default function Rules() {
                       danger
                       style={{ fontSize: 12 }}
                     >
-                      删除
+                      {t("删除")}
                     </Button>
                   </Popconfirm>
                 </Space>
@@ -511,7 +513,7 @@ export default function Rules() {
         {filtered.length === 0 && !loading && (
           <Alert
             type="info"
-            message="无匹配规则"
+            message={t("无匹配规则")}
             style={{ borderRadius: 8 }}
           />
         )}
@@ -560,7 +562,7 @@ export default function Rules() {
 
       {/* 分类管理弹窗 */}
       <Modal
-        title="管理分类"
+        title={t("管理分类")}
         open={catModalOpen}
         onCancel={() => {
           setCatModalOpen(false);
@@ -573,20 +575,20 @@ export default function Rules() {
           <div>
             <Space.Compact style={{ width: "100%" }}>
               <Input
-                placeholder="输入新分类名（字母、数字、_、-）"
+                placeholder={t("输入新分类名（字母、数字、_、-）")}
                 value={newCatName}
                 onChange={(e) => setNewCatName(e.target.value)}
                 onPressEnter={handleCreateCategory}
               />
               <Button type="primary" onClick={handleCreateCategory}>
-                创建
+                {t("创建")}
               </Button>
             </Space.Compact>
           </div>
 
           <div>
             <Typography.Text strong style={{ display: "block", marginBottom: 8 }}>
-              现有分类
+              {t("现有分类")}
             </Typography.Text>
             {ruleFiles.map((f) => {
               const catRules = rules.filter((r) => r.category === f);
@@ -604,14 +606,14 @@ export default function Rules() {
                   <Space>
                     <Tag color="green">{f}</Tag>
                     <span style={{ fontSize: 12, color: "#999" }}>
-                      {catRules.length} 条规则
+                      {t("{{count}} 条规则", { count: catRules.length })}
                     </span>
                   </Space>
                   <Popconfirm
-                    title={`确定删除分类 ${f}？将同时删除该分类下的所有规则。`}
+                    title={t("确定删除分类 {{cat}}？将同时删除该分类下的所有规则。", { cat: f })}
                     onConfirm={() => handleDeleteCategory(f)}
-                    okText="删除"
-                    cancelText="取消"
+                    okText={t("删除")}
+                    cancelText={t("取消")}
                   >
                     <Button type="link" size="small" danger>
                       <DeleteOutlined />
@@ -621,7 +623,7 @@ export default function Rules() {
               );
             })}
             {ruleFiles.length === 0 && (
-              <Typography.Text type="secondary">暂无分类</Typography.Text>
+              <Typography.Text type="secondary">{t("暂无分类")}</Typography.Text>
             )}
           </div>
         </Space>
@@ -629,19 +631,19 @@ export default function Rules() {
 
       {/* 重命名分类弹窗 */}
       <Modal
-        title={`重命名分类: ${renameTarget || ""}`}
+        title={t("重命名分类: {{name}}", { name: renameTarget || "" })}
         open={!!renameTarget}
         onOk={handleRenameCategory}
         onCancel={() => {
           setRenameTarget(null);
           setRenameNewName("");
         }}
-        okText="保存"
-        cancelText="取消"
+        okText={t("保存")}
+        cancelText={t("取消")}
         width={400}
       >
         <Input
-          placeholder="输入新名称"
+          placeholder={t("输入新名称")}
           value={renameNewName}
           onChange={(e) => setRenameNewName(e.target.value)}
           onPressEnter={handleRenameCategory}

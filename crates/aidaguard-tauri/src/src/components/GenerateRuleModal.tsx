@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Modal,
   Input,
@@ -34,6 +35,7 @@ export default function GenerateRuleModal({
   onApply,
   onClose,
 }: GenerateRuleModalProps) {
+  const { t } = useTranslation();
   const [sampleText, setSampleText] = useState("");
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState<GeneratedRule | null>(null);
@@ -41,7 +43,7 @@ export default function GenerateRuleModal({
 
   const handleGenerate = async () => {
     if (!sampleText.trim()) {
-      message.warning("请输入测试样例");
+      message.warning(t("请输入测试样例"));
       return;
     }
     setGenerating(true);
@@ -89,7 +91,7 @@ export default function GenerateRuleModal({
       title={
         <Space>
           <RobotOutlined />
-          大模型生成规则
+          {t("大模型生成规则")}
         </Space>
       }
       open={open}
@@ -98,7 +100,7 @@ export default function GenerateRuleModal({
         result
           ? [
               <Button key="close" onClick={handleClose}>
-                关闭
+                {t("关闭")}
               </Button>,
               <Button
                 key="regenerate"
@@ -106,7 +108,7 @@ export default function GenerateRuleModal({
                 onClick={handleGenerate}
                 loading={generating}
               >
-                重新生成
+                {t("重新生成")}
               </Button>,
               <Button
                 key="apply"
@@ -114,12 +116,12 @@ export default function GenerateRuleModal({
                 icon={<EditOutlined />}
                 onClick={handleApply}
               >
-                应用到编辑器
+                {t("应用到编辑器")}
               </Button>,
             ]
           : [
               <Button key="cancel" onClick={handleClose}>
-                取消
+                {t("取消")}
               </Button>,
             ]
       }
@@ -142,18 +144,18 @@ export default function GenerateRuleModal({
       >
         <ApiOutlined style={{ color: "#1677ff" }} />
         <Typography.Text style={{ color: "#1677ff" }}>
-          调用模型：<strong>{modelLabel}</strong>
+          {t("调用模型：")}<strong>{modelLabel}</strong>
         </Typography.Text>
       </div>
 
       <Typography.Paragraph type="secondary" style={{ fontSize: 13 }}>
-        输入包含敏感数据的测试样例，由大模型自动分析并生成检测规则。生成后可在规则编辑器中进一步调整。
+        {t("输入包含敏感数据的测试样例，由大模型自动分析并生成检测规则。生成后可在规则编辑器中进一步调整。")}
       </Typography.Paragraph>
 
       <Input.TextArea
         value={sampleText}
         onChange={(e) => setSampleText(e.target.value)}
-        placeholder={`例如：\n患者张三，电话13812345678，身份证320102199001011234`}
+        placeholder={t("例如：\\n患者张三，电话13812345678，身份证320102199001011234")}
         rows={4}
         style={{ marginBottom: 12 }}
       />
@@ -167,13 +169,13 @@ export default function GenerateRuleModal({
           disabled={!sampleText.trim()}
           block
         >
-          {generating ? "生成中..." : "生成规则"}
+          {generating ? t("生成中...") : t("生成规则")}
         </Button>
       )}
 
       {generating && !result && (
         <div style={{ textAlign: "center", padding: 24 }}>
-          <Spin tip="大模型正在分析样例..." />
+          <Spin tip={t("大模型正在分析样例...")} />
         </div>
       )}
 
@@ -181,7 +183,7 @@ export default function GenerateRuleModal({
         <Alert
           type="error"
           showIcon
-          message="生成失败"
+          message={t("生成失败")}
           description={error}
           closable
           style={{ marginTop: 12, borderRadius: 8 }}
@@ -189,7 +191,7 @@ export default function GenerateRuleModal({
       )}
 
       {result && (
-        <Spin spinning={generating} tip="正在重新生成...">
+        <Spin spinning={generating} tip={t("正在重新生成...")}>
           <div
             style={{
               marginTop: 16,
@@ -208,34 +210,34 @@ export default function GenerateRuleModal({
                 display: "block",
               }}
             >
-              {generating ? "重新生成中..." : `生成完成 — ${result.upstreamName} / ${result.model}`}
+              {generating ? t("重新生成中...") : t("生成完成 — {{upstreamName}} / {{model}}", { upstreamName: result.upstreamName, model: result.model })}
             </Typography.Text>
           <Descriptions column={1} size="small" bordered>
-            <Descriptions.Item label="规则 ID">
+            <Descriptions.Item label={t("规则 ID")}>
               <Typography.Text code copyable>{result.id}</Typography.Text>
             </Descriptions.Item>
-            <Descriptions.Item label="规则名">
+            <Descriptions.Item label={t("规则名")}>
               <Typography.Text strong>{result.name}</Typography.Text>
             </Descriptions.Item>
-            <Descriptions.Item label="正则">
+            <Descriptions.Item label={t("正则")}>
               <Typography.Text code copyable>
                 {result.pattern}
               </Typography.Text>
             </Descriptions.Item>
-            <Descriptions.Item label="策略">
+            <Descriptions.Item label={t("策略")}>
               <Tag color={result.strategy === "placeholder" ? "blue" : "purple"}>
-                {result.strategy === "placeholder" ? "占位符替换" : "部分掩码"}
+                {result.strategy === "placeholder" ? t("占位符替换") : t("部分掩码")}
               </Tag>
             </Descriptions.Item>
-            <Descriptions.Item label="模式">
+            <Descriptions.Item label={t("模式")}>
               <Tag color={result.mode === "filter" ? "green" : "orange"}>
-                {result.mode === "filter" ? "过滤替换" : "仅检测"}
+                {result.mode === "filter" ? t("过滤替换") : t("仅检测")}
               </Tag>
             </Descriptions.Item>
-            <Descriptions.Item label="优先级">
+            <Descriptions.Item label={t("优先级")}>
               {result.priority}
             </Descriptions.Item>
-            <Descriptions.Item label="生成模型">
+            <Descriptions.Item label={t("生成模型")}>
               <Typography.Text code>{result.upstreamName} / {result.model}</Typography.Text>
             </Descriptions.Item>
           </Descriptions>

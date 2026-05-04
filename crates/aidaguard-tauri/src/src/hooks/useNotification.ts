@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { onDetectionEvent } from "../api/events";
+import i18n from "../i18n";
 import type { DetectionEvent } from "../types";
 
 const cooldownMap = new Map<string, number>();
@@ -31,8 +32,12 @@ export function useNotification() {
       cooldownMap.set(event.ruleId, now);
 
       try {
-        const n = new Notification("Aidaguard — 敏感数据检测", {
-          body: `规则: ${event.ruleId}  |  策略: ${event.strategy}  |  路径: ${event.requestPath}`,
+        const n = new Notification(i18n.t("Aidaguard — 敏感数据检测"), {
+          body: i18n.t("规则: {{ruleId}}  |  策略: {{strategy}}  |  路径: {{requestPath}}", {
+            ruleId: event.ruleId,
+            strategy: event.strategy,
+            requestPath: event.requestPath,
+          }),
         });
         n.onclick = () => {
           window.focus();

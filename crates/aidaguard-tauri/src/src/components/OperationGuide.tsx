@@ -9,6 +9,7 @@ import {
   ThunderboltOutlined,
   CheckCircleFilled,
 } from "@ant-design/icons";
+import { useTranslation } from "react-i18next";
 import { useProxyStore } from "../store/useProxyStore";
 import { useUpstreamStore } from "../store/useUpstreamStore";
 import { useToolsStore } from "../store/useToolsStore";
@@ -17,6 +18,7 @@ import { useRulesStore } from "../store/useRulesStore";
 export default function OperationGuide() {
   const { token } = theme.useToken();
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const proxyStatus = useProxyStore((s) => s.status);
   const fetchStatus = useProxyStore((s) => s.fetchStatus);
@@ -41,38 +43,46 @@ export default function OperationGuide() {
   const proxyPort = proxyStatus?.port || 19000;
 
   const steps = [
-    { title: "确认代理端口", done: true, icon: <ApiOutlined />, path: "/", desc: `端口 ${proxyPort} 已就绪` },
     {
-      title: "配置大模型访问地址",
+      title: t("确认代理端口"),
+      done: true,
+      icon: <ApiOutlined />,
+      path: "/",
+      desc: t("端口 {{port}} 已就绪", { port: proxyPort }),
+    },
+    {
+      title: t("配置大模型访问地址"),
       done: hasUpstream,
       icon: <CloudServerOutlined />,
       path: "/upstreams",
-      desc: hasUpstream ? `已配置 ${upstreams.length} 个上游` : "前往「大模型接入」添加",
+      desc: hasUpstream
+        ? t("已配置 {{count}} 个上游", { count: upstreams.length })
+        : t("前往「大模型接入」添加"),
     },
     {
-      title: "确认 AI 工具接入配置",
+      title: t("确认 AI 工具接入配置"),
       done: hasConfiguredTool,
       icon: <ToolOutlined />,
       path: "/tools",
       desc: hasConfiguredTool
-        ? `${tools.filter((t) => t.configured).length} 个工具已配置`
-        : "前往「AI 工具配置」对接",
+        ? t("{{count}} 个工具已配置", { count: tools.filter((t) => t.configured).length })
+        : t("前往「AI 工具配置」对接"),
     },
     {
-      title: "确认规则启用情况",
+      title: t("确认规则启用情况"),
       done: hasEnabledRule,
       icon: <SafetyOutlined />,
       path: "/rules",
       desc: hasEnabledRule
-        ? `${rules.filter((r) => r.enabled).length} 条规则已启用`
-        : "前往「检测规则」启用规则",
+        ? t("{{count}} 条规则已启用", { count: rules.filter((r) => r.enabled).length })
+        : t("前往「检测规则」启用规则"),
     },
     {
-      title: "启动代理服务",
+      title: t("启动代理服务"),
       done: isRunning,
       icon: <ThunderboltOutlined />,
       path: "/",
-      desc: isRunning ? "代理运行中" : "在仪表盘点击「启动代理」",
+      desc: isRunning ? t("代理运行中") : t("在仪表盘点击「启动代理」"),
     },
   ];
 
@@ -84,7 +94,7 @@ export default function OperationGuide() {
       title={
         <span style={{ fontSize: 14 }}>
           <ThunderboltOutlined style={{ marginRight: 8, color: token.colorPrimary }} />
-          操作指引
+          {t("操作指引")}
         </span>
       }
       style={{ borderRadius: 12, border: `1px solid ${token.colorBorderSecondary}`, marginBottom: 24 }}
@@ -116,7 +126,7 @@ export default function OperationGuide() {
                     style={{ padding: 0, fontSize: 12, height: "auto" }}
                     onClick={() => navigate(step.path)}
                   >
-                    前往配置 →
+                    {t("前往配置")} →
                   </Button>
                 </div>
               )}

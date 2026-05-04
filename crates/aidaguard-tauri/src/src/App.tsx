@@ -1,5 +1,5 @@
 import { Routes, Route } from "react-router-dom";
-import { Layout, theme } from "antd";
+import { Layout, theme, Button } from "antd";
 import {
   DashboardOutlined,
   AuditOutlined,
@@ -10,6 +10,8 @@ import {
 } from "@ant-design/icons";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useEffect } from "react";
+import { useTranslation } from "react-i18next";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import Dashboard from "./pages/Dashboard";
 import AuditLog from "./pages/AuditLog";
 import Rules from "./pages/Rules";
@@ -21,14 +23,17 @@ import { useNotification } from "./hooks/useNotification";
 
 const { Sider, Header, Content } = Layout;
 
-const menuItems = [
-  { key: "/", icon: <DashboardOutlined />, label: "仪表盘" },
-  { key: "/audit", icon: <AuditOutlined />, label: "审计记录" },
-  { key: "/upstreams", icon: <ApiOutlined />, label: "大模型接入" },
-  { key: "/tools", icon: <ToolOutlined />, label: "AI 工具配置" },
-  { key: "/rules", icon: <SafetyOutlined />, label: "规则管理" },
-  { key: "/settings", icon: <SettingOutlined />, label: "设置" },
-];
+function useMenuItems() {
+  const { t } = useTranslation();
+  return [
+    { key: "/", icon: <DashboardOutlined />, label: t("仪表盘") },
+    { key: "/audit", icon: <AuditOutlined />, label: t("审计记录") },
+    { key: "/upstreams", icon: <ApiOutlined />, label: t("大模型接入") },
+    { key: "/tools", icon: <ToolOutlined />, label: t("AI 工具配置") },
+    { key: "/rules", icon: <SafetyOutlined />, label: t("规则管理") },
+    { key: "/settings", icon: <SettingOutlined />, label: t("设置") },
+  ];
+}
 
 export default function App() {
   const navigate = useNavigate();
@@ -37,12 +42,27 @@ export default function App() {
   const { token } = theme.useToken();
   const startListening = useProxyStore((s) => s.startListening);
   const fetchStatus = useProxyStore((s) => s.fetchStatus);
+  const { t, i18n } = useTranslation();
+  const menuItems = useMenuItems();
 
   useEffect(() => {
     fetchStatus();
     const cleanup = startListening();
     return cleanup;
   }, []);
+
+  useEffect(() => {
+    document.body.style.backgroundColor = token.colorBgLayout;
+    document.body.style.color = token.colorText;
+    document.body.style.transition = "background-color 0.2s, color 0.2s";
+    document.documentElement.style.colorScheme =
+      token.colorBgLayout === "#000000" ? "dark" : "light";
+    try {
+      getCurrentWindow().setTheme?.(
+        token.colorBgLayout === "#000000" ? "dark" : "light",
+      );
+    } catch { /* non-Tauri env */ }
+  }, [token.colorBgLayout, token.colorText]);
 
   useNotification();
 
@@ -53,6 +73,12 @@ export default function App() {
         ? "#ef4444"
         : "#9ca3af";
 
+  const switchLang = () => {
+    const next = i18n.language === "zh" ? "en" : "zh";
+    i18n.changeLanguage(next);
+    localStorage.setItem("aidaguard-lang", next);
+  };
+
   return (
     <Layout style={{ minHeight: "100vh" }}>
       <Sider
@@ -60,6 +86,8 @@ export default function App() {
         style={{
           background: token.colorBgContainer,
           borderRight: `1px solid ${token.colorBorderSecondary}`,
+          display: "flex",
+          flexDirection: "column",
         }}
       >
         <div
@@ -97,11 +125,11 @@ export default function App() {
               display: "inline-block",
             }}
           />
-          {status?.status === "running" ? "代理运行中" : "代理已停止"}
+          {status?.status === "running" ? t("代理运行中") : t("代理已停止")}
         </div>
 
         {/* Navigation */}
-        <div style={{ padding: "8px 12px" }}>
+        <div style={{ padding: "8px 12px", flex: 1 }}>
           {menuItems.map((item) => {
             const isActive = location.pathname === item.key;
             return (
@@ -133,6 +161,24 @@ export default function App() {
             );
           })}
         </div>
+
+        {/* Language switcher */}
+        <div
+          style={{
+            padding: "12px 16px",
+            borderTop: `1px solid ${token.colorBorderSecondary}`,
+          }}
+        >
+          <Button
+            type="text"
+            size="small"
+            block
+            onClick={switchLang}
+            style={{ fontSize: 12, color: token.colorTextSecondary }}
+          >
+            {i18n.language === "zh" ? "EN" : "中文"}
+          </Button>
+        </div>
       </Sider>
 
       <Layout>
@@ -149,7 +195,7 @@ export default function App() {
         >
           <span style={{ fontSize: 16, fontWeight: 500 }}>
             {menuItems.find((m) => m.key === location.pathname)?.label ||
-              "仪表盘"}
+              t("仪表盘")}
           </span>
         </Header>
 

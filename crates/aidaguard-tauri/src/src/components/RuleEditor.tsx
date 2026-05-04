@@ -1,4 +1,5 @@
 import { Modal, Form, Input, Select, InputNumber, Switch } from "antd";
+import { useTranslation } from "react-i18next";
 import type { RuleDef } from "../types";
 import type { RuleWithCategory } from "../api/rules";
 
@@ -17,6 +18,7 @@ export default function RuleEditor({
   onSave,
   onCancel,
 }: RuleEditorProps) {
+  const { t } = useTranslation();
   const [form] = Form.useForm();
   const isEdit = !!editing;
 
@@ -62,13 +64,13 @@ export default function RuleEditor({
 
   return (
     <Modal
-      title={isEdit ? "编辑规则" : "添加规则"}
+      title={isEdit ? t("编辑规则") : t("添加规则")}
       open={open}
       onOk={handleOk}
       onCancel={onCancel}
       afterOpenChange={(visible) => { if (visible) handleOpen(); }}
-      okText="保存"
-      cancelText="取消"
+      okText={t("保存")}
+      cancelText={t("取消")}
       width={560}
     >
       <Form
@@ -78,54 +80,54 @@ export default function RuleEditor({
       >
         <Form.Item
           name="id"
-          label="规则 ID"
+          label={t("规则 ID")}
           rules={[
-            { required: true, message: "请输入规则 ID" },
-            { pattern: /^[a-z0-9_]+$/, message: "仅支持小写字母、数字和下划线" },
+            { required: true, message: t("请输入规则 ID") },
+            { pattern: /^[a-z0-9_]+$/, message: t("仅支持小写字母、数字和下划线") },
           ]}
         >
-          <Input placeholder="如 phone_cn" />
+          <Input placeholder={t("如 phone_cn")} />
         </Form.Item>
         <Form.Item
           name="name"
-          label="名称"
-          rules={[{ required: true, message: "请输入规则名称" }]}
+          label={t("名称")}
+          rules={[{ required: true, message: t("请输入规则名称") }]}
         >
-          <Input placeholder="如 中国手机号" />
+          <Input placeholder={t("如 中国手机号")} />
         </Form.Item>
         <Form.Item
           name="pattern"
-          label="正则表达式"
-          rules={[{ required: true, message: "请输入正则表达式" }]}
+          label={t("正则表达式")}
+          rules={[{ required: true, message: t("请输入正则表达式") }]}
         >
-          <Input.TextArea rows={3} placeholder="如 1[3-9]\d{9}" />
+          <Input.TextArea rows={3} placeholder={t("如 1[3-9]\\d{9}")} />
         </Form.Item>
-        <Form.Item name="strategy" label="策略">
+        <Form.Item name="strategy" label={t("策略")}>
           <Select
             options={[
-              { value: "placeholder", label: "Placeholder — 整体替换为占位符" },
-              { value: "mask", label: "Mask — 部分掩码" },
+              { value: "placeholder", label: t("Placeholder — 整体替换为占位符") },
+              { value: "mask", label: t("Mask — 部分掩码") },
             ]}
           />
         </Form.Item>
-        <Form.Item name="mode" label="模式">
+        <Form.Item name="mode" label={t("模式")}>
           <Select
             options={[
-              { value: "filter", label: "过滤 — 检测并替换为占位符" },
-              { value: "detect", label: "检测 — 仅记录，不替换" },
+              { value: "filter", label: t("过滤 — 检测并替换为占位符") },
+              { value: "detect", label: t("检测 — 仅记录，不替换") },
             ]}
           />
         </Form.Item>
-        <Form.Item name="priority" label="优先级">
+        <Form.Item name="priority" label={t("优先级")}>
           <InputNumber min={1} max={999} />
         </Form.Item>
-        <Form.Item name="enabled" label="启用" valuePropName="checked">
+        <Form.Item name="enabled" label={t("启用")} valuePropName="checked">
           <Switch />
         </Form.Item>
         <Form.Item
           name="category"
-          label="分类"
-          rules={[{ required: true, message: "请选择分类" }]}
+          label={t("分类")}
+          rules={[{ required: true, message: t("请选择分类") }]}
         >
           <Select
             options={ruleFiles.map((f) => ({ value: f, label: f }))}

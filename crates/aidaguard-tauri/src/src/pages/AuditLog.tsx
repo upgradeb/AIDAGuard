@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
 import {
   Card,
@@ -23,6 +24,7 @@ import type { Dayjs } from "dayjs";
 const { RangePicker } = DatePicker;
 
 export default function AuditLog() {
+  const { t } = useTranslation();
   const location = useLocation();
   const { token } = theme.useToken();
   const groups = useAuditStore((s) => s.groups);
@@ -81,7 +83,7 @@ export default function AuditLog() {
   const handleExport = async (format: "csv" | "json") => {
     try {
       const path = await doExport(format);
-      message.success(`已导出到: ${path}`);
+      message.success(t("已导出到: {{path}}", { path }));
     } catch (e) {
       message.error(String(e));
     }
@@ -92,7 +94,7 @@ export default function AuditLog() {
   };
 
   const handleDelete = (id: string, ruleId?: string, strategy?: string) => {
-    removeRecord(id, ruleId, strategy).then(() => message.success("已删除"));
+    removeRecord(id, ruleId, strategy).then(() => message.success(t("已删除")));
   };
 
   return (
@@ -111,7 +113,7 @@ export default function AuditLog() {
         >
           <Space wrap>
             <Input
-              placeholder="搜索规则名、请求路径"
+              placeholder={t("搜索规则名、请求路径")}
               prefix={<SearchOutlined />}
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
@@ -127,18 +129,18 @@ export default function AuditLog() {
               allowClear
             />
             <Button onClick={handleSearch} icon={<SearchOutlined />}>
-              搜索
+              {t("搜索")}
             </Button>
             <Button onClick={loadData} icon={<ReloadOutlined />}>
-              刷新
+              {t("刷新")}
             </Button>
           </Space>
           <Space>
             <Button icon={<ExportOutlined />} onClick={() => handleExport("csv")}>
-              导出 CSV
+              {t("导出 CSV")}
             </Button>
             <Button icon={<ExportOutlined />} onClick={() => handleExport("json")}>
-              导出 JSON
+              {t("导出 JSON")}
             </Button>
           </Space>
         </Space>
@@ -161,7 +163,7 @@ export default function AuditLog() {
 
       {/* Detail Drawer */}
       <Drawer
-        title="审计详情"
+        title={t("审计详情")}
         placement="right"
         width={600}
         open={detailOpen}
