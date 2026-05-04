@@ -43,7 +43,7 @@ export default function GenerateRuleModal({
 
   const handleGenerate = async () => {
     if (!sampleText.trim()) {
-      message.warning(t("请输入测试样例"));
+      message.warning(t("Please enter test sample"));
       return;
     }
     setGenerating(true);
@@ -91,7 +91,7 @@ export default function GenerateRuleModal({
       title={
         <Space>
           <RobotOutlined />
-          {t("大模型生成规则")}
+          {t("AI-Generated Rules")}
         </Space>
       }
       open={open}
@@ -100,7 +100,7 @@ export default function GenerateRuleModal({
         result
           ? [
               <Button key="close" onClick={handleClose}>
-                {t("关闭")}
+                {t("Close")}
               </Button>,
               <Button
                 key="regenerate"
@@ -108,7 +108,7 @@ export default function GenerateRuleModal({
                 onClick={handleGenerate}
                 loading={generating}
               >
-                {t("重新生成")}
+                {t("Regenerate")}
               </Button>,
               <Button
                 key="apply"
@@ -116,12 +116,12 @@ export default function GenerateRuleModal({
                 icon={<EditOutlined />}
                 onClick={handleApply}
               >
-                {t("应用到编辑器")}
+                {t("Apply to Editor")}
               </Button>,
             ]
           : [
               <Button key="cancel" onClick={handleClose}>
-                {t("取消")}
+                {t("Cancel")}
               </Button>,
             ]
       }
@@ -144,18 +144,18 @@ export default function GenerateRuleModal({
       >
         <ApiOutlined style={{ color: "#1677ff" }} />
         <Typography.Text style={{ color: "#1677ff" }}>
-          {t("调用模型：")}<strong>{modelLabel}</strong>
+          {t("Model: ")}<strong>{modelLabel}</strong>
         </Typography.Text>
       </div>
 
       <Typography.Paragraph type="secondary" style={{ fontSize: 13 }}>
-        {t("输入包含敏感数据的测试样例，由大模型自动分析并生成检测规则。生成后可在规则编辑器中进一步调整。")}
+        {t("Enter a test sample containing sensitive data. The LLM will analyze it and generate detection rules automatically. You can further refine the result in the rule editor.")}
       </Typography.Paragraph>
 
       <Input.TextArea
         value={sampleText}
         onChange={(e) => setSampleText(e.target.value)}
-        placeholder={t("例如：\\n患者张三，电话13812345678，身份证320102199001011234")}
+        placeholder={t("Example:\nPatient Zhang San, Phone 13812345678, ID 320102199001011234")}
         rows={4}
         style={{ marginBottom: 12 }}
       />
@@ -169,13 +169,13 @@ export default function GenerateRuleModal({
           disabled={!sampleText.trim()}
           block
         >
-          {generating ? t("生成中...") : t("生成规则")}
+          {generating ? t("Generating...") : t("Generate Rule")}
         </Button>
       )}
 
       {generating && !result && (
         <div style={{ textAlign: "center", padding: 24 }}>
-          <Spin tip={t("大模型正在分析样例...")} />
+          <Spin tip={t("LLM is analyzing sample...")} />
         </div>
       )}
 
@@ -183,7 +183,7 @@ export default function GenerateRuleModal({
         <Alert
           type="error"
           showIcon
-          message={t("生成失败")}
+          message={t("Generation Failed")}
           description={error}
           closable
           style={{ marginTop: 12, borderRadius: 8 }}
@@ -191,7 +191,7 @@ export default function GenerateRuleModal({
       )}
 
       {result && (
-        <Spin spinning={generating} tip={t("正在重新生成...")}>
+        <Spin spinning={generating} tip={t("Regenerating...")}>
           <div
             style={{
               marginTop: 16,
@@ -210,34 +210,34 @@ export default function GenerateRuleModal({
                 display: "block",
               }}
             >
-              {generating ? t("重新生成中...") : t("生成完成 — {{upstreamName}} / {{model}}", { upstreamName: result.upstreamName, model: result.model })}
+              {generating ? t("Regenerating...") : t("Done — {{upstreamName}} / {{model}}", { upstreamName: result.upstreamName, model: result.model })}
             </Typography.Text>
           <Descriptions column={1} size="small" bordered>
-            <Descriptions.Item label={t("规则 ID")}>
+            <Descriptions.Item label={t("Rule ID")}>
               <Typography.Text code copyable>{result.id}</Typography.Text>
             </Descriptions.Item>
-            <Descriptions.Item label={t("规则名")}>
+            <Descriptions.Item label={t("Rule Name")}>
               <Typography.Text strong>{result.name}</Typography.Text>
             </Descriptions.Item>
-            <Descriptions.Item label={t("正则")}>
+            <Descriptions.Item label={t("Pattern")}>
               <Typography.Text code copyable>
                 {result.pattern}
               </Typography.Text>
             </Descriptions.Item>
-            <Descriptions.Item label={t("策略")}>
+            <Descriptions.Item label={t("Strategy")}>
               <Tag color={result.strategy === "placeholder" ? "blue" : "purple"}>
-                {result.strategy === "placeholder" ? t("占位符替换") : t("部分掩码")}
+                {result.strategy === "placeholder" ? t("Placeholder Replacement") : t("Partial Mask")}
               </Tag>
             </Descriptions.Item>
-            <Descriptions.Item label={t("模式")}>
+            <Descriptions.Item label={t("Mode")}>
               <Tag color={result.mode === "filter" ? "green" : "orange"}>
-                {result.mode === "filter" ? t("过滤替换") : t("仅检测")}
+                {result.mode === "filter" ? t("Filter & Replace") : t("Detect Only")}
               </Tag>
             </Descriptions.Item>
-            <Descriptions.Item label={t("优先级")}>
+            <Descriptions.Item label={t("Priority")}>
               {result.priority}
             </Descriptions.Item>
-            <Descriptions.Item label={t("生成模型")}>
+            <Descriptions.Item label={t("Generation Model")}>
               <Typography.Text code>{result.upstreamName} / {result.model}</Typography.Text>
             </Descriptions.Item>
           </Descriptions>

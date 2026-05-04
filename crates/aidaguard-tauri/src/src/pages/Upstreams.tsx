@@ -79,7 +79,7 @@ export default function Upstreams() {
       } else {
         await add(upstream);
       }
-      message.success(t("大模型接入已保存"));
+      message.success(t("Upstream Saved"));
       setEditorOpen(false);
       setEditingRecord(null);
       fetchUpstreams();
@@ -91,7 +91,7 @@ export default function Upstreams() {
   const handleDelete = async (name: string) => {
     try {
       await remove(name);
-      message.success(t("接入已删除"));
+      message.success(t("Upstream Deleted"));
       fetchUpstreams();
     } catch (e) {
       message.error(String(e));
@@ -109,27 +109,27 @@ export default function Upstreams() {
 
   const columns: ColumnsType<UpstreamConfig> = [
     {
-      title: t("默认"),
+      title: t("Default"),
       dataIndex: "default",
       key: "default",
       width: 60,
       render: (val: boolean) =>
-        val ? <Tag color="blue">{t("默认")}</Tag> : null,
+        val ? <Tag color="blue">{t("Default")}</Tag> : null,
     },
     {
-      title: t("名称"),
+      title: t("Name"),
       dataIndex: "name",
       key: "name",
       width: 120,
     },
     {
-      title: t("地址"),
+      title: t("URL"),
       dataIndex: "url",
       key: "url",
       ellipsis: true,
     },
     {
-      title: t("超时(s)"),
+      title: t("Timeout(s)"),
       dataIndex: "timeout_secs",
       key: "timeout_secs",
       width: 80,
@@ -139,20 +139,20 @@ export default function Upstreams() {
       dataIndex: "rate_limit_qps",
       key: "rate_limit_qps",
       width: 70,
-      render: (v: number) => (v > 0 ? v : t("不限")),
+      render: (v: number) => (v > 0 ? v : t("Unlimited")),
     },
     {
-      title: t("模型"),
+      title: t("Model"),
       dataIndex: "models",
       key: "models",
       width: 200,
       render: (v: string[]) =>
         v.length > 0
           ? v.map((m) => <Tag key={m}>{m}</Tag>)
-          : <span style={{ color: token.colorTextQuaternary }}>{t("未指定")}</span>,
+          : <span style={{ color: token.colorTextQuaternary }}>{t("Unspecified")}</span>,
     },
     {
-      title: t("协议"),
+      title: t("Protocol"),
       dataIndex: "protocol",
       key: "protocol",
       width: 100,
@@ -160,7 +160,7 @@ export default function Upstreams() {
         val === "anthropic" ? <Tag color="orange">Anthropic</Tag> : <Tag color="blue">OpenAI</Tag>,
     },
     {
-      title: t("操作"),
+      title: t("Actions"),
       key: "actions",
       width: 200,
       render: (_, record) => (
@@ -171,7 +171,7 @@ export default function Upstreams() {
             loading={testing === record.name}
             onClick={() => handleTest(record)}
           >
-            {t("测试")}
+            {t("Test")}
           </Button>
           <Button
             size="small"
@@ -182,10 +182,10 @@ export default function Upstreams() {
             }}
           />
           <Popconfirm
-            title={t("确定删除此接入？")}
+            title={t("Delete this upstream?")}
             onConfirm={() => handleDelete(record.name)}
-            okText={t("删除")}
-            cancelText={t("取消")}
+            okText={t("Delete")}
+            cancelText={t("Cancel")}
           >
             <Button size="small" danger icon={<DeleteOutlined />} />
           </Popconfirm>
@@ -212,7 +212,7 @@ export default function Upstreams() {
           }}
         >
           <span style={{ color: token.colorTextSecondary, fontSize: 13 }}>
-            {t("管理上游 LLM 服务接入")}
+            {t("Manage LLM Upstream Services")}
           </span>
           <Button
             type="primary"
@@ -223,7 +223,7 @@ export default function Upstreams() {
               setEditorOpen(true);
             }}
           >
-            {t("添加入接")}
+            {t("Add Upstream")}
           </Button>
         </div>
 
@@ -234,7 +234,7 @@ export default function Upstreams() {
           loading={loading}
           size="small"
           pagination={false}
-          locale={{ emptyText: t("暂无接入配置") }}
+          locale={{ emptyText: t("No Upstreams Configured") }}
         />
       </Card>
 
@@ -242,7 +242,7 @@ export default function Upstreams() {
       {testResult && (
         <Alert
           type={testResult.startsWith("✓") ? "success" : "error"}
-          message={t("连接测试结果")}
+          message={t("Connectivity Test Result")}
           description={
             <Typography.Paragraph
               style={{ margin: 0, whiteSpace: "pre-wrap", fontSize: 12 }}
@@ -258,7 +258,7 @@ export default function Upstreams() {
 
       {/* 添加/编辑弹窗 */}
       <Modal
-        title={editingRecord ? t("编辑接入") : t("添加入接")}
+        title={editingRecord ? t("Edit Upstream") : t("Add Upstream")}
         open={editorOpen}
         onOk={handleSave}
         onCancel={() => {
@@ -266,8 +266,8 @@ export default function Upstreams() {
           setEditingRecord(null);
         }}
         confirmLoading={saving}
-        okText={t("保存")}
-        cancelText={t("取消")}
+        okText={t("Save")}
+        cancelText={t("Cancel")}
         width={560}
       >
         <Form
@@ -283,31 +283,31 @@ export default function Upstreams() {
         >
           <Form.Item
             name="name"
-            label={t("名称")}
-            rules={[{ required: true, message: t("请输入名称") }]}
+            label={t("Name")}
+            rules={[{ required: true, message: t("Please enter name") }]}
           >
-            <Input placeholder={t("如: qianfan-pro")} disabled={!!editingRecord} />
+            <Input placeholder={t("e.g. qianfan-pro")} disabled={!!editingRecord} />
           </Form.Item>
           <Form.Item
             name="url"
-            label={t("API 地址")}
-            rules={[{ required: true, message: t("请输入 API 地址") }]}
+            label={t("API URL")}
+            rules={[{ required: true, message: t("Please enter API URL") }]}
           >
             <Input placeholder="https://qianfan.baidubce.com/v2/coding" />
           </Form.Item>
           <Form.Item name="api_key" label="API Key">
-            <Input.Password placeholder={t("留空则不发送认证头")} />
+            <Input.Password placeholder={t("Leave empty to skip authentication header")} />
           </Form.Item>
           <Space size={16}>
-            <Form.Item name="timeout_secs" label={t("超时(秒)")}>
+            <Form.Item name="timeout_secs" label={t("Timeout (s)")}>
               <InputNumber min={1} max={600} style={{ width: 140 }} />
             </Form.Item>
-            <Form.Item name="rate_limit_qps" label={t("QPS 限制")}>
+            <Form.Item name="rate_limit_qps" label={t("QPS Limit")}>
               <InputNumber min={0} max={100} style={{ width: 140 }} />
             </Form.Item>
             <Form.Item
               name="default"
-              label={t("设为默认")}
+              label={t("Set as Default")}
               valuePropName="checked"
             >
               <Switch />
@@ -315,18 +315,18 @@ export default function Upstreams() {
           </Space>
           <Form.Item
             name="protocol"
-            label={t("协议类型")}
-            extra={t("选择上游 LLM 的 API 协议格式")}
+            label={t("Protocol Type")}
+            extra={t("Select the upstream LLM API protocol format")}
           >
             <Radio.Group>
-              <Radio.Button value="openai">{t("OpenAI 兼容")}</Radio.Button>
-              <Radio.Button value="anthropic">{t("Anthropic 兼容")}</Radio.Button>
+              <Radio.Button value="openai">{t("OpenAI Compatible")}</Radio.Button>
+              <Radio.Button value="anthropic">{t("Anthropic Compatible")}</Radio.Button>
             </Radio.Group>
           </Form.Item>
           <Form.Item
             name="models"
-            label={t("模型列表")}
-            extra={t("多个模型用英文逗号分隔")}
+            label={t("Model List")}
+            extra={t("Separate multiple models with commas")}
             getValueFromEvent={(e) =>
               e.target.value
                 .split(",")

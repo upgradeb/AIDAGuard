@@ -38,25 +38,25 @@ export default function AuditTable({
 
   const groupColumns: ColumnsType<AuditGroup> = [
     {
-      title: t("最新时间"),
+      title: t("Latest Time"),
       dataIndex: "latestTimestampMs",
       key: "latestTime",
       width: 170,
       render: (val: number) => dayjs(val).format("YYYY-MM-DD HH:mm:ss"),
     },
     {
-      title: t("审计策略"),
+      title: t("Audit Strategy"),
       dataIndex: "strategy",
       key: "strategy",
       width: 100,
       render: (val: string) => {
-        if (val === "detect") return <Tag color="orange">{t("仅检测")}</Tag>;
-        if (val === "mask") return <Tag color="purple">{t("部分掩码")}</Tag>;
-        return <Tag color="blue">{t("占位符替换")}</Tag>;
+        if (val === "detect") return <Tag color="orange">{t("Detect Only")}</Tag>;
+        if (val === "mask") return <Tag color="purple">{t("Partial Mask")}</Tag>;
+        return <Tag color="blue">{t("Placeholder Replacement")}</Tag>;
       },
     },
     {
-      title: t("规则名"),
+      title: t("Rule Name"),
       dataIndex: "ruleName",
       key: "rule",
       width: 160,
@@ -68,7 +68,7 @@ export default function AuditTable({
       ),
     },
     {
-      title: t("命中次数"),
+      title: t("Hits"),
       dataIndex: "count",
       key: "count",
       width: 80,
@@ -81,14 +81,14 @@ export default function AuditTable({
 
   const recordColumns: ColumnsType<DetectionRecord> = [
     {
-      title: t("时间"),
+      title: t("Time"),
       dataIndex: "timestampMs",
       key: "time",
       width: 150,
       render: (val: number) => dayjs(val).format("YYYY-MM-DD HH:mm:ss"),
     },
     {
-      title: t("原始数据"),
+      title: t("Original Data"),
       dataIndex: "original",
       key: "original",
       width: 140,
@@ -100,7 +100,7 @@ export default function AuditTable({
       ),
     },
     {
-      title: t("占位符"),
+      title: t("Placeholder"),
       dataIndex: "placeholder",
       key: "placeholder",
       width: 160,
@@ -112,7 +112,7 @@ export default function AuditTable({
       ),
     },
     {
-      title: t("工具名"),
+      title: t("Tool"),
       dataIndex: "toolName",
       key: "tool",
       width: 100,
@@ -121,7 +121,7 @@ export default function AuditTable({
         val ? <Tag color="geekblue">{val}</Tag> : <Typography.Text type="secondary">—</Typography.Text>,
     },
     {
-      title: t("模型"),
+      title: t("Model"),
       dataIndex: "requestPath",
       key: "path",
       width: 140,
@@ -133,7 +133,7 @@ export default function AuditTable({
       ),
     },
     {
-      title: t("操作"),
+      title: t("Actions"),
       key: "actions",
       width: 90,
       render: (_, record) => (
@@ -145,10 +145,10 @@ export default function AuditTable({
             onClick={() => onViewDetail(record.id)}
           />
           <Popconfirm
-            title={t("确定删除此记录？")}
+            title={t("Delete this record?")}
             onConfirm={() => onDelete(record.id, record.ruleId, record.strategy)}
-            okText={t("删除")}
-            cancelText={t("取消")}
+            okText={t("Delete")}
+            cancelText={t("Cancel")}
           >
             <Button type="link" size="small" danger icon={<DeleteOutlined />} />
           </Popconfirm>
@@ -196,7 +196,7 @@ export default function AuditTable({
         showSizeChanger: true,
         pageSizeOptions: ["10", "20", "50"],
         onChange: onPageChange,
-        showTotal: (total) => t("共 {{count}} 组", { count: total }),
+        showTotal: (total) => t("{{total}} Groups Total", { total }),
       }}
     />
   );

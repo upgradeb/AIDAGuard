@@ -45,7 +45,7 @@ export default function ToolsConfig() {
   const handleApply = async (toolId: string) => {
     try {
       await apply(toolId);
-      message.success(t("配置已应用"));
+      message.success(t("Configuration Applied"));
     } catch (e) {
       message.error(String(e));
     }
@@ -54,7 +54,7 @@ export default function ToolsConfig() {
   const handleRestore = async (toolId: string) => {
     try {
       await restore(toolId);
-      message.success(t("配置已恢复"));
+      message.success(t("Configuration Restored"));
     } catch (e) {
       message.error(String(e));
     }
@@ -63,7 +63,7 @@ export default function ToolsConfig() {
   const handleRestoreAll = async () => {
     try {
       await restoreAll();
-      message.success(t("全部配置已恢复"));
+      message.success(t("All Configurations Restored"));
     } catch (e) {
       message.error(String(e));
     }
@@ -79,8 +79,8 @@ export default function ToolsConfig() {
         <Alert
           type="warning"
           showIcon
-          message={t("代理未启动")}
-          description={t("启动代理后才能在下方预览配置效果。配置将把所有请求重定向到本地代理地址。")}
+          message={t("Proxy Not Started")}
+          description={t("Start the proxy to preview configuration effects below. Configuration will redirect all requests to the local proxy address.")}
           style={{ marginBottom: 16, borderRadius: 8 }}
         />
       )}
@@ -88,7 +88,7 @@ export default function ToolsConfig() {
         <Alert
           type="error"
           showIcon
-          message={t("操作失败")}
+          message={t("Operation Failed")}
           description={error}
           closable
           style={{ marginBottom: 16, borderRadius: 8 }}
@@ -115,10 +115,10 @@ export default function ToolsConfig() {
         >
           <Space size={12}>
             <Typography.Text strong>
-              {t("已检测 {{installedCount}}/8 个工具", { installedCount })}
+              {t("{{installedCount}}/8 Tools Detected", { installedCount })}
             </Typography.Text>
             {configuredCount > 0 && (
-              <Tag color="blue">{t("{{configuredCount}} 个已配置", { configuredCount })}</Tag>
+              <Tag color="blue">{t("{{configuredCount}} Configured", { configuredCount })}</Tag>
             )}
             <Tag color="geekblue">
               <ApiOutlined /> {proxyUrl}
@@ -126,16 +126,16 @@ export default function ToolsConfig() {
           </Space>
           <Space>
             <Button onClick={fetchTools} loading={loading}>
-              {t("重新检测")}
+              {t("Rescan")}
             </Button>
             <Popconfirm
-              title={t("确定恢复所有工具的原始配置？")}
+              title={t("Restore all tools to their original configuration?")}
               onConfirm={handleRestoreAll}
-              okText={t("确定")}
-              cancelText={t("取消")}
+              okText={t("OK")}
+              cancelText={t("Cancel")}
             >
               <Button icon={<UndoOutlined />} danger>
-                {t("全部恢复")}
+                {t("Restore All")}
               </Button>
             </Popconfirm>
           </Space>
@@ -167,23 +167,23 @@ export default function ToolsConfig() {
                     loading={applying === tool.toolId}
                     onClick={() => handleApply(tool.toolId)}
                   >
-                    {t("配置")}
+                    {t("Configure")}
                   </Button>
                 ) : null,
                 tool.installed ? (
                   <Popconfirm
                     key="restore"
-                    title={t("确定恢复原始配置？")}
+                    title={t("Restore original configuration?")}
                     onConfirm={() => handleRestore(tool.toolId)}
-                    okText={t("确定")}
-                    cancelText={t("取消")}
+                    okText={t("OK")}
+                    cancelText={t("Cancel")}
                   >
                     <Button
                       size="small"
                       icon={<UndoOutlined />}
                       loading={applying === tool.toolId}
                     >
-                      {t("还原")}
+                      {t("Restore")}
                     </Button>
                   </Popconfirm>
                 ) : (
@@ -192,7 +192,7 @@ export default function ToolsConfig() {
                     type="secondary"
                     style={{ fontSize: 12 }}
                   >
-                    {t("未安装")}
+                    {t("Not Installed")}
                   </Typography.Text>
                 ),
               ]}
@@ -225,16 +225,16 @@ export default function ToolsConfig() {
                     <Typography.Text strong>{tool.toolName}</Typography.Text>
                     {tool.installed ? (
                       <Tag color="green" style={{ fontSize: 11 }}>
-                        {t("已安装")}
+                        {t("Installed")}
                       </Tag>
                     ) : (
                       <Tag color="default" style={{ fontSize: 11 }}>
-                        {t("未安装")}
+                        {t("Not Installed")}
                       </Tag>
                     )}
                     {tool.configured && (
                       <Tag color="blue" style={{ fontSize: 11 }}>
-                        {t("已配置")}
+                        {t("Configured")}
                       </Tag>
                     )}
                   </Space>
@@ -242,19 +242,19 @@ export default function ToolsConfig() {
                 description={
                   <div style={{ fontSize: 12 }}>
                     <div style={{ color: token.colorTextSecondary, marginBottom: 4 }}>
-                      {t("配置文件：")}<code>{tool.configPath}</code>
+                      {t("Config File: ")}<code>{tool.configPath}</code>
                     </div>
                     {tool.configured ? (
                       <div style={{ color: token.colorPrimary, fontWeight: 500, marginTop: 2 }}>
-                        {t("已配置代理 — 请求将通过 Aidaguard 进行敏感数据检测")}
+                        {t("Proxied — Requests will be scanned by Aidaguard for sensitive data")}
                       </div>
                     ) : tool.installed ? (
                       <div style={{ color: token.colorWarning, fontWeight: 500, marginTop: 2 }}>
-                        {t("未配置代理 — 点击「配置」将端点切换至本地代理")}
+                        {t("Not Proxied — Click \"Configure\" to route through local proxy")}
                       </div>
                     ) : (
                       <div style={{ color: token.colorTextQuaternary }}>
-                        {t("安装此工具后即可一键配置")}
+                        {t("Install this tool to enable one-click configuration")}
                       </div>
                     )}
                   </div>

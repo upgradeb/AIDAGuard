@@ -18,41 +18,41 @@ export default function AuditDetailPanel({ record }: AuditDetailPanelProps) {
         column={2}
         style={{ marginBottom: 16 }}
       >
-        <Descriptions.Item label={t("记录 ID")} span={2}>
+        <Descriptions.Item label={t("Record ID")} span={2}>
           <Typography.Text copyable style={{ fontSize: 12 }}>
             {record.id}
           </Typography.Text>
         </Descriptions.Item>
-        <Descriptions.Item label={t("时间")}>
+        <Descriptions.Item label={t("Time")}>
           {dayjs(record.timestampMs).format("YYYY-MM-DD HH:mm:ss.SSS")}
         </Descriptions.Item>
-        <Descriptions.Item label={t("响应状态")}>
+        <Descriptions.Item label={t("Response Status")}>
           <Tag color={record.responseStatus < 300 ? "green" : "red"}>
             {record.responseStatus}
           </Tag>
         </Descriptions.Item>
-        <Descriptions.Item label={t("工具名")}>
+        <Descriptions.Item label={t("Tool")}>
           {record.toolName || "—"}
         </Descriptions.Item>
-        <Descriptions.Item label={t("规则名")}>
+        <Descriptions.Item label={t("Rule Name")}>
           <Tag color="orange">{record.ruleName || record.ruleId}</Tag>
         </Descriptions.Item>
-        <Descriptions.Item label={t("审计策略")}>
+        <Descriptions.Item label={t("Audit Strategy")}>
           {record.strategy === "detect" ? (
-            <Tag color="orange">{t("仅检测")}</Tag>
+            <Tag color="orange">{t("Detect Only")}</Tag>
           ) : record.strategy === "mask" ? (
-            <Tag color="purple">{t("部分掩码")}</Tag>
+            <Tag color="purple">{t("Partial Mask")}</Tag>
           ) : (
-            <Tag color="blue">{t("占位符替换")}</Tag>
+            <Tag color="blue">{t("Placeholder Replacement")}</Tag>
           )}
         </Descriptions.Item>
-        <Descriptions.Item label={t("占位符")} span={2}>
+        <Descriptions.Item label={t("Placeholder")} span={2}>
           <Typography.Text code>{record.placeholder}</Typography.Text>
         </Descriptions.Item>
-        <Descriptions.Item label={t("大模型/模型")} span={2}>
+        <Descriptions.Item label={t("LLM / Model")} span={2}>
           {record.requestPath || "—"}
         </Descriptions.Item>
-        <Descriptions.Item label={t("原始数据")} span={2}>
+        <Descriptions.Item label={t("Original Data")} span={2}>
           <Typography.Text
             copyable
             style={{ color: "#ef4444", wordBreak: "break-all" }}
@@ -60,7 +60,7 @@ export default function AuditDetailPanel({ record }: AuditDetailPanelProps) {
             {record.original}
           </Typography.Text>
         </Descriptions.Item>
-        <Descriptions.Item label={t("上下文")} span={2}>
+        <Descriptions.Item label={t("Context")} span={2}>
           <Typography.Paragraph
             style={{ fontSize: 13, wordBreak: "break-all" }}
           >
@@ -70,7 +70,7 @@ export default function AuditDetailPanel({ record }: AuditDetailPanelProps) {
       </Descriptions>
 
       <Typography.Text strong style={{ display: "block", marginBottom: 8 }}>
-        {t("替换后请求体")}
+        {t("Sanitized Request Body")}
       </Typography.Text>
       <pre
         style={{

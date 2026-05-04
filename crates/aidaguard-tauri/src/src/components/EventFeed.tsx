@@ -14,11 +14,11 @@ function useStrategyLabel(strategy: string) {
   switch (strategy) {
     case "placeholder":
     case "filter":
-      return { label: t("已过滤"), color: "#22c55e" as const };
+      return { label: t("Filtered"), color: "#22c55e" as const };
     case "detect":
-      return { label: t("仅检测"), color: "#f59e0b" as const };
+      return { label: t("Detect Only"), color: "#f59e0b" as const };
     case "mask":
-      return { label: t("已掩码"), color: "#8b5cf6" as const };
+      return { label: t("Masked"), color: "#8b5cf6" as const };
     default:
       return { label: strategy, color: "#3b82f6" as const };
   }
@@ -39,7 +39,7 @@ export default function EventFeed({ records, onClickRecord }: EventFeedProps) {
       >
         <WarningOutlined style={{ fontSize: 32, marginBottom: 8 }} />
         <br />
-        {t("暂无检测事件")}
+        {t("No Detection Events")}
       </div>
     );
   }

@@ -44,45 +44,45 @@ export default function OperationGuide() {
 
   const steps = [
     {
-      title: t("确认代理端口"),
+      title: t("Confirm Proxy Port"),
       done: true,
       icon: <ApiOutlined />,
       path: "/",
-      desc: t("端口 {{port}} 已就绪", { port: proxyPort }),
+      desc: t("Port {{port}} Ready", { port: proxyPort }),
     },
     {
-      title: t("配置大模型访问地址"),
+      title: t("Configure LLM Endpoint"),
       done: hasUpstream,
       icon: <CloudServerOutlined />,
       path: "/upstreams",
       desc: hasUpstream
-        ? t("已配置 {{count}} 个上游", { count: upstreams.length })
-        : t("前往「大模型接入」添加"),
+        ? t("{{count}} Upstreams Configured", { count: upstreams.length })
+        : t("Go to LLM Upstreams"),
     },
     {
-      title: t("确认 AI 工具接入配置"),
+      title: t("Configure AI Tool Proxy"),
       done: hasConfiguredTool,
       icon: <ToolOutlined />,
       path: "/tools",
       desc: hasConfiguredTool
-        ? t("{{count}} 个工具已配置", { count: tools.filter((t) => t.configured).length })
-        : t("前往「AI 工具配置」对接"),
+        ? t("{{count}} Tools Configured", { count: tools.filter((t) => t.configured).length })
+        : t("Go to AI Tools Config"),
     },
     {
-      title: t("确认规则启用情况"),
+      title: t("Enable Detection Rules"),
       done: hasEnabledRule,
       icon: <SafetyOutlined />,
       path: "/rules",
       desc: hasEnabledRule
-        ? t("{{count}} 条规则已启用", { count: rules.filter((r) => r.enabled).length })
-        : t("前往「检测规则」启用规则"),
+        ? t("{{count}} Rules Enabled", { count: rules.filter((r) => r.enabled).length })
+        : t("Go to Rules to Enable"),
     },
     {
-      title: t("启动代理服务"),
+      title: t("Start Proxy Service"),
       done: isRunning,
       icon: <ThunderboltOutlined />,
       path: "/",
-      desc: isRunning ? t("代理运行中") : t("在仪表盘点击「启动代理」"),
+      desc: isRunning ? t("Proxy Running") : t("Click \"Start Proxy\" on Dashboard"),
     },
   ];
 
@@ -94,7 +94,7 @@ export default function OperationGuide() {
       title={
         <span style={{ fontSize: 14 }}>
           <ThunderboltOutlined style={{ marginRight: 8, color: token.colorPrimary }} />
-          {t("操作指引")}
+          {t("Getting Started")}
         </span>
       }
       style={{ borderRadius: 12, border: `1px solid ${token.colorBorderSecondary}`, marginBottom: 24 }}
@@ -126,7 +126,7 @@ export default function OperationGuide() {
                     style={{ padding: 0, fontSize: 12, height: "auto" }}
                     onClick={() => navigate(step.path)}
                   >
-                    {t("前往配置")} →
+                    {t("Configure →")}
                   </Button>
                 </div>
               )}

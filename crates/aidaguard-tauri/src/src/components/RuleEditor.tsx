@@ -64,13 +64,13 @@ export default function RuleEditor({
 
   return (
     <Modal
-      title={isEdit ? t("编辑规则") : t("添加规则")}
+      title={isEdit ? t("Edit Rule") : t("Add Rule")}
       open={open}
       onOk={handleOk}
       onCancel={onCancel}
       afterOpenChange={(visible) => { if (visible) handleOpen(); }}
-      okText={t("保存")}
-      cancelText={t("取消")}
+      okText={t("Save")}
+      cancelText={t("Cancel")}
       width={560}
     >
       <Form
@@ -80,54 +80,54 @@ export default function RuleEditor({
       >
         <Form.Item
           name="id"
-          label={t("规则 ID")}
+          label={t("Rule ID")}
           rules={[
-            { required: true, message: t("请输入规则 ID") },
-            { pattern: /^[a-z0-9_]+$/, message: t("仅支持小写字母、数字和下划线") },
+            { required: true, message: t("Please enter Rule ID") },
+            { pattern: /^[a-z0-9_]+$/, message: t("Only lowercase letters, digits and underscores") },
           ]}
         >
-          <Input placeholder={t("如 phone_cn")} />
+          <Input placeholder={t("e.g. phone_cn")} />
         </Form.Item>
         <Form.Item
           name="name"
-          label={t("名称")}
-          rules={[{ required: true, message: t("请输入规则名称") }]}
+          label={t("Name")}
+          rules={[{ required: true, message: t("Please enter Rule Name") }]}
         >
-          <Input placeholder={t("如 中国手机号")} />
+          <Input placeholder={t("e.g. Chinese Phone Number")} />
         </Form.Item>
         <Form.Item
           name="pattern"
-          label={t("正则表达式")}
-          rules={[{ required: true, message: t("请输入正则表达式") }]}
+          label={t("Regex Pattern")}
+          rules={[{ required: true, message: t("Please enter Regex Pattern") }]}
         >
-          <Input.TextArea rows={3} placeholder={t("如 1[3-9]\\d{9}")} />
+          <Input.TextArea rows={3} placeholder={t("e.g. 1[3-9]\\d{9}")} />
         </Form.Item>
-        <Form.Item name="strategy" label={t("策略")}>
+        <Form.Item name="strategy" label={t("Strategy")}>
           <Select
             options={[
-              { value: "placeholder", label: t("Placeholder — 整体替换为占位符") },
-              { value: "mask", label: t("Mask — 部分掩码") },
+              { value: "placeholder", label: t("Placeholder — Replace Entire Match") },
+              { value: "mask", label: t("Mask — Partial Masking") },
             ]}
           />
         </Form.Item>
-        <Form.Item name="mode" label={t("模式")}>
+        <Form.Item name="mode" label={t("Mode")}>
           <Select
             options={[
-              { value: "filter", label: t("过滤 — 检测并替换为占位符") },
-              { value: "detect", label: t("检测 — 仅记录，不替换") },
+              { value: "filter", label: t("Filter — Detect and Replace") },
+              { value: "detect", label: t("Detect — Log Only, No Replacement") },
             ]}
           />
         </Form.Item>
-        <Form.Item name="priority" label={t("优先级")}>
+        <Form.Item name="priority" label={t("Priority")}>
           <InputNumber min={1} max={999} />
         </Form.Item>
-        <Form.Item name="enabled" label={t("启用")} valuePropName="checked">
+        <Form.Item name="enabled" label={t("Enable")} valuePropName="checked">
           <Switch />
         </Form.Item>
         <Form.Item
           name="category"
-          label={t("分类")}
-          rules={[{ required: true, message: t("请选择分类") }]}
+          label={t("Category")}
+          rules={[{ required: true, message: t("Please Select Category") }]}
         >
           <Select
             options={ruleFiles.map((f) => ({ value: f, label: f }))}

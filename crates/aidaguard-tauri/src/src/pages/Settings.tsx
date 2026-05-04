@@ -44,7 +44,7 @@ export default function Settings() {
     const values = await form.validateFields();
     try {
       await save(values);
-      message.success(t("配置已保存"));
+      message.success(t("Configuration Saved"));
     } catch (e) {
       message.error(String(e));
     }
@@ -64,58 +64,58 @@ export default function Settings() {
         initialValues={config || undefined}
       >
         {/* 代理设置 */}
-        <Card title={t("代理设置")} size="small" style={cardStyle}>
+        <Card title={t("Proxy Settings")} size="small" style={cardStyle}>
           <Form.Item
             name="port"
-            label={t("监听端口")}
+            label={t("Listen Port")}
             rules={[{ required: true }]}
-            extra={t("默认 19000，修改后需重启代理")}
+            extra={t("Default 19000. Restart proxy after changing.")}
           >
             <InputNumber min={1024} max={65535} style={{ width: 200 }} />
           </Form.Item>
           <Form.Item
             name="rules_dir"
-            label={t("规则文件目录")}
-            extra={t("YAML 规则文件存放路径")}
+            label={t("Rules Directory")}
+            extra={t("Path to YAML rule files")}
           >
             <Input placeholder="./rules" />
           </Form.Item>
           <Form.Item
             name="max_body_size_mb"
-            label={t("请求体大小限制 (MB)")}
+            label={t("Max Request Body (MB)")}
           >
             <InputNumber min={1} max={100} style={{ width: 200 }} />
           </Form.Item>
         </Card>
 
         {/* 存储设置 */}
-        <Card title={t("存储设置")} size="small" style={cardStyle}>
+        <Card title={t("Storage Settings")} size="small" style={cardStyle}>
           <Form.Item
             name={["storage", "enabled"]}
-            label={t("启用审计记录")}
+            label={t("Enable Audit Log")}
             valuePropName="checked"
-            extra={t("开启后敏感数据检测记录将被持久化存储")}
+            extra={t("Sensitive data detection records will be persisted when enabled")}
           >
             <Switch />
           </Form.Item>
           <Form.Item
             name={["storage", "db_path"]}
-            label={t("数据库文件路径")}
+            label={t("Database File Path")}
           >
             <Input placeholder="./data/aidaguard.db" />
           </Form.Item>
           <Form.Item
             name={["storage", "encryption_key"]}
-            label={t("加密密钥")}
-            extra={t("用于加密存储的敏感数据原文")}
+            label={t("Encryption Key")}
+            extra={t("Used to encrypt stored sensitive data content")}
           >
-            <Input.Password placeholder={t("留空使用内置默认密钥")} />
+            <Input.Password placeholder={t("Leave empty to use built-in default key")} />
           </Form.Item>
         </Card>
 
         {/* 日志设置 */}
-        <Card title={t("日志设置")} size="small" style={cardStyle}>
-          <Form.Item name="log_level" label={t("日志级别")}>
+        <Card title={t("Logging Settings")} size="small" style={cardStyle}>
+          <Form.Item name="log_level" label={t("Log Level")}>
             <Select
               style={{ width: 160 }}
               options={[
@@ -130,37 +130,37 @@ export default function Settings() {
         </Card>
 
         {/* 通知设置 */}
-        <Card title={t("通知设置")} size="small" style={cardStyle}>
+        <Card title={t("Notification Settings")} size="small" style={cardStyle}>
           <Form.Item
             name={["notification", "enabled"]}
-            label={t("桌面通知")}
+            label={t("Desktop Notifications")}
             valuePropName="checked"
-            extra={t("检测到敏感数据时发送系统通知，重启代理后生效")}
+            extra={t("Send system notification when sensitive data is detected. Takes effect after proxy restart.")}
           >
             <Switch />
           </Form.Item>
           <Form.Item
             name={["notification", "rate_limit_secs"]}
-            label={t("通知间隔 (秒)")}
-            extra={t("同一规则最短通知间隔，避免刷屏")}
+            label={t("Notification Interval (s)")}
+            extra={t("Minimum interval between notifications for the same rule to avoid spam")}
           >
             <InputNumber min={10} max={600} style={{ width: 200 }} />
           </Form.Item>
         </Card>
 
         {/* 外观 */}
-        <Card title={t("外观")} size="small" style={cardStyle}>
+        <Card title={t("Appearance")} size="small" style={cardStyle}>
           <div style={{ marginBottom: 8 }}>
             <ThemeSwitcher />
           </div>
         </Card>
 
         {/* 关于 */}
-        <Card title={t("关于")} size="small" style={cardStyle}>
+        <Card title={t("About")} size="small" style={cardStyle}>
           <Descriptions column={1} size="small">
-            <Descriptions.Item label={t("产品")}>Aidaguard</Descriptions.Item>
-            <Descriptions.Item label={t("版本")}>{appVersion || "—"}</Descriptions.Item>
-            <Descriptions.Item label={t("许可证")}>MIT</Descriptions.Item>
+            <Descriptions.Item label={t("Product")}>Aidaguard</Descriptions.Item>
+            <Descriptions.Item label={t("Version")}>{appVersion || "—"}</Descriptions.Item>
+            <Descriptions.Item label={t("License")}>MIT</Descriptions.Item>
           </Descriptions>
         </Card>
 
@@ -172,7 +172,7 @@ export default function Settings() {
           loading={saving}
           style={{ marginTop: 8 }}
         >
-          {t("保存设置")}
+          {t("Save Settings")}
         </Button>
       </Form>
     </div>

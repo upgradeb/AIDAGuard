@@ -25,7 +25,7 @@ export default function RuleTestPanel({
 
   return (
     <Drawer
-      title={t("规则测试")}
+      title={t("Rule Test")}
       placement="right"
       width={640}
       open={open}
@@ -34,24 +34,24 @@ export default function RuleTestPanel({
       <Space direction="vertical" style={{ width: "100%" }} size={16}>
         <div>
           <Typography.Text strong style={{ display: "block", marginBottom: 8 }}>
-            {t("正则表达式")}
+            {t("Regex Pattern")}
           </Typography.Text>
           <Input
             value={pattern}
             onChange={(e) => setPattern(e.target.value)}
-            placeholder={t("如 1[3-9]\\d{9}")}
+            placeholder={t("e.g. 1[3-9]\\d{9}")}
           />
         </div>
 
         <div>
           <Typography.Text strong style={{ display: "block", marginBottom: 8 }}>
-            {t("测试文本")}
+            {t("Test Text")}
           </Typography.Text>
           <Input.TextArea
             rows={5}
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder={t("输入包含敏感数据的测试文本...")}
+            placeholder={t("Enter test text containing sensitive data...")}
           />
         </div>
 
@@ -62,14 +62,14 @@ export default function RuleTestPanel({
           loading={testing}
           disabled={!pattern || !text}
         >
-          {t("运行测试")}
+          {t("Run Test")}
         </Button>
 
         {result && (
           <>
             <Divider />
 
-            <Card size="small" title={t("匹配结果: {{count}} 处", { count: result.matches.length })}>
+            <Card size="small" title={t("Matches: {{count}}", { count: result.matches.length })}>
               {result.matches.map((m, i) => (
                 <div
                   key={i}
@@ -85,17 +85,17 @@ export default function RuleTestPanel({
                     </Typography.Text>
                     <Tag>{m.strategy}</Tag>
                     <Tag color={m.mode === "filter" ? "blue" : "default"}>
-                      {m.mode === "filter" ? t("过滤") : t("检测")}
+                      {m.mode === "filter" ? t("Filter") : t("Detect")}
                     </Tag>
                   </Space>
                 </div>
               ))}
               {result.matches.length === 0 && (
-                <Typography.Text type="secondary">{t("无匹配")}</Typography.Text>
+                <Typography.Text type="secondary">{t("No Matches")}</Typography.Text>
               )}
             </Card>
 
-            <Card size="small" title={t("替换后文本")}>
+            <Card size="small" title={t("Sanitized Text")}>
               <pre
                 style={{
                   background: "#f5f5f5",

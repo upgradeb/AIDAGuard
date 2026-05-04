@@ -83,7 +83,7 @@ export default function AuditLog() {
   const handleExport = async (format: "csv" | "json") => {
     try {
       const path = await doExport(format);
-      message.success(t("已导出到: {{path}}", { path }));
+      message.success(t("Exported to: {{path}}", { path }));
     } catch (e) {
       message.error(String(e));
     }
@@ -94,7 +94,7 @@ export default function AuditLog() {
   };
 
   const handleDelete = (id: string, ruleId?: string, strategy?: string) => {
-    removeRecord(id, ruleId, strategy).then(() => message.success(t("已删除")));
+    removeRecord(id, ruleId, strategy).then(() => message.success(t("Deleted")));
   };
 
   return (
@@ -113,7 +113,7 @@ export default function AuditLog() {
         >
           <Space wrap>
             <Input
-              placeholder={t("搜索规则名、请求路径")}
+              placeholder={t("Search Rule Name or Request Path")}
               prefix={<SearchOutlined />}
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
@@ -129,18 +129,18 @@ export default function AuditLog() {
               allowClear
             />
             <Button onClick={handleSearch} icon={<SearchOutlined />}>
-              {t("搜索")}
+              {t("Search")}
             </Button>
             <Button onClick={loadData} icon={<ReloadOutlined />}>
-              {t("刷新")}
+              {t("Refresh")}
             </Button>
           </Space>
           <Space>
             <Button icon={<ExportOutlined />} onClick={() => handleExport("csv")}>
-              {t("导出 CSV")}
+              {t("Export CSV")}
             </Button>
             <Button icon={<ExportOutlined />} onClick={() => handleExport("json")}>
-              {t("导出 JSON")}
+              {t("Export JSON")}
             </Button>
           </Space>
         </Space>
@@ -163,7 +163,7 @@ export default function AuditLog() {
 
       {/* Detail Drawer */}
       <Drawer
-        title={t("审计详情")}
+        title={t("Audit Detail")}
         placement="right"
         width={600}
         open={detailOpen}

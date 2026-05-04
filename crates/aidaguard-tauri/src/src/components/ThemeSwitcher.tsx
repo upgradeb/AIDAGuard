@@ -12,9 +12,9 @@ export default function ThemeSwitcher() {
       value={theme}
       onChange={(val) => setTheme(val as "light" | "dark" | "system")}
       options={[
-        { value: "light", label: t("浅色") },
-        { value: "dark", label: t("深色") },
-        { value: "system", label: t("跟随系统") },
+        { value: "light", label: t("Light") },
+        { value: "dark", label: t("Dark") },
+        { value: "system", label: t("System") },
       ]}
     />
   );

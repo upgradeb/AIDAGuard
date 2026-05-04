@@ -35,7 +35,7 @@ export default function RuleHitChart({ data }: RuleHitChartProps) {
           fontSize: 14,
         }}
       >
-        {t("暂无数据")}
+        {t("No Data")}
       </div>
     );
   }

@@ -26,12 +26,12 @@ const { Sider, Header, Content } = Layout;
 function useMenuItems() {
   const { t } = useTranslation();
   return [
-    { key: "/", icon: <DashboardOutlined />, label: t("仪表盘") },
-    { key: "/audit", icon: <AuditOutlined />, label: t("审计记录") },
-    { key: "/upstreams", icon: <ApiOutlined />, label: t("大模型接入") },
-    { key: "/tools", icon: <ToolOutlined />, label: t("AI 工具配置") },
-    { key: "/rules", icon: <SafetyOutlined />, label: t("规则管理") },
-    { key: "/settings", icon: <SettingOutlined />, label: t("设置") },
+    { key: "/", icon: <DashboardOutlined />, label: t("Dashboard") },
+    { key: "/audit", icon: <AuditOutlined />, label: t("Audit Log") },
+    { key: "/upstreams", icon: <ApiOutlined />, label: t("LLM Upstreams") },
+    { key: "/tools", icon: <ToolOutlined />, label: t("AI Tools Config") },
+    { key: "/rules", icon: <SafetyOutlined />, label: t("Rules") },
+    { key: "/settings", icon: <SettingOutlined />, label: t("Settings") },
   ];
 }
 
@@ -155,7 +155,7 @@ export default function App() {
         >
           <span style={{ fontSize: 16, fontWeight: 500 }}>
             {menuItems.find((m) => m.key === location.pathname)?.label ||
-              t("仪表盘")}
+              t("Dashboard")}
           </span>
 
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
@@ -169,7 +169,7 @@ export default function App() {
               }}
             />
             <span style={{ fontSize: 13, color: token.colorTextSecondary }}>
-              {status?.status === "running" ? t("代理运行中") : t("代理已停止")}
+              {status?.status === "running" ? t("Proxy Running") : t("Proxy Stopped")}
             </span>
             <Button
               type="text"

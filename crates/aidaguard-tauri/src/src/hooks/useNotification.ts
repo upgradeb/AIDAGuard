@@ -32,8 +32,8 @@ export function useNotification() {
       cooldownMap.set(event.ruleId, now);
 
       try {
-        const n = new Notification(i18n.t("Aidaguard — 敏感数据检测"), {
-          body: i18n.t("规则: {{ruleId}}  |  策略: {{strategy}}  |  路径: {{requestPath}}", {
+        const n = new Notification(i18n.t("Aidaguard — Sensitive Data Detected"), {
+          body: i18n.t("Rule: {{ruleId}}  |  Strategy: {{strategy}}  |  Path: {{requestPath}}", {
             ruleId: event.ruleId,
             strategy: event.strategy,
             requestPath: event.requestPath,
