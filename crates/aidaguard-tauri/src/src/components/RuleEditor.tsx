@@ -84,7 +84,7 @@ export default function RuleEditor({
             { pattern: /^[a-z0-9_]+$/, message: "仅支持小写字母、数字和下划线" },
           ]}
         >
-          <Input placeholder="如 phone_cn" disabled={isEdit} />
+          <Input placeholder="如 phone_cn" />
         </Form.Item>
         <Form.Item
           name="name"

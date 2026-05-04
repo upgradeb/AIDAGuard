@@ -27,6 +27,7 @@ import {
 } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
 import { useRulesStore } from "../store/useRulesStore";
+import { useUpstreamStore } from "../store/useUpstreamStore";
 import RuleEditor from "../components/RuleEditor";
 import RuleTestPanel from "../components/RuleTestPanel";
 import GenerateRuleModal from "../components/GenerateRuleModal";
@@ -62,6 +63,13 @@ export default function Rules() {
   const createCat = useRulesStore((s) => s.createCategory);
   const deleteCat = useRulesStore((s) => s.deleteCategory);
   const renameCat = useRulesStore((s) => s.renameCategory);
+  const upstreams = useUpstreamStore((s) => s.upstreams);
+  const fetchUpstreams = useUpstreamStore((s) => s.fetchUpstreams);
+
+  const defaultUpstream = upstreams.find((u) => u.default) || upstreams[0];
+  const defaultModelLabel = defaultUpstream
+    ? `${defaultUpstream.name} / ${defaultUpstream.models?.[0] || "—"}`
+    : "未配置（请先在「大模型接入」中添加）";
 
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<RuleWithCategory | null>(null);
@@ -76,6 +84,7 @@ export default function Rules() {
 
   useEffect(() => {
     fetchRules();
+    fetchUpstreams();
   }, []);
 
   const filtered = rules.filter((r) => {
@@ -532,9 +541,10 @@ export default function Rules() {
 
       <GenerateRuleModal
         open={generateOpen}
+        defaultModelLabel={defaultModelLabel}
         onApply={(rule) => {
           setEditingRule({
-            id: "",
+            id: rule.id || "",
             name: rule.name,
             pattern: rule.pattern,
             strategy: rule.strategy as "placeholder" | "mask",

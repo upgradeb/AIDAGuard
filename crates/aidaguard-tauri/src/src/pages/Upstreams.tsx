@@ -15,6 +15,7 @@ import {
   theme,
   Alert,
   Typography,
+  Radio,
 } from "antd";
 import {
   PlusOutlined,
@@ -68,6 +69,7 @@ export default function Upstreams() {
       timeout_secs: values.timeout_secs || 300,
       rate_limit_qps: values.rate_limit_qps || 0,
       models: values.models || [],
+      protocol: values.protocol || "openai",
     };
     try {
       if (editingRecord) {
@@ -146,6 +148,14 @@ export default function Upstreams() {
         v.length > 0
           ? v.map((m) => <Tag key={m}>{m}</Tag>)
           : <span style={{ color: token.colorTextQuaternary }}>未指定</span>,
+    },
+    {
+      title: "协议",
+      dataIndex: "protocol",
+      key: "protocol",
+      width: 100,
+      render: (val: string) =>
+        val === "anthropic" ? <Tag color="orange">Anthropic</Tag> : <Tag color="blue">OpenAI</Tag>,
     },
     {
       title: "操作",
@@ -266,6 +276,7 @@ export default function Upstreams() {
             timeout_secs: 300,
             rate_limit_qps: 0,
             default: false,
+            protocol: "openai",
           }}
         >
           <Form.Item
@@ -300,6 +311,16 @@ export default function Upstreams() {
               <Switch />
             </Form.Item>
           </Space>
+          <Form.Item
+            name="protocol"
+            label="协议类型"
+            extra="选择上游 LLM 的 API 协议格式"
+          >
+            <Radio.Group>
+              <Radio.Button value="openai">OpenAI 兼容</Radio.Button>
+              <Radio.Button value="anthropic">Anthropic 兼容</Radio.Button>
+            </Radio.Group>
+          </Form.Item>
           <Form.Item
             name="models"
             label="模型列表"

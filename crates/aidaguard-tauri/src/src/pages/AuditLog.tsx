@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { useLocation } from "react-router-dom";
 import {
   Card,
   Space,
@@ -22,15 +23,19 @@ import type { Dayjs } from "dayjs";
 const { RangePicker } = DatePicker;
 
 export default function AuditLog() {
+  const location = useLocation();
   const { token } = theme.useToken();
-  const records = useAuditStore((s) => s.records);
-  const total = useAuditStore((s) => s.total);
+  const groups = useAuditStore((s) => s.groups);
+  const groupTotal = useAuditStore((s) => s.groupTotal);
   const loading = useAuditStore((s) => s.loading);
   const selectedRecord = useAuditStore((s) => s.selectedRecord);
   const detailOpen = useAuditStore((s) => s.detailOpen);
   const page = useAuditStore((s) => s.page);
   const pageSize = useAuditStore((s) => s.pageSize);
-  const fetchList = useAuditStore((s) => s.fetchList);
+  const expandedRecords = useAuditStore((s) => s.expandedRecords);
+  const expandedLoading = useAuditStore((s) => s.expandedLoading);
+  const fetchGroups = useAuditStore((s) => s.fetchGroups);
+  const expandGroup = useAuditStore((s) => s.expandGroup);
   const fetchDetail = useAuditStore((s) => s.fetchDetail);
   const removeRecord = useAuditStore((s) => s.removeRecord);
   const doExport = useAuditStore((s) => s.doExport);
@@ -43,16 +48,26 @@ export default function AuditLog() {
   const loadData = useCallback(() => {
     const dateFrom = dateRange[0]?.startOf("day").valueOf();
     const dateTo = dateRange[1]?.endOf("day").valueOf();
-    fetchList({
+    fetchGroups({
       pathFilter: searchText || undefined,
       dateFromMs: dateFrom,
       dateToMs: dateTo,
     });
-  }, [searchText, dateRange, fetchList]);
+  }, [searchText, dateRange, fetchGroups]);
 
   useEffect(() => {
     loadData();
   }, [page, pageSize]);
+
+  // Auto-open detail when navigated from dashboard
+  useEffect(() => {
+    const state = location.state as { openRecordId?: string } | null;
+    if (state?.openRecordId) {
+      fetchDetail(state.openRecordId);
+      // Clear state so back/forward doesn't re-trigger
+      window.history.replaceState({}, "");
+    }
+  }, [location.state]);
 
   const handleSearch = () => {
     setPage(1);
@@ -76,8 +91,8 @@ export default function AuditLog() {
     fetchDetail(id);
   };
 
-  const handleDelete = (id: string) => {
-    removeRecord(id).then(() => message.success("已删除"));
+  const handleDelete = (id: string, ruleId?: string, strategy?: string) => {
+    removeRecord(id, ruleId, strategy).then(() => message.success("已删除"));
   };
 
   return (
@@ -130,12 +145,15 @@ export default function AuditLog() {
 
         {/* Table */}
         <AuditTable
-          dataSource={records}
+          groups={groups}
+          groupTotal={groupTotal}
           loading={loading}
-          total={total}
           page={page}
           pageSize={pageSize}
+          expandedRecords={expandedRecords}
+          expandedLoading={expandedLoading}
           onPageChange={handlePageChange}
+          onExpand={(ruleId, strategy) => expandGroup(ruleId, strategy)}
           onViewDetail={handleViewDetail}
           onDelete={handleDelete}
         />

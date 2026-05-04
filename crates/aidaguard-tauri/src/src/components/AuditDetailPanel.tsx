@@ -34,8 +34,14 @@ export default function AuditDetailPanel({ record }: AuditDetailPanelProps) {
         <Descriptions.Item label="规则名">
           <Tag color="orange">{record.ruleName || record.ruleId}</Tag>
         </Descriptions.Item>
-        <Descriptions.Item label="策略">
-          <Tag>{record.strategy}</Tag>
+        <Descriptions.Item label="审计策略">
+          {record.strategy === "detect" ? (
+            <Tag color="orange">仅检测</Tag>
+          ) : record.strategy === "mask" ? (
+            <Tag color="purple">部分掩码</Tag>
+          ) : (
+            <Tag color="blue">占位符替换</Tag>
+          )}
         </Descriptions.Item>
         <Descriptions.Item label="占位符" span={2}>
           <Typography.Text code>{record.placeholder}</Typography.Text>

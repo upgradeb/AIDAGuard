@@ -1,31 +1,82 @@
-import { Table, Tag, Typography, Space, Button, Popconfirm } from "antd";
+import { Table, Tag, Typography, Space, Button, Popconfirm, Badge } from "antd";
 import { EyeOutlined, DeleteOutlined } from "@ant-design/icons";
 import type { ColumnsType } from "antd/es/table";
-import type { DetectionRecord } from "../types";
+import type { AuditGroup, DetectionRecord } from "../types";
 import dayjs from "dayjs";
 
 interface AuditTableProps {
-  dataSource: DetectionRecord[];
+  groups: AuditGroup[];
+  groupTotal: number;
   loading: boolean;
-  total: number;
   page: number;
   pageSize: number;
+  expandedRecords: Record<string, DetectionRecord[]>;
+  expandedLoading: Record<string, boolean>;
   onPageChange: (page: number, pageSize: number) => void;
+  onExpand: (ruleId: string, strategy: string) => void;
   onViewDetail: (id: string) => void;
-  onDelete: (id: string) => void;
+  onDelete: (id: string, ruleId: string, strategy: string) => void;
 }
 
+const groupKey = (g: AuditGroup) => `${g.ruleId}:${g.strategy}`;
+
 export default function AuditTable({
-  dataSource,
+  groups,
+  groupTotal,
   loading,
-  total,
   page,
   pageSize,
+  expandedRecords,
+  expandedLoading,
   onPageChange,
+  onExpand,
   onViewDetail,
   onDelete,
 }: AuditTableProps) {
-  const columns: ColumnsType<DetectionRecord> = [
+  const groupColumns: ColumnsType<AuditGroup> = [
+    {
+      title: "最新时间",
+      dataIndex: "latestTimestampMs",
+      key: "latestTime",
+      width: 170,
+      render: (val: number) => dayjs(val).format("YYYY-MM-DD HH:mm:ss"),
+    },
+    {
+      title: "审计策略",
+      dataIndex: "strategy",
+      key: "strategy",
+      width: 100,
+      render: (val: string) => {
+        if (val === "detect") return <Tag color="orange">仅检测</Tag>;
+        if (val === "mask") return <Tag color="purple">部分掩码</Tag>;
+        return <Tag color="blue">占位符替换</Tag>;
+      },
+    },
+    {
+      title: "规则名",
+      dataIndex: "ruleName",
+      key: "rule",
+      width: 160,
+      render: (val: string, record) => (
+        <Space size={8}>
+          <Tag color="orange">{val || record.ruleId}</Tag>
+          <Badge count={record.count} overflowCount={999} color="#3b82f6" />
+        </Space>
+      ),
+    },
+    {
+      title: "命中次数",
+      dataIndex: "count",
+      key: "count",
+      width: 80,
+      align: "right",
+      render: (val: number) => (
+        <Typography.Text strong style={{ fontSize: 14 }}>{val}</Typography.Text>
+      ),
+    },
+  ];
+
+  const recordColumns: ColumnsType<DetectionRecord> = [
     {
       title: "时间",
       dataIndex: "timestampMs",
@@ -34,35 +85,13 @@ export default function AuditTable({
       render: (val: number) => dayjs(val).format("YYYY-MM-DD HH:mm:ss"),
     },
     {
-      title: "工具名",
-      dataIndex: "toolName",
-      key: "tool",
-      width: 100,
-      ellipsis: true,
-      render: (val: string) =>
-        val ? <Tag color="geekblue">{val}</Tag> : <Typography.Text type="secondary">—</Typography.Text>,
-    },
-    {
-      title: "规则名",
-      dataIndex: "ruleName",
-      key: "rule",
-      width: 110,
-      render: (val: string, record) => (
-        <Tag color="orange">{val || record.ruleId}</Tag>
-      ),
-    },
-    {
       title: "原始数据",
       dataIndex: "original",
       key: "original",
       width: 140,
       ellipsis: true,
       render: (val: string) => (
-        <Typography.Text
-          style={{ color: "#ef4444", fontSize: 13 }}
-          ellipsis
-          copyable
-        >
+        <Typography.Text style={{ color: "#ef4444", fontSize: 13 }} ellipsis copyable>
           {val || "—"}
         </Typography.Text>
       ),
@@ -80,7 +109,16 @@ export default function AuditTable({
       ),
     },
     {
-      title: "大模型/模型",
+      title: "工具名",
+      dataIndex: "toolName",
+      key: "tool",
+      width: 100,
+      ellipsis: true,
+      render: (val: string) =>
+        val ? <Tag color="geekblue">{val}</Tag> : <Typography.Text type="secondary">—</Typography.Text>,
+    },
+    {
+      title: "模型",
       dataIndex: "requestPath",
       key: "path",
       width: 140,
@@ -95,7 +133,6 @@ export default function AuditTable({
       title: "操作",
       key: "actions",
       width: 90,
-      fixed: "right",
       render: (_, record) => (
         <Space size={4}>
           <Button
@@ -106,7 +143,7 @@ export default function AuditTable({
           />
           <Popconfirm
             title="确定删除此记录？"
-            onConfirm={() => onDelete(record.id)}
+            onConfirm={() => onDelete(record.id, record.ruleId, record.strategy)}
             okText="删除"
             cancelText="取消"
           >
@@ -119,20 +156,44 @@ export default function AuditTable({
 
   return (
     <Table
-      columns={columns}
-      dataSource={dataSource}
-      rowKey="id"
+      columns={groupColumns}
+      dataSource={groups}
+      rowKey={groupKey}
       loading={loading}
       size="small"
       scroll={{ x: "max-content", y: "calc(100vh - 300px)" }}
+      expandable={{
+        expandedRowRender: (group) => {
+          const key = groupKey(group);
+          const records = expandedRecords[key];
+          const isLoading = expandedLoading[key];
+          return (
+            <Table
+              columns={recordColumns}
+              dataSource={records || []}
+              rowKey="id"
+              loading={isLoading}
+              size="small"
+              pagination={false}
+              scroll={{ x: "max-content" }}
+              style={{ margin: "-8px 0", background: "#fafafa", borderRadius: 6 }}
+            />
+          );
+        },
+        onExpand: (expanded, group) => {
+          if (expanded) {
+            onExpand(group.ruleId, group.strategy);
+          }
+        },
+      }}
       pagination={{
         current: page,
         pageSize,
-        total,
+        total: groupTotal,
         showSizeChanger: true,
-        pageSizeOptions: ["20", "50", "100"],
+        pageSizeOptions: ["10", "20", "50"],
         onChange: onPageChange,
-        showTotal: (t) => `共 ${t} 条`,
+        showTotal: (t) => `共 ${t} 组`,
       }}
     />
   );

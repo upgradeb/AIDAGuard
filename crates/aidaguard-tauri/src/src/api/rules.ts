@@ -41,11 +41,14 @@ export const renameCategory = (oldName: string, newName: string): Promise<void> 
   invoke("rename_category", { oldName, newName });
 
 export interface GeneratedRule {
+  id: string;
   name: string;
   pattern: string;
   strategy: string;
   mode: string;
   priority: number;
+  upstreamName: string;
+  model: string;
 }
 
 export const generateRule = (sampleText: string): Promise<GeneratedRule> =>

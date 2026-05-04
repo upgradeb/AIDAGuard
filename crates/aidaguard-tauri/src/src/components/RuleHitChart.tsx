@@ -2,6 +2,7 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recha
 
 interface RuleDistribution {
   ruleId: string;
+  ruleName: string;
   count: number;
 }
 
@@ -37,7 +38,7 @@ export default function RuleHitChart({ data }: RuleHitChartProps) {
   }
 
   const chartData = data.map((d) => ({
-    name: d.ruleId,
+    name: d.ruleName || d.ruleId,
     value: d.count,
   }));
 

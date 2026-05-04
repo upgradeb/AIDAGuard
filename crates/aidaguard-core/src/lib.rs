@@ -5,7 +5,7 @@ pub mod replacer;
 pub mod storage;
 
 pub use proxy::DetectionEvent;
-pub use storage::{AuditStats, DetectionRecord, RuleCount};
+pub use storage::{AuditGroup, AuditStats, DetectionRecord, RuleCount};
 
 /// Aidaguard core version
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

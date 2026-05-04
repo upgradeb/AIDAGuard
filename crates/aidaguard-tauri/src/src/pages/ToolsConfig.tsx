@@ -156,17 +156,7 @@ export default function ToolsConfig() {
             <List.Item
               style={{ padding: "14px 20px" }}
               actions={[
-                tool.installed && tool.configured ? (
-                  <Button
-                    key="restore"
-                    size="small"
-                    icon={<UndoOutlined />}
-                    loading={applying === tool.toolId}
-                    onClick={() => handleRestore(tool.toolId)}
-                  >
-                    恢复
-                  </Button>
-                ) : tool.installed ? (
+                tool.installed ? (
                   <Button
                     key="apply"
                     type="primary"
@@ -177,6 +167,23 @@ export default function ToolsConfig() {
                   >
                     配置
                   </Button>
+                ) : null,
+                tool.installed ? (
+                  <Popconfirm
+                    key="restore"
+                    title="确定恢复原始配置？"
+                    onConfirm={() => handleRestore(tool.toolId)}
+                    okText="确定"
+                    cancelText="取消"
+                  >
+                    <Button
+                      size="small"
+                      icon={<UndoOutlined />}
+                      loading={applying === tool.toolId}
+                    >
+                      还原
+                    </Button>
+                  </Popconfirm>
                 ) : (
                   <Typography.Text
                     key="na"
@@ -235,18 +242,15 @@ export default function ToolsConfig() {
                     <div style={{ color: token.colorTextSecondary, marginBottom: 4 }}>
                       配置文件：<code>{tool.configPath}</code>
                     </div>
-                    {tool.currentEndpoint && (
-                      <div style={{ color: token.colorTextSecondary }}>
-                        当前端点：{tool.currentEndpoint}
-                        {tool.previewEndpoint && (
-                          <span style={{ color: token.colorPrimary }}>
-                            {" "}
-                            → {tool.previewEndpoint}
-                          </span>
-                        )}
+                    {tool.configured ? (
+                      <div style={{ color: token.colorPrimary, fontWeight: 500, marginTop: 2 }}>
+                        已配置代理 — 请求将通过 Aidaguard 进行敏感数据检测
                       </div>
-                    )}
-                    {!tool.installed && (
+                    ) : tool.installed ? (
+                      <div style={{ color: token.colorWarning, fontWeight: 500, marginTop: 2 }}>
+                        未配置代理 — 点击「配置」将端点切换至本地代理
+                      </div>
+                    ) : (
                       <div style={{ color: token.colorTextQuaternary }}>
                         安装此工具后即可一键配置
                       </div>

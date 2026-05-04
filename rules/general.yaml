@@ -5,6 +5,7 @@ rules:
 - id: phone_cn
   name: 中国手机号
   pattern: 1[3-9]\d{9}
+  exclude: null
   enabled: true
   strategy: placeholder
   mode: detect
@@ -12,6 +13,7 @@ rules:
 - id: id_card_cn
   name: 中国身份证
   pattern: \d{17}[\dXx]
+  exclude: null
   enabled: true
   strategy: placeholder
   mode: detect
@@ -27,6 +29,7 @@ rules:
 - id: bank_card
   name: 银行卡号
   pattern: \b\d{16,19}\b
+  exclude: null
   enabled: true
   strategy: placeholder
   mode: detect
@@ -34,14 +37,24 @@ rules:
 - id: ipv4
   name: IPv4 地址
   pattern: \b(?:\d{1,3}\.){3}\d{1,3}\b
-  enabled: false
+  exclude: null
+  enabled: true
   strategy: placeholder
   mode: detect
   priority: 80
 - id: api_key
   name: API Key
   pattern: (?:sk|pk)-[A-Za-z0-9]{32,}
+  exclude: null
   enabled: true
   strategy: placeholder
+  mode: detect
+  priority: 100
+- id: company_name_cn
+  name: 公司名称
+  pattern: '[\u4e00-\u9fa5]{2,}(?:有限公司|有限责任公司|股份有限公司|集团)'
+  exclude: null
+  enabled: true
+  strategy: mask
   mode: detect
   priority: 100

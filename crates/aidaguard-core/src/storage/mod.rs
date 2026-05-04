@@ -35,7 +35,19 @@ pub struct DetectionRecord {
 #[serde(rename_all = "camelCase")]
 pub struct RuleCount {
     pub rule_id: String,
+    pub rule_name: String,
     pub count: usize,
+}
+
+/// 按 (rule_id, strategy) 分组的审计摘要
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuditGroup {
+    pub rule_id: String,
+    pub rule_name: String,
+    pub strategy: String,
+    pub count: usize,
+    pub latest_timestamp_ms: i64,
 }
 
 /// 审计汇总统计数据
@@ -196,7 +208,7 @@ impl Storage {
 
     /// 检测记录总数
     pub fn count(&self) -> Result<usize, anyhow::Error> {
-        self.count_filtered(None, None, None, None)
+        self.count_filtered(None, None, None, None, None)
     }
 
     /// 按过滤条件统计记录数，参数含义与 `list_filtered` 一致。
@@ -206,6 +218,7 @@ impl Storage {
         path_filter: Option<&str>,
         date_from_ms: Option<i64>,
         date_to_ms: Option<i64>,
+        strategy_filter: Option<&str>,
     ) -> Result<usize, anyhow::Error> {
         let conn = self.conn.lock().unwrap();
 
@@ -228,6 +241,10 @@ impl Storage {
             sql.push_str(" AND timestamp_ms <= ?");
             params.push(Box::new(to));
         }
+        if let Some(strategy) = strategy_filter {
+            sql.push_str(" AND strategy = ?");
+            params.push(Box::new(strategy.to_string()));
+        }
 
         let param_refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
         let count: i64 = conn.query_row(&sql, param_refs.as_slice(), |row| row.get(0))?;
@@ -243,6 +260,7 @@ impl Storage {
         path_filter: Option<&str>,
         date_from_ms: Option<i64>,
         date_to_ms: Option<i64>,
+        strategy_filter: Option<&str>,
     ) -> Result<Vec<DetectionRecord>, anyhow::Error> {
         let conn = self.conn.lock().unwrap();
 
@@ -266,6 +284,10 @@ impl Storage {
         if let Some(to) = date_to_ms {
             sql.push_str(" AND timestamp_ms <= ?");
             params.push(Box::new(to));
+        }
+        if let Some(strategy) = strategy_filter {
+            sql.push_str(" AND strategy = ?");
+            params.push(Box::new(strategy.to_string()));
         }
 
         sql.push_str(" ORDER BY timestamp_ms DESC LIMIT ? OFFSET ?");
@@ -313,6 +335,104 @@ impl Storage {
             });
         }
         Ok(records)
+    }
+
+    /// 按 (rule_id, strategy) 分组查询，返回每组最新时间与计数，按最新时间降序。
+    pub fn list_grouped(
+        &self,
+        limit: usize,
+        offset: usize,
+        rule_id_filter: Option<&str>,
+        path_filter: Option<&str>,
+        date_from_ms: Option<i64>,
+        date_to_ms: Option<i64>,
+    ) -> Result<Vec<AuditGroup>, anyhow::Error> {
+        let conn = self.conn.lock().unwrap();
+
+        let mut sql = String::from(
+            "SELECT rule_id, MAX(rule_name), strategy, COUNT(*) AS cnt, MAX(timestamp_ms) AS latest_ts \
+             FROM detections WHERE 1=1",
+        );
+        let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+
+        if let Some(rule_id) = rule_id_filter {
+            sql.push_str(" AND rule_id = ?");
+            params.push(Box::new(rule_id.to_string()));
+        }
+        if let Some(path) = path_filter {
+            sql.push_str(" AND request_path LIKE ?");
+            params.push(Box::new(format!("%{}%", path)));
+        }
+        if let Some(from) = date_from_ms {
+            sql.push_str(" AND timestamp_ms >= ?");
+            params.push(Box::new(from));
+        }
+        if let Some(to) = date_to_ms {
+            sql.push_str(" AND timestamp_ms <= ?");
+            params.push(Box::new(to));
+        }
+
+        sql.push_str(" GROUP BY rule_id, strategy ORDER BY latest_ts DESC LIMIT ? OFFSET ?");
+        params.push(Box::new(limit as i64));
+        params.push(Box::new(offset as i64));
+
+        let param_refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
+
+        let mut stmt = conn.prepare(&sql)?;
+        let rows = stmt.query_map(param_refs.as_slice(), |row| {
+            Ok(AuditGroup {
+                rule_id: row.get(0)?,
+                rule_name: row.get::<_, String>(1).unwrap_or_default(),
+                strategy: row.get(2)?,
+                count: row.get::<_, i64>(3)? as usize,
+                latest_timestamp_ms: row.get(4)?,
+            })
+        })?;
+
+        let mut groups = Vec::new();
+        for row in rows {
+            groups.push(row?);
+        }
+        Ok(groups)
+    }
+
+    /// 分组后的总组数（用于分页）
+    pub fn count_grouped(
+        &self,
+        rule_id_filter: Option<&str>,
+        path_filter: Option<&str>,
+        date_from_ms: Option<i64>,
+        date_to_ms: Option<i64>,
+    ) -> Result<usize, anyhow::Error> {
+        let conn = self.conn.lock().unwrap();
+
+        let mut sql = String::from(
+            "SELECT COUNT(*) FROM (SELECT 1 FROM detections WHERE 1=1",
+        );
+        let mut params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+
+        if let Some(rule_id) = rule_id_filter {
+            sql.push_str(" AND rule_id = ?");
+            params.push(Box::new(rule_id.to_string()));
+        }
+        if let Some(path) = path_filter {
+            sql.push_str(" AND request_path LIKE ?");
+            params.push(Box::new(format!("%{}%", path)));
+        }
+        if let Some(from) = date_from_ms {
+            sql.push_str(" AND timestamp_ms >= ?");
+            params.push(Box::new(from));
+        }
+        if let Some(to) = date_to_ms {
+            sql.push_str(" AND timestamp_ms <= ?");
+            params.push(Box::new(to));
+        }
+
+        sql.push_str(" GROUP BY rule_id, strategy)");
+
+        let param_refs: Vec<&dyn rusqlite::types::ToSql> = params.iter().map(|p| p.as_ref()).collect();
+        let count: i64 = conn.query_row(&sql, param_refs.as_slice(), |row| row.get(0))?;
+        Ok(count as usize)
     }
 
     /// 按 ID 的单条查询。
@@ -369,6 +489,52 @@ impl Storage {
         Ok(affected > 0)
     }
 
+    /// 获取最近 N 条检测记录（供仪表盘事件列表使用）。
+    pub fn list_recent(&self, limit: usize) -> Result<Vec<DetectionRecord>, anyhow::Error> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT id, timestamp_ms, rule_id, rule_name, strategy, placeholder, original_encrypted, context_encrypted, request_path, sanitized_body, response_status, tool_name FROM detections ORDER BY timestamp_ms DESC LIMIT ?1"
+        )?;
+        let records: Vec<DetectionRecord> = stmt
+            .query_map(rusqlite::params![limit as i64], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, String>(5)?,
+                    row.get::<_, Vec<u8>>(6)?,
+                    row.get::<_, Vec<u8>>(7)?,
+                    row.get::<_, String>(8)?,
+                    row.get::<_, String>(9)?,
+                    row.get::<_, i64>(10)?,
+                    row.get::<_, String>(11)?,
+                ))
+            })?
+            .filter_map(|r| r.ok())
+            .map(|(id, ts, rule_id, rule_name, strategy, placeholder, enc_orig, enc_ctx, path, body, status, tool_name)| {
+                let original = self.decrypt_string(&enc_orig);
+                let context = self.decrypt_string(&enc_ctx);
+                DetectionRecord {
+                    id,
+                    timestamp_ms: ts,
+                    rule_id,
+                    rule_name,
+                    strategy,
+                    placeholder,
+                    original,
+                    context,
+                    request_path: path,
+                    sanitized_body: body,
+                    response_status: status as u16,
+                    tool_name,
+                }
+            })
+            .collect();
+        Ok(records)
+    }
+
     /// 汇总统计数据。
     pub fn stats(&self) -> Result<AuditStats, anyhow::Error> {
         let conn = self.conn.lock().unwrap();
@@ -399,13 +565,14 @@ impl Storage {
 
         // 规则分布
         let mut stmt = conn.prepare(
-            "SELECT rule_id, COUNT(*) as cnt FROM detections GROUP BY rule_id ORDER BY cnt DESC",
+            "SELECT rule_id, rule_name, COUNT(*) as cnt FROM detections GROUP BY rule_id ORDER BY cnt DESC",
         )?;
         let rule_dist: Vec<RuleCount> = stmt
             .query_map([], |row| {
                 Ok(RuleCount {
                     rule_id: row.get(0)?,
-                    count: row.get::<_, i64>(1)? as usize,
+                    rule_name: row.get::<_, String>(1).unwrap_or_default(),
+                    count: row.get::<_, i64>(2)? as usize,
                 })
             })?
             .filter_map(|r| r.ok())

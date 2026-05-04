@@ -79,9 +79,18 @@ pub async fn restore_tool_config(
     let adapter = adapters.iter().find(|a| a.id() == tool_id)
         .ok_or_else(|| format!("未知工具: {}", tool_id))?;
 
+    if !adapter.detect() {
+        return Err(format!("{} 未安装", adapter.name()));
+    }
+
     let data_dir = app.path().app_data_dir()
         .map_err(|e| format!("无法获取数据目录: {}", e))?;
     let backup_dir = tools::backup::backup_dir_for(&data_dir, &tool_id);
+
+    // 检查备份是否存在
+    if !backup_dir.exists() || std::fs::read_dir(&backup_dir).map(|mut d| d.next().is_none()).unwrap_or(true) {
+        return Err(format!("{} 没有备份，请先执行「配置」以创建备份", adapter.name()));
+    }
 
     adapter.restore(&backup_dir)?;
 

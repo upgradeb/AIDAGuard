@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Row, Col, Card, Button, Tag, Typography, theme, Space, Alert, Select } from "antd";
 import {
   PlayCircleOutlined,
@@ -19,11 +20,13 @@ import EventFeed from "../components/EventFeed";
 import RuleHitChart from "../components/RuleHitChart";
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const { token } = theme.useToken();
   const status = useProxyStore((s) => s.status);
   const loading = useProxyStore((s) => s.loading);
   const error = useProxyStore((s) => s.error);
-  const recentEvents = useProxyStore((s) => s.recentEvents);
+  const recentRecords = useAuditStore((s) => s.recentEvents);
+  const fetchRecentEvents = useAuditStore((s) => s.fetchRecentEvents);
   const start = useProxyStore((s) => s.startProxy);
   const stop = useProxyStore((s) => s.stopProxy);
   const fetchStatus = useProxyStore((s) => s.fetchStatus);
@@ -37,9 +40,11 @@ export default function Dashboard() {
     fetchStatus();
     fetchStats();
     fetchUpstreams();
+    fetchRecentEvents();
     const interval = setInterval(() => {
       fetchStatus();
       fetchStats();
+      fetchRecentEvents();
     }, 5000);
     return () => clearInterval(interval);
   }, []);
@@ -257,7 +262,10 @@ export default function Dashboard() {
             size="small"
             style={{ ...cardStyle, maxHeight: 380, overflow: "auto" }}
           >
-            <EventFeed events={recentEvents} />
+            <EventFeed
+              records={recentRecords}
+              onClickRecord={(id) => navigate("/audit", { state: { openRecordId: id } })}
+            />
           </Card>
         </Col>
       </Row>

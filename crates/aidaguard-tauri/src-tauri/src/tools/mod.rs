@@ -56,5 +56,10 @@ pub fn all_adapters() -> Vec<Box<dyn ToolAdapter>> {
         Box::new(adapters::Zed::new()),
         Box::new(adapters::Aider::new()),
         Box::new(adapters::ClaudeCode::new()),
+        Box::new(adapters::OpenClaw::new()),
+        Box::new(adapters::HermesAgent::new()),
+        Box::new(adapters::Codex::new()),
+        Box::new(adapters::GeminiCli::new()),
+        Box::new(adapters::OpenCode::new()),
     ]
 }

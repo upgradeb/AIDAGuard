@@ -359,10 +359,20 @@ pub async fn generate_rule(
         .or_else(|| if config.api_key.is_empty() { None } else { Some(config.api_key.as_str()) })
         .ok_or("未设置 API Key")?;
 
-    let url = if upstream.url.ends_with('/') {
-        format!("{}chat/completions", upstream.url)
+    let is_anthropic = upstream.protocol == aidaguard_core::config::UpstreamProtocol::Anthropic;
+
+    let url = if is_anthropic {
+        if upstream.url.ends_with('/') {
+            format!("{}messages", upstream.url)
+        } else {
+            format!("{}/messages", upstream.url)
+        }
     } else {
-        format!("{}/chat/completions", upstream.url)
+        if upstream.url.ends_with('/') {
+            format!("{}chat/completions", upstream.url)
+        } else {
+            format!("{}/chat/completions", upstream.url)
+        }
     };
 
     // 构造 prompt
@@ -385,16 +395,7 @@ pub async fn generate_rule(
 
     let user_prompt = format!("请为以下测试样例生成检测规则：\n\n{}", sample_text);
 
-    let request_body = serde_json::json!({
-        "model": upstream.models.first().map(|s| s.as_str()).unwrap_or("gpt-4"),
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ],
-        "temperature": 0.3,
-        "max_tokens": 1024,
-        "response_format": {"type": "json_object"}
-    });
+    let model = upstream.models.first().map(|s| s.as_str()).unwrap_or("gpt-4");
 
     // 调用 LLM API
     let client = reqwest::Client::builder()
@@ -402,21 +403,56 @@ pub async fn generate_rule(
         .build()
         .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
 
-    let auth_value = if api_key.starts_with("Bearer ") {
-        api_key.to_string()
-    } else {
-        format!("Bearer {}", api_key)
-    };
+    let timeout = std::time::Duration::from_secs(upstream.timeout_secs.max(30));
 
-    let resp = client
-        .post(&url)
-        .header("Authorization", &auth_value)
-        .header("Content-Type", "application/json")
-        .json(&request_body)
-        .timeout(std::time::Duration::from_secs(upstream.timeout_secs.max(30)))
-        .send()
-        .await
-        .map_err(|e| format!("调用 LLM 失败: {}", e))?;
+    let resp = if is_anthropic {
+        let request_body = serde_json::json!({
+            "model": model,
+            "max_tokens": 1024,
+            "system": system_prompt,
+            "messages": [
+                {"role": "user", "content": user_prompt}
+            ]
+        });
+
+        client
+            .post(&url)
+            .header("x-api-key", api_key)
+            .header("anthropic-version", "2023-06-01")
+            .header("Content-Type", "application/json")
+            .json(&request_body)
+            .timeout(timeout)
+            .send()
+            .await
+            .map_err(|e| format!("调用 LLM 失败: {}", e))?
+    } else {
+        let auth_value = if api_key.starts_with("Bearer ") {
+            api_key.to_string()
+        } else {
+            format!("Bearer {}", api_key)
+        };
+
+        let request_body = serde_json::json!({
+            "model": model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            "temperature": 0.3,
+            "max_tokens": 1024,
+            "response_format": {"type": "json_object"}
+        });
+
+        client
+            .post(&url)
+            .header("Authorization", &auth_value)
+            .header("Content-Type", "application/json")
+            .json(&request_body)
+            .timeout(timeout)
+            .send()
+            .await
+            .map_err(|e| format!("调用 LLM 失败: {}", e))?
+    };
 
     let status = resp.status();
     if !status.is_success() {
@@ -428,14 +464,24 @@ pub async fn generate_rule(
         .map_err(|e| format!("解析 LLM 响应失败: {}", e))?;
 
     // 提取 assistant 回复
-    let content = body
-        .get("choices")
-        .and_then(|c| c.as_array())
-        .and_then(|arr| arr.first())
-        .and_then(|c| c.get("message"))
-        .and_then(|m| m.get("content"))
-        .and_then(|c| c.as_str())
-        .ok_or("LLM 响应格式异常")?;
+    let content = if is_anthropic {
+        body
+            .get("content")
+            .and_then(|c| c.as_array())
+            .and_then(|arr| arr.first())
+            .and_then(|c| c.get("text"))
+            .and_then(|t| t.as_str())
+            .ok_or("LLM 响应格式异常")?
+    } else {
+        body
+            .get("choices")
+            .and_then(|c| c.as_array())
+            .and_then(|arr| arr.first())
+            .and_then(|c| c.get("message"))
+            .and_then(|m| m.get("content"))
+            .and_then(|c| c.as_str())
+            .ok_or("LLM 响应格式异常")?
+    };
 
     // 解析 JSON（尝试提取 ```json ... ``` 包裹的内容）
     let json_str = if let Some(start) = content.find("```json") {

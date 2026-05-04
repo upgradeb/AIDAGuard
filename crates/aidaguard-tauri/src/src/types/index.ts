@@ -30,6 +30,14 @@ export interface DetectionRecord {
   toolName: string;
 }
 
+export interface AuditGroup {
+  ruleId: string;
+  ruleName: string;
+  strategy: string;
+  count: number;
+  latestTimestampMs: number;
+}
+
 export interface RuleDef {
   id: string;
   name: string;
@@ -88,6 +96,7 @@ export interface UpstreamConfig {
   timeout_secs: number;
   rate_limit_qps: number;
   models: string[];
+  protocol: "openai" | "anthropic";
 }
 
 export interface DetectionEvent {

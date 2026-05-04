@@ -38,6 +38,29 @@ impl Default for StorageConfig {
     }
 }
 
+/// 上游协议类型
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum UpstreamProtocol {
+    /// OpenAI 兼容协议 (默认)
+    #[serde(alias = "openai")]
+    OpenAi,
+    /// Anthropic 兼容协议
+    #[serde(alias = "anthropic")]
+    Anthropic,
+}
+
+impl std::fmt::Display for UpstreamProtocol {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::OpenAi => write!(f, "openai"),
+            Self::Anthropic => write!(f, "anthropic"),
+        }
+    }
+}
+
+fn default_protocol() -> UpstreamProtocol { UpstreamProtocol::OpenAi }
+
 /// 上游 LLM 接入配置
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct UpstreamConfig {
@@ -53,6 +76,9 @@ pub struct UpstreamConfig {
     pub rate_limit_qps: u32,
     #[serde(default)]
     pub models: Vec<String>,
+    /// 协议类型: openai 或 anthropic，默认 openai
+    #[serde(default = "default_protocol")]
+    pub protocol: UpstreamProtocol,
 }
 
 fn default_timeout() -> u64 { 300 }
@@ -67,6 +93,7 @@ impl Default for UpstreamConfig {
             timeout_secs: default_timeout(),
             rate_limit_qps: 0,
             models: Vec::new(),
+            protocol: default_protocol(),
         }
     }
 }

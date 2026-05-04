@@ -1,12 +1,19 @@
 use serde::Serialize;
 
-use aidaguard_core::storage::{AuditStats, DetectionRecord};
+use aidaguard_core::storage::{AuditGroup, AuditStats, DetectionRecord};
 use crate::state::AppState;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AuditListResponse {
     pub records: Vec<DetectionRecord>,
+    pub total: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AuditGroupResponse {
+    pub groups: Vec<AuditGroup>,
     pub total: usize,
 }
 
@@ -19,6 +26,7 @@ pub async fn list_audit(
     path_filter: Option<String>,
     date_from_ms: Option<i64>,
     date_to_ms: Option<i64>,
+    strategy_filter: Option<String>,
 ) -> Result<AuditListResponse, String> {
     let storage = state.storage.lock().await;
     let storage = storage
@@ -33,6 +41,7 @@ pub async fn list_audit(
             path_filter.as_deref(),
             date_from_ms,
             date_to_ms,
+            strategy_filter.as_deref(),
         )
         .map_err(|e| format!("查询审计记录失败: {}", e))?;
 
@@ -42,10 +51,49 @@ pub async fn list_audit(
             path_filter.as_deref(),
             date_from_ms,
             date_to_ms,
+            strategy_filter.as_deref(),
         )
         .map_err(|e| format!("查询总数失败: {}", e))?;
 
     Ok(AuditListResponse { records, total })
+}
+
+#[tauri::command]
+pub async fn list_audit_groups(
+    state: tauri::State<'_, AppState>,
+    limit: usize,
+    offset: usize,
+    rule_id_filter: Option<String>,
+    path_filter: Option<String>,
+    date_from_ms: Option<i64>,
+    date_to_ms: Option<i64>,
+) -> Result<AuditGroupResponse, String> {
+    let storage = state.storage.lock().await;
+    let storage = storage
+        .as_ref()
+        .ok_or_else(|| "审计存储未启用".to_string())?;
+
+    let groups = storage
+        .list_grouped(
+            limit,
+            offset,
+            rule_id_filter.as_deref(),
+            path_filter.as_deref(),
+            date_from_ms,
+            date_to_ms,
+        )
+        .map_err(|e| format!("查询审计分组失败: {}", e))?;
+
+    let total = storage
+        .count_grouped(
+            rule_id_filter.as_deref(),
+            path_filter.as_deref(),
+            date_from_ms,
+            date_to_ms,
+        )
+        .map_err(|e| format!("查询分组总数失败: {}", e))?;
+
+    Ok(AuditGroupResponse { groups, total })
 }
 
 #[tauri::command]
@@ -93,7 +141,7 @@ pub async fn export_audit(
 
     // 一次最多导出 10000 条
     let records = storage
-        .list_filtered(10000, 0, rule_id_filter.as_deref(), None, date_from_ms, date_to_ms)
+        .list_filtered(10000, 0, rule_id_filter.as_deref(), None, date_from_ms, date_to_ms, None)
         .map_err(|e| format!("导出查询失败: {}", e))?;
 
     if records.is_empty() {
@@ -168,6 +216,18 @@ pub async fn get_audit_stats(
         .ok_or_else(|| "审计存储未启用".to_string())?;
 
     storage.stats().map_err(|e| format!("统计查询失败: {}", e))
+}
+
+#[tauri::command]
+pub async fn get_recent_events(
+    state: tauri::State<'_, AppState>,
+) -> Result<Vec<DetectionRecord>, String> {
+    let storage = state.storage.lock().await;
+    let storage = storage
+        .as_ref()
+        .ok_or_else(|| "审计存储未启用".to_string())?;
+
+    storage.list_recent(5).map_err(|e| format!("查询最近事件失败: {}", e))
 }
 
 fn dirs_next() -> Option<std::path::PathBuf> {
