@@ -2,7 +2,7 @@ use tauri::Manager;
 use crate::state::AppState;
 use crate::tools::{self, ToolInfo};
 
-/// 检测所有已安装的 AI 工具，返回状态列表
+/// Detect all installed AI tools and return their status
 #[tauri::command]
 pub async fn detect_tools(
     app: tauri::AppHandle,
@@ -35,7 +35,7 @@ pub async fn detect_tools(
     Ok(results)
 }
 
-/// 对指定工具执行配置（含备份）
+/// Apply configuration to a specific tool (with backup)
 #[tauri::command]
 pub async fn apply_tool_config(
     app: tauri::AppHandle,
@@ -43,33 +43,33 @@ pub async fn apply_tool_config(
 ) -> Result<String, String> {
     let adapters = tools::all_adapters();
     let adapter = adapters.iter().find(|a| a.id() == tool_id)
-        .ok_or_else(|| format!("未知工具: {}", tool_id))?;
+        .ok_or_else(|| format!("Unknown tool: {}", tool_id))?;
 
     if !adapter.detect() {
-        return Err(format!("{} 未安装", adapter.name()));
+        return Err(format!("{} is not installed", adapter.name()));
     }
 
-    // 获取代理地址
+    // Get proxy address
     let state = app.state::<AppState>();
     let proxy_port = *state.proxy_port.lock().await;
     drop(state);
     let proxy_url = format!("http://127.0.0.1:{}", proxy_port);
 
-    // 获取备份目录
+    // Get backup directory
     let data_dir = app.path().app_data_dir()
-        .map_err(|e| format!("无法获取数据目录: {}", e))?;
+        .map_err(|e| format!("Failed to get data directory: {}", e))?;
     let backup_dir = tools::backup::backup_dir_for(&data_dir, &tool_id);
 
-    // 先备份
+    // Backup first
     adapter.backup(&backup_dir)?;
 
-    // 再写入新配置
+    // Then write new config
     adapter.configure(&proxy_url)?;
 
-    Ok(format!("{} 已配置为使用 Aidaguard 代理 ({})", adapter.name(), proxy_url))
+    Ok(format!("{} configured to use Aidaguard proxy ({})", adapter.name(), proxy_url))
 }
 
-/// 从备份恢复指定工具的原始配置
+/// Restore original config for a specific tool from backup
 #[tauri::command]
 pub async fn restore_tool_config(
     app: tauri::AppHandle,
@@ -77,34 +77,34 @@ pub async fn restore_tool_config(
 ) -> Result<String, String> {
     let adapters = tools::all_adapters();
     let adapter = adapters.iter().find(|a| a.id() == tool_id)
-        .ok_or_else(|| format!("未知工具: {}", tool_id))?;
+        .ok_or_else(|| format!("Unknown tool: {}", tool_id))?;
 
     if !adapter.detect() {
-        return Err(format!("{} 未安装", adapter.name()));
+        return Err(format!("{} is not installed", adapter.name()));
     }
 
     let data_dir = app.path().app_data_dir()
-        .map_err(|e| format!("无法获取数据目录: {}", e))?;
+        .map_err(|e| format!("Failed to get data directory: {}", e))?;
     let backup_dir = tools::backup::backup_dir_for(&data_dir, &tool_id);
 
-    // 检查备份是否存在
+    // Check if backup exists
     if !backup_dir.exists() || std::fs::read_dir(&backup_dir).map(|mut d| d.next().is_none()).unwrap_or(true) {
-        return Err(format!("{} 没有备份，请先执行「配置」以创建备份", adapter.name()));
+        return Err(format!("{} has no backup. Please run \"Configure\" first to create a backup.", adapter.name()));
     }
 
     adapter.restore(&backup_dir)?;
 
-    Ok(format!("{} 配置已恢复", adapter.name()))
+    Ok(format!("{} configuration restored", adapter.name()))
 }
 
-/// 恢复所有工具的原始配置
+/// Restore original config for all tools
 #[tauri::command]
 pub async fn restore_all_tools(
     app: tauri::AppHandle,
 ) -> Result<String, String> {
     let adapters = tools::all_adapters();
     let data_dir = app.path().app_data_dir()
-        .map_err(|e| format!("无法获取数据目录: {}", e))?;
+        .map_err(|e| format!("Failed to get data directory: {}", e))?;
 
     let mut restored = Vec::new();
     let mut errors = Vec::new();
@@ -114,8 +114,8 @@ pub async fn restore_all_tools(
         match adapter.restore(&backup_dir) {
             Ok(()) => restored.push(adapter.name().to_string()),
             Err(e) => {
-                // 跳过"未安装"或"无备份"的错误
-                if !e.contains("备份文件不存在") && !e.contains("未安装") {
+                // Skip "not installed" or "no backup" errors
+                if !e.contains("Backup file does not exist") && !e.contains("is not installed") {
                     errors.push(format!("{}: {}", adapter.name(), e));
                 }
             }
@@ -123,8 +123,8 @@ pub async fn restore_all_tools(
     }
 
     if errors.is_empty() {
-        Ok(format!("已恢复 {} 个工具的配置", restored.len()))
+        Ok(format!("Restored configuration for {} tool(s)", restored.len()))
     } else {
-        Err(format!("部分恢复失败: {}", errors.join("; ")))
+        Err(format!("Partial restore failure: {}", errors.join("; ")))
     }
 }

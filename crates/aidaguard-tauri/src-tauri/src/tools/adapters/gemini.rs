@@ -120,7 +120,7 @@ impl ToolAdapter for GeminiCli {
             }
 
             fs::write(&env_path, content)
-                .map_err(|e| format!("写入 Gemini CLI .env 失败: {}", e))?;
+                .map_err(|e| format!("Failed to write Gemini CLI .env: {}", e))?;
         }
         Ok(())
     }

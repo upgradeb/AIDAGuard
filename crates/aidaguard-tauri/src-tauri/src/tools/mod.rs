@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-/// 跨平台获取用户主目录
+/// Cross-platform home directory lookup
 pub fn home_dir() -> Option<PathBuf> {
     #[cfg(any(target_os = "macos", target_os = "linux"))]
     {
@@ -16,7 +16,7 @@ pub fn home_dir() -> Option<PathBuf> {
 pub mod adapters;
 pub mod backup;
 
-/// 工具配置信息（前后端共享）
+/// Tool configuration info (shared between frontend and backend)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolInfo {
@@ -30,7 +30,7 @@ pub struct ToolInfo {
     pub preview_endpoint: Option<String>,
 }
 
-/// 工具适配器 trait
+/// Tool adapter trait
 pub trait ToolAdapter: Send + Sync {
     fn id(&self) -> &str;
     fn name(&self) -> &str;
@@ -41,11 +41,11 @@ pub trait ToolAdapter: Send + Sync {
     fn backup(&self, backup_dir: &std::path::Path) -> Result<(), String>;
     fn configure(&self, proxy_url: &str) -> Result<(), String>;
     fn restore(&self, backup_dir: &std::path::Path) -> Result<(), String>;
-    // 检查是否已被 Aidaguard 配置过
+    /// Check if already configured by Aidaguard
     fn is_configured(&self) -> bool;
 }
 
-/// 获取所有已注册的适配器
+/// Get all registered adapters
 pub fn all_adapters() -> Vec<Box<dyn ToolAdapter>> {
     vec![
         Box::new(adapters::RooCode::new()),

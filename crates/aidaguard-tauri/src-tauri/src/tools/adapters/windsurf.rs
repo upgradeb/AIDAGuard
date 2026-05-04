@@ -58,14 +58,14 @@ impl ToolAdapter for Windsurf {
     }
 
     fn backup(&self, _backup_dir: &std::path::Path) -> Result<(), String> {
-        Err("Windsurf 一键配置将在后续版本支持".into())
+        Err("One-click configuration for Windsurf will be supported in a future version".into())
     }
 
     fn configure(&self, _proxy_url: &str) -> Result<(), String> {
-        Err("Windsurf 一键配置将在后续版本支持".into())
+        Err("One-click configuration for Windsurf will be supported in a future version".into())
     }
 
     fn restore(&self, _backup_dir: &std::path::Path) -> Result<(), String> {
-        Err("Windsurf 一键配置将在后续版本支持".into())
+        Err("One-click configuration for Windsurf will be supported in a future version".into())
     }
 }

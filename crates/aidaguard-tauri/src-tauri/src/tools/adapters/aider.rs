@@ -25,7 +25,7 @@ impl ToolAdapter for Aider {
     fn current_endpoint(&self) -> Option<String> {
         let path = config_path()?;
         let content = fs::read_to_string(&path).ok()?;
-        // Aider YAML: openai-api-base 或 anthropic-api-base
+        // Aider YAML: openai-api-base or anthropic-api-base
         for line in content.lines() {
             let trimmed = line.trim();
             if trimmed.starts_with("openai-api-base:") || trimmed.starts_with("anthropic-api-base:") {
@@ -54,14 +54,14 @@ impl ToolAdapter for Aider {
     }
 
     fn backup(&self, backup_dir: &std::path::Path) -> Result<(), String> {
-        let path = config_path().ok_or("无法确定 Aider 配置路径".to_string())?;
+        let path = config_path().ok_or("Failed to determine Aider config path".to_string())?;
         super::super::backup::backup_config(&path, backup_dir)
     }
 
     fn configure(&self, proxy_url: &str) -> Result<(), String> {
-        let path = config_path().ok_or("无法确定 Aider 配置路径".to_string())?;
+        let path = config_path().ok_or("Failed to determine Aider config path".to_string())?;
 
-        // 确保目录存在
+        // Ensure directory exists
         if let Some(parent) = path.parent() {
             let _ = fs::create_dir_all(parent);
         }
@@ -89,18 +89,18 @@ impl ToolAdapter for Aider {
             }
         }
 
-        // 如果都没有，追加 openai 和 anthropic base url
+        // If neither exists, append openai and anthropic base url
         if !found_openai && !found_anthropic {
             new_lines.push(format!("openai-api-base: {}", proxy_url));
         }
 
         fs::write(&path, new_lines.join("\n"))
-            .map_err(|e| format!("写入 Aider 配置失败: {}", e))?;
+            .map_err(|e| format!("Failed to write Aider config: {}", e))?;
         Ok(())
     }
 
     fn restore(&self, backup_dir: &std::path::Path) -> Result<(), String> {
-        let path = config_path().ok_or("无法确定 Aider 配置路径".to_string())?;
+        let path = config_path().ok_or("Failed to determine Aider config path".to_string())?;
         super::super::backup::restore_config(&path, backup_dir)
     }
 }

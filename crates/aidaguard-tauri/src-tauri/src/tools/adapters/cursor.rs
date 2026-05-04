@@ -50,7 +50,7 @@ impl ToolAdapter for Cursor {
         let path = config_path()?;
         let content = fs::read_to_string(&path).ok()?;
         let json: serde_json::Value = serde_json::from_str(&content).ok()?;
-        // Cursor 可能使用 cursor.apiBase 或其他键
+        // Cursor may use cursor.apiBase or other keys
         json.get("cursor.apiBase")
             .or_else(|| json.get("openai.baseUrl"))
             .and_then(|v| v.as_str())
@@ -74,16 +74,16 @@ impl ToolAdapter for Cursor {
     }
 
     fn backup(&self, backup_dir: &std::path::Path) -> Result<(), String> {
-        let path = config_path().ok_or("无法确定 Cursor 配置路径".to_string())?;
+        let path = config_path().ok_or("Failed to determine Cursor config path".to_string())?;
         super::super::backup::backup_config(&path, backup_dir)
     }
 
     fn configure(&self, proxy_url: &str) -> Result<(), String> {
-        let path = config_path().ok_or("无法确定 Cursor 配置路径".to_string())?;
+        let path = config_path().ok_or("Failed to determine Cursor config path".to_string())?;
         let content = fs::read_to_string(&path)
-            .map_err(|e| format!("读取 Cursor 配置失败: {}", e))?;
+            .map_err(|e| format!("Failed to read Cursor config: {}", e))?;
         let mut json: serde_json::Value = serde_json::from_str(&content)
-            .map_err(|e| format!("解析 Cursor 配置失败: {}", e))?;
+            .map_err(|e| format!("Failed to parse Cursor config: {}", e))?;
 
         if let Some(obj) = json.as_object_mut() {
             obj.insert("cursor.apiBase".to_string(), serde_json::Value::String(proxy_url.to_string()));
@@ -91,14 +91,14 @@ impl ToolAdapter for Cursor {
         }
 
         let new_content = serde_json::to_string_pretty(&json)
-            .map_err(|e| format!("序列化配置失败: {}", e))?;
+            .map_err(|e| format!("Serialization failed: {}", e))?;
         fs::write(&path, new_content)
-            .map_err(|e| format!("写入配置失败: {}", e))?;
+            .map_err(|e| format!("Failed to write config: {}", e))?;
         Ok(())
     }
 
     fn restore(&self, backup_dir: &std::path::Path) -> Result<(), String> {
-        let path = config_path().ok_or("无法确定 Cursor 配置路径".to_string())?;
+        let path = config_path().ok_or("Failed to determine Cursor config path".to_string())?;
         super::super::backup::restore_config(&path, backup_dir)
     }
 }

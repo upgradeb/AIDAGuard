@@ -73,7 +73,7 @@ impl ToolAdapter for OpenCode {
     }
 
     fn configure(&self, proxy_url: &str) -> Result<(), String> {
-        let path = config_path().ok_or("无法确定 OpenCode 配置路径".to_string())?;
+        let path = config_path().ok_or("Failed to determine OpenCode config path".to_string())?;
 
         // Ensure directory exists
         if let Some(parent) = path.parent() {
@@ -98,16 +98,16 @@ impl ToolAdapter for OpenCode {
                 }
             });
             let content = serde_json::to_string_pretty(&config)
-                .map_err(|e| format!("序列化配置失败: {}", e))?;
+                .map_err(|e| format!("Serialization failed: {}", e))?;
             fs::write(&path, content)
-                .map_err(|e| format!("创建 OpenCode 配置失败: {}", e))?;
+                .map_err(|e| format!("Failed to create OpenCode config: {}", e))?;
             return Ok(());
         }
 
         let content = fs::read_to_string(&path)
-            .map_err(|e| format!("读取 OpenCode 配置失败: {}", e))?;
+            .map_err(|e| format!("Failed to read OpenCode config: {}", e))?;
         let mut json: serde_json::Value = serde_json::from_str(&content)
-            .map_err(|e| format!("解析 OpenCode 配置失败: {}", e))?;
+            .map_err(|e| format!("Failed to parse OpenCode config: {}", e))?;
 
         // Update all providers' baseURL
         if let Some(providers) = json.get_mut("provider").and_then(|p| p.as_object_mut()) {
@@ -119,9 +119,9 @@ impl ToolAdapter for OpenCode {
         }
 
         let new_content = serde_json::to_string_pretty(&json)
-            .map_err(|e| format!("序列化配置失败: {}", e))?;
+            .map_err(|e| format!("Serialization failed: {}", e))?;
         fs::write(&path, new_content)
-            .map_err(|e| format!("写入配置失败: {}", e))?;
+            .map_err(|e| format!("Failed to write config: {}", e))?;
         Ok(())
     }
 

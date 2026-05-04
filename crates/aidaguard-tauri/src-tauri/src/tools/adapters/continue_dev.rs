@@ -53,16 +53,16 @@ impl ToolAdapter for ContinueDev {
     }
 
     fn backup(&self, backup_dir: &std::path::Path) -> Result<(), String> {
-        let path = config_path().ok_or("无法确定 Continue 配置路径".to_string())?;
+        let path = config_path().ok_or("Failed to determine Continue config path".to_string())?;
         super::super::backup::backup_config(&path, backup_dir)
     }
 
     fn configure(&self, proxy_url: &str) -> Result<(), String> {
-        let path = config_path().ok_or("无法确定 Continue 配置路径".to_string())?;
+        let path = config_path().ok_or("Failed to determine Continue config path".to_string())?;
         let content = fs::read_to_string(&path)
-            .map_err(|e| format!("读取 Continue 配置失败: {}", e))?;
+            .map_err(|e| format!("Failed to read Continue config: {}", e))?;
         let mut json: serde_json::Value = serde_json::from_str(&content)
-            .map_err(|e| format!("解析 Continue 配置失败: {}", e))?;
+            .map_err(|e| format!("Failed to parse Continue config: {}", e))?;
 
         if let Some(models) = json.get_mut("models").and_then(|m| m.as_array_mut()) {
             for model in models.iter_mut() {
@@ -73,14 +73,14 @@ impl ToolAdapter for ContinueDev {
         }
 
         let new_content = serde_json::to_string_pretty(&json)
-            .map_err(|e| format!("序列化 Continue 配置失败: {}", e))?;
+            .map_err(|e| format!("Failed to serialize Continue config: {}", e))?;
         fs::write(&path, new_content)
-            .map_err(|e| format!("写入 Continue 配置失败: {}", e))?;
+            .map_err(|e| format!("Failed to write Continue config: {}", e))?;
         Ok(())
     }
 
     fn restore(&self, backup_dir: &std::path::Path) -> Result<(), String> {
-        let path = config_path().ok_or("无法确定 Continue 配置路径".to_string())?;
+        let path = config_path().ok_or("Failed to determine Continue config path".to_string())?;
         super::super::backup::restore_config(&path, backup_dir)
     }
 }

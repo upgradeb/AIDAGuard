@@ -6,24 +6,24 @@ use std::time::Instant;
 use tokio::sync::{Mutex, RwLock};
 use tokio::task::JoinHandle;
 
-/// Tauri 托管的应用状态，在代理任务和 Tauri 命令之间共享。
+/// Tauri-managed application state shared between proxy tasks and Tauri commands.
 pub struct AppState {
-    /// 当前配置
+    /// Current configuration
     pub config: Arc<RwLock<Config>>,
-    /// 规则检测器
+    /// Rule detector
     pub detector: Arc<RwLock<Detector>>,
-    /// 审计存储（None 表示未启用）
+    /// Audit storage (None means not enabled)
     pub storage: Arc<Mutex<Option<Arc<Storage>>>>,
-    /// 代理任务句柄
+    /// Proxy task handle
     pub proxy_handle: Arc<Mutex<Option<JoinHandle<()>>>>,
-    /// 关闭信号发送端
+    /// Shutdown signal sender
     pub proxy_shutdown: Arc<Mutex<Option<tokio::sync::oneshot::Sender<()>>>>,
-    /// 代理启动时间
+    /// Proxy start time
     pub proxy_start_time: Arc<Mutex<Option<Instant>>>,
-    /// 代理监听端口
+    /// Proxy listen port
     pub proxy_port: Arc<Mutex<u16>>,
-    /// 规则目录路径
+    /// Rules directory path
     pub rules_dir: Arc<RwLock<String>>,
-    /// 规则文件热加载 watcher（需持有以保持运行）
+    /// Rule file hot-reload watcher (must be held to stay alive)
     pub rules_watcher: Arc<Mutex<Option<notify::RecommendedWatcher>>>,
 }

@@ -65,14 +65,14 @@ impl ToolAdapter for Cline {
     }
 
     fn backup(&self, _backup_dir: &std::path::Path) -> Result<(), String> {
-        Err("Cline 一键配置将在后续版本支持".into())
+        Err("One-click configuration for Cline will be supported in a future version".into())
     }
 
     fn configure(&self, _proxy_url: &str) -> Result<(), String> {
-        Err("Cline 一键配置将在后续版本支持".into())
+        Err("One-click configuration for Cline will be supported in a future version".into())
     }
 
     fn restore(&self, _backup_dir: &std::path::Path) -> Result<(), String> {
-        Err("Cline 一键配置将在后续版本支持".into())
+        Err("One-click configuration for Cline will be supported in a future version".into())
     }
 }

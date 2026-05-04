@@ -63,15 +63,15 @@ fn rules_dir(state: &AppState) -> PathBuf {
 fn read_rule_files(dir: &std::path::Path) -> Result<Vec<(String, RuleFile)>, String> {
     let mut results = Vec::new();
     let entries = std::fs::read_dir(dir)
-        .map_err(|e| format!("无法读取规则目录: {}", e))?;
+        .map_err(|e| format!("Failed to read rules directory: {}", e))?;
     for entry in entries {
-        let entry = entry.map_err(|e| format!("读取目录条目失败: {}", e))?;
+        let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
         let path = entry.path();
         if path.extension().map_or(false, |ext| ext == "yaml" || ext == "yml") {
             let content = std::fs::read_to_string(&path)
-                .map_err(|e| format!("无法读取文件 {}: {}", path.display(), e))?;
+                .map_err(|e| format!("Failed to read file {}: {}", path.display(), e))?;
             let file: RuleFile = serde_yaml::from_str(&content)
-                .map_err(|e| format!("YAML 解析失败 {}: {}", path.display(), e))?;
+                .map_err(|e| format!("YAML parse failed {}: {}", path.display(), e))?;
             let cat = path.file_stem()
                 .and_then(|s| s.to_str())
                 .unwrap_or("unknown")
@@ -85,9 +85,9 @@ fn read_rule_files(dir: &std::path::Path) -> Result<Vec<(String, RuleFile)>, Str
 fn write_rule_file(dir: &std::path::Path, category: &str, file: &RuleFile) -> Result<(), String> {
     let path = dir.join(format!("{}.yaml", category));
     let content = serde_yaml::to_string(file)
-        .map_err(|e| format!("YAML 序列化失败: {}", e))?;
+        .map_err(|e| format!("YAML serialization failed: {}", e))?;
     std::fs::write(&path, content)
-        .map_err(|e| format!("写入文件失败 {}: {}", path.display(), e))?;
+        .map_err(|e| format!("Failed to write file {}: {}", path.display(), e))?;
     Ok(())
 }
 
@@ -146,8 +146,8 @@ pub async fn save_rule(
 
     // Reload rules into detector
     let mut detector = state.detector.write().await;
-    detector.load_from_dir(&dir).map_err(|e| format!("重新加载规则失败: {}", e))?;
-    info!("规则已保存: {} -> {}", rule_id, cat);
+    detector.load_from_dir(&dir).map_err(|e| format!("Failed to reload rules: {}", e))?;
+    info!("Rule saved: {} -> {}", rule_id, cat);
 
     Ok(())
 }
@@ -162,20 +162,20 @@ pub async fn delete_rule(
     let mut files = read_rule_files(&dir)?;
 
     let idx = files.iter().position(|(c, _)| c == &category)
-        .ok_or_else(|| format!("分类 {} 不存在", category))?;
+        .ok_or_else(|| format!("Category {} does not exist", category))?;
     let (cat, mut file) = files.remove(idx);
 
     let before = file.rules.len();
     file.rules.retain(|r| r.id != rule_id);
     if file.rules.len() == before {
-        return Err(format!("规则 {} 在分类 {} 中不存在", rule_id, category));
+        return Err(format!("Rule {} does not exist in category {}", rule_id, category));
     }
 
     write_rule_file(&dir, &cat, &file)?;
 
     let mut detector = state.detector.write().await;
-    detector.load_from_dir(&dir).map_err(|e| format!("重新加载规则失败: {}", e))?;
-    info!("规则已删除: {}", rule_id);
+    detector.load_from_dir(&dir).map_err(|e| format!("Failed to reload rules: {}", e))?;
+    info!("Rule deleted: {}", rule_id);
 
     Ok(())
 }
@@ -200,11 +200,11 @@ pub async fn toggle_rule(
     }
 
     if !found {
-        return Err(format!("规则 {} 不存在", rule_id));
+        return Err(format!("Rule {} does not exist", rule_id));
     }
 
     let mut detector = state.detector.write().await;
-    detector.load_from_dir(&dir).map_err(|e| format!("重新加载规则失败: {}", e))?;
+    detector.load_from_dir(&dir).map_err(|e| format!("Failed to reload rules: {}", e))?;
 
     Ok(())
 }
@@ -219,20 +219,20 @@ pub async fn test_rule(
     use aidaguard_core::detector::Strategy;
 
     if pattern.len() > 2000 {
-        return Err("正则模式过长 (上限 2000 字符)".into());
+        return Err("Pattern too long (max 2000 characters)".into());
     }
 
     if test_text.len() > 100_000 {
-        return Err("测试文本过长 (上限 100,000 字符)".into());
+        return Err("Test text too long (max 100,000 characters)".into());
     }
 
-    // 编译正则（带 size_limit 防 ReDoS）
+    // Compile regex (with size_limit to prevent ReDoS)
     let regex = RegexBuilder::new(&pattern)
         .size_limit(1 << 20)
         .build()
-        .map_err(|e| format!("正则编译失败: {}", e))?;
+        .map_err(|e| format!("Regex compilation failed: {}", e))?;
 
-    // 查找匹配
+    // Find matches
     let mut raw_matches: Vec<Match> = Vec::new();
     for m in regex.find_iter(&test_text) {
         raw_matches.push(Match {
@@ -248,7 +248,7 @@ pub async fn test_rule(
 
     let match_infos: Vec<MatchInfo> = raw_matches.iter().map(MatchInfo::from).collect();
 
-    // 替换
+    // Replace
     let (sanitized_text, _) = replacer::replace(&test_text, &raw_matches);
 
     Ok(TestRuleResult {
@@ -264,9 +264,9 @@ pub async fn reload_rules(
     let dir = rules_dir(&state);
     let mut detector = state.detector.write().await;
     let count = detector.load_from_dir(&dir)
-        .map_err(|e| format!("重新加载规则失败: {}", e))?;
-    info!("规则已重新加载: {} 条", count);
-    Ok(format!("已加载 {} 条规则", count))
+        .map_err(|e| format!("Failed to reload rules: {}", e))?;
+    info!("Rules reloaded: {} rules", count);
+    Ok(format!("Loaded {} rules", count))
 }
 
 #[tauri::command]
@@ -284,16 +284,16 @@ pub async fn create_category(
     name: String,
 ) -> Result<(), String> {
     if name.is_empty() || name.len() > 64 {
-        return Err("分类名长度必须在 1-64 个字符之间".into());
+        return Err("Category name must be 1-64 characters".into());
     }
     if !name.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-') {
-        return Err("分类名只能包含字母、数字、下划线和连字符".into());
+        return Err("Category name may only contain letters, digits, underscores, and hyphens".into());
     }
 
     let dir = rules_dir(&state);
     let path = dir.join(format!("{}.yaml", name));
     if path.exists() {
-        return Err(format!("分类 {} 已存在", name));
+        return Err(format!("Category {} already exists", name));
     }
 
     let file = RuleFile {
@@ -303,7 +303,7 @@ pub async fn create_category(
         rules: Vec::new(),
     };
     write_rule_file(&dir, &name, &file)?;
-    info!("分类已创建: {}", name);
+    info!("Category created: {}", name);
     Ok(())
 }
 
@@ -315,14 +315,14 @@ pub async fn delete_category(
     let dir = rules_dir(&state);
     let path = dir.join(format!("{}.yaml", name));
     if !path.exists() {
-        return Err(format!("分类 {} 不存在", name));
+        return Err(format!("Category {} does not exist", name));
     }
     std::fs::remove_file(&path)
-        .map_err(|e| format!("删除分类文件失败: {}", e))?;
+        .map_err(|e| format!("Failed to delete category file: {}", e))?;
 
     let mut detector = state.detector.write().await;
     let _ = detector.load_from_dir(&dir);
-    info!("分类已删除: {}", name);
+    info!("Category deleted: {}", name);
     Ok(())
 }
 
@@ -342,22 +342,22 @@ pub async fn generate_rule(
     sample_text: String,
 ) -> Result<GeneratedRule, String> {
     if sample_text.trim().is_empty() {
-        return Err("测试样例不能为空".into());
+        return Err("Test sample cannot be empty".into());
     }
     if sample_text.len() > 50_000 {
-        return Err("测试样例过长（上限 50,000 字符）".into());
+        return Err("Test sample too long (max 50,000 characters)".into());
     }
 
-    // 获取默认上游配置
+    // Get default upstream config
     let config = state.config.read().await;
     let upstream = config.upstreams.iter()
         .find(|u| u.default)
         .or_else(|| config.upstreams.first())
-        .ok_or("未配置上游 LLM，请先在「大模型接入」中添加")?;
+        .ok_or("No upstream LLM configured. Please add one in \"LLM Upstreams\".")?;
 
     let api_key = upstream.api_key.as_deref()
         .or_else(|| if config.api_key.is_empty() { None } else { Some(config.api_key.as_str()) })
-        .ok_or("未设置 API Key")?;
+        .ok_or("API Key not set")?;
 
     let is_anthropic = upstream.protocol == aidaguard_core::config::UpstreamProtocol::Anthropic;
 
@@ -375,33 +375,33 @@ pub async fn generate_rule(
         }
     };
 
-    // 构造 prompt
-    let system_prompt = r#"你是一个正则表达式专家。请根据用户提供的测试样例，生成一条敏感数据检测规则。
+    // Build prompt
+    let system_prompt = r#"You are a regex expert. Based on the user's test sample, generate a sensitive data detection rule.
 
-要求：
-1. 仔细分析样例中哪部分是需要检测的敏感数据
-2. 编写精确的正则表达式，避免误匹配正常文本
-3. 选择合适的策略：placeholder（占位符替换）或 mask（部分掩码）
-4. 选择合适的模式：detect（仅检测记录）或 filter（检测并替换）
+Requirements:
+1. Carefully analyze which part of the sample is sensitive data that needs detection
+2. Write a precise regex pattern that avoids false positives on normal text
+3. Choose an appropriate strategy: placeholder (replace with placeholder) or mask (partial masking)
+4. Choose an appropriate mode: detect (record only) or filter (detect and replace)
 
-请严格按照以下 JSON 格式返回，不要包含其他说明文字：
+Return strictly in the following JSON format, with no additional text:
 {
-  "name": "规则中文名称",
-  "pattern": "正则表达式",
-  "strategy": "placeholder 或 mask",
-  "mode": "detect 或 filter",
+  "name": "Rule name",
+  "pattern": "regex pattern",
+  "strategy": "placeholder or mask",
+  "mode": "detect or filter",
   "priority": 100
 }"#;
 
-    let user_prompt = format!("请为以下测试样例生成检测规则：\n\n{}", sample_text);
+    let user_prompt = format!("Please generate a detection rule for the following test sample:\n\n{}", sample_text);
 
     let model = upstream.models.first().map(|s| s.as_str()).unwrap_or("gpt-4");
 
-    // 调用 LLM API
+    // Call LLM API
     let client = reqwest::Client::builder()
         .use_rustls_tls()
         .build()
-        .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
+        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
 
     let timeout = std::time::Duration::from_secs(upstream.timeout_secs.max(30));
 
@@ -424,7 +424,7 @@ pub async fn generate_rule(
             .timeout(timeout)
             .send()
             .await
-            .map_err(|e| format!("调用 LLM 失败: {}", e))?
+            .map_err(|e| format!("LLM call failed: {}", e))?
     } else {
         let auth_value = if api_key.starts_with("Bearer ") {
             api_key.to_string()
@@ -451,19 +451,19 @@ pub async fn generate_rule(
             .timeout(timeout)
             .send()
             .await
-            .map_err(|e| format!("调用 LLM 失败: {}", e))?
+            .map_err(|e| format!("LLM call failed: {}", e))?
     };
 
     let status = resp.status();
     if !status.is_success() {
         let body = resp.text().await.unwrap_or_default();
-        return Err(format!("LLM 返回错误 ({}): {}", status.as_u16(), body));
+        return Err(format!("LLM returned error ({}): {}", status.as_u16(), body));
     }
 
     let body: serde_json::Value = resp.json().await
-        .map_err(|e| format!("解析 LLM 响应失败: {}", e))?;
+        .map_err(|e| format!("Failed to parse LLM response: {}", e))?;
 
-    // 提取 assistant 回复
+    // Extract assistant reply
     let content = if is_anthropic {
         body
             .get("content")
@@ -471,7 +471,7 @@ pub async fn generate_rule(
             .and_then(|arr| arr.first())
             .and_then(|c| c.get("text"))
             .and_then(|t| t.as_str())
-            .ok_or("LLM 响应格式异常")?
+            .ok_or("Unexpected LLM response format")?
     } else {
         body
             .get("choices")
@@ -480,10 +480,10 @@ pub async fn generate_rule(
             .and_then(|c| c.get("message"))
             .and_then(|m| m.get("content"))
             .and_then(|c| c.as_str())
-            .ok_or("LLM 响应格式异常")?
+            .ok_or("Unexpected LLM response format")?
     };
 
-    // 解析 JSON（尝试提取 ```json ... ``` 包裹的内容）
+    // Parse JSON (try extracting ```json ... ``` fenced content)
     let json_str = if let Some(start) = content.find("```json") {
         let start = start + 7;
         let end = content[start..].find("```").map(|e| start + e).unwrap_or(content.len());
@@ -491,24 +491,24 @@ pub async fn generate_rule(
     } else if let Some(start) = content.find('{') {
         &content[start..]
     } else {
-        return Err(format!("无法从 LLM 回复中提取 JSON: {}", content));
+        return Err(format!("Failed to extract JSON from LLM reply: {}", content));
     };
 
     let rule: GeneratedRule = serde_json::from_str(json_str.trim())
-        .map_err(|e| format!("解析生成规则失败: {} — 原始回复: {}", e, content))?;
+        .map_err(|e| format!("Failed to parse generated rule: {} — raw reply: {}", e, content))?;
 
-    // 校验
+    // Validate
     if rule.name.is_empty() || rule.pattern.is_empty() {
-        return Err("LLM 生成的规则缺少必要字段".into());
+        return Err("LLM-generated rule is missing required fields".into());
     }
 
-    // 编译正则验证有效性
+    // Compile regex to verify validity
     let _ = regex::RegexBuilder::new(&rule.pattern)
         .size_limit(1 << 20)
         .build()
-        .map_err(|e| format!("LLM 生成的正则无效: {} — pattern: {}", e, rule.pattern))?;
+        .map_err(|e| format!("LLM-generated regex is invalid: {} — pattern: {}", e, rule.pattern))?;
 
-    info!("LLM 生成规则: {} — pattern: {}", rule.name, rule.pattern);
+    info!("LLM generated rule: {} — pattern: {}", rule.name, rule.pattern);
     Ok(rule)
 }
 
@@ -519,10 +519,10 @@ pub async fn rename_category(
     new_name: String,
 ) -> Result<(), String> {
     if new_name.is_empty() || new_name.len() > 64 {
-        return Err("分类名长度必须在 1-64 个字符之间".into());
+        return Err("Category name must be 1-64 characters".into());
     }
     if !new_name.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-') {
-        return Err("分类名只能包含字母、数字、下划线和连字符".into());
+        return Err("Category name may only contain letters, digits, underscores, and hyphens".into());
     }
 
     let dir = rules_dir(&state);
@@ -530,17 +530,17 @@ pub async fn rename_category(
     let new_path = dir.join(format!("{}.yaml", new_name));
 
     if !old_path.exists() {
-        return Err(format!("分类 {} 不存在", old_name));
+        return Err(format!("Category {} does not exist", old_name));
     }
     if new_path.exists() {
-        return Err(format!("分类 {} 已存在", new_name));
+        return Err(format!("Category {} already exists", new_name));
     }
 
     std::fs::rename(&old_path, &new_path)
-        .map_err(|e| format!("重命名分类失败: {}", e))?;
+        .map_err(|e| format!("Failed to rename category: {}", e))?;
 
     let mut detector = state.detector.write().await;
     let _ = detector.load_from_dir(&dir);
-    info!("分类已重命名: {} -> {}", old_name, new_name);
+    info!("Category renamed: {} -> {}", old_name, new_name);
     Ok(())
 }

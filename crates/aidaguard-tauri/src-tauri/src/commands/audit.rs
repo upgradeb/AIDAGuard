@@ -31,7 +31,7 @@ pub async fn list_audit(
     let storage = state.storage.lock().await;
     let storage = storage
         .as_ref()
-        .ok_or_else(|| "审计存储未启用".to_string())?;
+        .ok_or_else(|| "Audit storage not enabled".to_string())?;
 
     let records = storage
         .list_filtered(
@@ -43,7 +43,7 @@ pub async fn list_audit(
             date_to_ms,
             strategy_filter.as_deref(),
         )
-        .map_err(|e| format!("查询审计记录失败: {}", e))?;
+        .map_err(|e| format!("Failed to query audit records: {}", e))?;
 
     let total = storage
         .count_filtered(
@@ -53,7 +53,7 @@ pub async fn list_audit(
             date_to_ms,
             strategy_filter.as_deref(),
         )
-        .map_err(|e| format!("查询总数失败: {}", e))?;
+        .map_err(|e| format!("Failed to query total count: {}", e))?;
 
     Ok(AuditListResponse { records, total })
 }
@@ -71,7 +71,7 @@ pub async fn list_audit_groups(
     let storage = state.storage.lock().await;
     let storage = storage
         .as_ref()
-        .ok_or_else(|| "审计存储未启用".to_string())?;
+        .ok_or_else(|| "Audit storage not enabled".to_string())?;
 
     let groups = storage
         .list_grouped(
@@ -82,7 +82,7 @@ pub async fn list_audit_groups(
             date_from_ms,
             date_to_ms,
         )
-        .map_err(|e| format!("查询审计分组失败: {}", e))?;
+        .map_err(|e| format!("Failed to query audit groups: {}", e))?;
 
     let total = storage
         .count_grouped(
@@ -91,7 +91,7 @@ pub async fn list_audit_groups(
             date_from_ms,
             date_to_ms,
         )
-        .map_err(|e| format!("查询分组总数失败: {}", e))?;
+        .map_err(|e| format!("Failed to query group total: {}", e))?;
 
     Ok(AuditGroupResponse { groups, total })
 }
@@ -104,11 +104,11 @@ pub async fn get_audit_detail(
     let storage = state.storage.lock().await;
     let storage = storage
         .as_ref()
-        .ok_or_else(|| "审计存储未启用".to_string())?;
+        .ok_or_else(|| "Audit storage not enabled".to_string())?;
 
     storage
         .get_by_id(&record_id)
-        .map_err(|e| format!("查询详情失败: {}", e))
+        .map_err(|e| format!("Failed to query detail: {}", e))
 }
 
 #[tauri::command]
@@ -119,11 +119,11 @@ pub async fn delete_audit(
     let storage = state.storage.lock().await;
     let storage = storage
         .as_ref()
-        .ok_or_else(|| "审计存储未启用".to_string())?;
+        .ok_or_else(|| "Audit storage not enabled".to_string())?;
 
     storage
         .delete(&record_id)
-        .map_err(|e| format!("删除失败: {}", e))
+        .map_err(|e| format!("Failed to delete: {}", e))
 }
 
 #[tauri::command]
@@ -137,18 +137,18 @@ pub async fn export_audit(
     let storage = state.storage.lock().await;
     let storage = storage
         .as_ref()
-        .ok_or_else(|| "审计存储未启用".to_string())?;
+        .ok_or_else(|| "Audit storage not enabled".to_string())?;
 
-    // 一次最多导出 10000 条
+    // Export at most 10,000 records
     let records = storage
         .list_filtered(10000, 0, rule_id_filter.as_deref(), None, date_from_ms, date_to_ms, None)
-        .map_err(|e| format!("导出查询失败: {}", e))?;
+        .map_err(|e| format!("Export query failed: {}", e))?;
 
     if records.is_empty() {
-        return Err("没有可导出的记录".into());
+        return Err("No records to export".into());
     }
 
-    // 确定导出路径
+    // Determine export path
     let dir = dirs_next().unwrap_or_else(|| std::path::PathBuf::from("."));
     let timestamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -160,12 +160,12 @@ pub async fn export_audit(
     match format.as_str() {
         "csv" => {
             let mut wtr = csv::Writer::from_path(&file_path)
-                .map_err(|e| format!("创建 CSV 文件失败: {}", e))?;
+                .map_err(|e| format!("Failed to create CSV file: {}", e))?;
             wtr.write_record(&[
                 "id", "timestamp_ms", "rule_id", "strategy", "placeholder",
                 "request_path", "response_status",
             ])
-            .map_err(|e| format!("CSV 写入失败: {}", e))?;
+            .map_err(|e| format!("CSV write failed: {}", e))?;
             for r in &records {
                 wtr.write_record(&[
                     &r.id,
@@ -176,9 +176,9 @@ pub async fn export_audit(
                     &r.request_path,
                     &r.response_status.to_string(),
                 ])
-                .map_err(|e| format!("CSV 写入失败: {}", e))?;
+                .map_err(|e| format!("CSV write failed: {}", e))?;
             }
-            wtr.flush().map_err(|e| format!("CSV flush 失败: {}", e))?;
+            wtr.flush().map_err(|e| format!("CSV flush failed: {}", e))?;
         }
         "json" => {
             let export: Vec<serde_json::Value> = records
@@ -196,11 +196,11 @@ pub async fn export_audit(
                 })
                 .collect();
             let json_str =
-                serde_json::to_string_pretty(&export).map_err(|e| format!("JSON 序列化失败: {}", e))?;
+                serde_json::to_string_pretty(&export).map_err(|e| format!("JSON serialization failed: {}", e))?;
             std::fs::write(&file_path, json_str)
-                .map_err(|e| format!("写入文件失败: {}", e))?;
+                .map_err(|e| format!("Failed to write file: {}", e))?;
         }
-        _ => return Err(format!("不支持的导出格式: {}", format)),
+        _ => return Err(format!("Unsupported export format: {}", format)),
     }
 
     Ok(file_path.to_string_lossy().to_string())
@@ -213,9 +213,9 @@ pub async fn get_audit_stats(
     let storage = state.storage.lock().await;
     let storage = storage
         .as_ref()
-        .ok_or_else(|| "审计存储未启用".to_string())?;
+        .ok_or_else(|| "Audit storage not enabled".to_string())?;
 
-    storage.stats().map_err(|e| format!("统计查询失败: {}", e))
+    storage.stats().map_err(|e| format!("Stats query failed: {}", e))
 }
 
 #[tauri::command]
@@ -225,9 +225,9 @@ pub async fn get_recent_events(
     let storage = state.storage.lock().await;
     let storage = storage
         .as_ref()
-        .ok_or_else(|| "审计存储未启用".to_string())?;
+        .ok_or_else(|| "Audit storage not enabled".to_string())?;
 
-    storage.list_recent(5).map_err(|e| format!("查询最近事件失败: {}", e))
+    storage.list_recent(5).map_err(|e| format!("Failed to query recent events: {}", e))
 }
 
 fn dirs_next() -> Option<std::path::PathBuf> {

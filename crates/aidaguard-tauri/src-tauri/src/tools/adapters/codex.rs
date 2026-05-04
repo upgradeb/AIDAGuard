@@ -108,7 +108,7 @@ impl ToolAdapter for Codex {
     }
 
     fn configure(&self, proxy_url: &str) -> Result<(), String> {
-        let path = config_path().ok_or("无法确定 Codex 配置路径".to_string())?;
+        let path = config_path().ok_or("Failed to determine Codex config path".to_string())?;
 
         // Ensure directory exists
         if let Some(parent) = path.parent() {
@@ -127,9 +127,9 @@ impl ToolAdapter for Codex {
                 }
             });
             let content = serde_json::to_string_pretty(&config)
-                .map_err(|e| format!("序列化配置失败: {}", e))?;
+                .map_err(|e| format!("Serialization failed: {}", e))?;
             fs::write(&path, content)
-                .map_err(|e| format!("创建 Codex 配置失败: {}", e))?;
+                .map_err(|e| format!("Failed to create Codex config: {}", e))?;
             return Ok(());
         }
 
@@ -137,7 +137,7 @@ impl ToolAdapter for Codex {
         let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("json");
         if ext == "toml" {
             let content = fs::read_to_string(&path)
-                .map_err(|e| format!("读取 Codex 配置失败: {}", e))?;
+                .map_err(|e| format!("Failed to read Codex config: {}", e))?;
             let mut new_lines: Vec<String> = Vec::new();
             let mut in_provider = false;
             for line in content.lines() {
@@ -152,12 +152,12 @@ impl ToolAdapter for Codex {
                 }
             }
             fs::write(&path, new_lines.join("\n") + "\n")
-                .map_err(|e| format!("写入 Codex 配置失败: {}", e))?;
+                .map_err(|e| format!("Failed to write Codex config: {}", e))?;
         } else {
             let content = fs::read_to_string(&path)
-                .map_err(|e| format!("读取 Codex 配置失败: {}", e))?;
+                .map_err(|e| format!("Failed to read Codex config: {}", e))?;
             let mut json: serde_json::Value = serde_json::from_str(&content)
-                .map_err(|e| format!("解析 Codex 配置失败: {}", e))?;
+                .map_err(|e| format!("Failed to parse Codex config: {}", e))?;
 
             if let Some(providers) = json.get_mut("providers").and_then(|p| p.as_object_mut()) {
                 for (_key, provider) in providers.iter_mut() {
@@ -168,9 +168,9 @@ impl ToolAdapter for Codex {
             }
 
             let new_content = serde_json::to_string_pretty(&json)
-                .map_err(|e| format!("序列化配置失败: {}", e))?;
+                .map_err(|e| format!("Serialization failed: {}", e))?;
             fs::write(&path, new_content)
-                .map_err(|e| format!("写入配置失败: {}", e))?;
+                .map_err(|e| format!("Failed to write config: {}", e))?;
         }
         Ok(())
     }

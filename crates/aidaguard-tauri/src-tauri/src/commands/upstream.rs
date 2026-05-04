@@ -19,14 +19,14 @@ pub async fn add_upstream(
     let config_dir = app
         .path()
         .app_config_dir()
-        .map_err(|e| format!("无法获取配置目录: {}", e))?;
+        .map_err(|e| format!("Failed to get config directory: {}", e))?;
     let path = config_dir.join("config.toml");
 
     let mut config = state.config.write().await;
     config.upstreams.push(upstream);
     config
         .save_to(&path)
-        .map_err(|e| format!("保存配置失败: {}", e))?;
+        .map_err(|e| format!("Failed to save config: {}", e))?;
 
     Ok(())
 }
@@ -41,7 +41,7 @@ pub async fn update_upstream(
     let config_dir = app
         .path()
         .app_config_dir()
-        .map_err(|e| format!("无法获取配置目录: {}", e))?;
+        .map_err(|e| format!("Failed to get config directory: {}", e))?;
     let path = config_dir.join("config.toml");
 
     let mut config = state.config.write().await;
@@ -52,7 +52,7 @@ pub async fn update_upstream(
     }
     config
         .save_to(&path)
-        .map_err(|e| format!("保存配置失败: {}", e))?;
+        .map_err(|e| format!("Failed to save config: {}", e))?;
 
     Ok(())
 }
@@ -66,14 +66,14 @@ pub async fn delete_upstream(
     let config_dir = app
         .path()
         .app_config_dir()
-        .map_err(|e| format!("无法获取配置目录: {}", e))?;
+        .map_err(|e| format!("Failed to get config directory: {}", e))?;
     let path = config_dir.join("config.toml");
 
     let mut config = state.config.write().await;
     config.upstreams.retain(|u| u.name != name);
     config
         .save_to(&path)
-        .map_err(|e| format!("保存配置失败: {}", e))?;
+        .map_err(|e| format!("Failed to save config: {}", e))?;
 
     Ok(())
 }
@@ -87,7 +87,7 @@ pub async fn set_default_upstream(
     let config_dir = app
         .path()
         .app_config_dir()
-        .map_err(|e| format!("无法获取配置目录: {}", e))?;
+        .map_err(|e| format!("Failed to get config directory: {}", e))?;
     let path = config_dir.join("config.toml");
 
     let mut config = state.config.write().await;
@@ -96,7 +96,7 @@ pub async fn set_default_upstream(
     }
     config
         .save_to(&path)
-        .map_err(|e| format!("保存配置失败: {}", e))?;
+        .map_err(|e| format!("Failed to save config: {}", e))?;
 
     Ok(())
 }
@@ -110,7 +110,7 @@ pub async fn test_upstream_connectivity(
     let client = reqwest::Client::builder()
         .use_rustls_tls()
         .build()
-        .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
+        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
 
     let auth_value = if api_key.starts_with("Bearer ") {
         api_key.clone()
@@ -139,13 +139,13 @@ pub async fn test_upstream_connectivity(
             let elapsed_ms = start.elapsed().as_millis();
             let status = resp.status().as_u16();
             Ok(format!(
-                "✓ 连接成功\n延迟: {}ms\nHTTP 状态: {}",
+                "✓ Connected\nLatency: {}ms\nHTTP Status: {}",
                 elapsed_ms, status
             ))
         }
         Err(e) => {
             let elapsed_ms = start.elapsed().as_millis();
-            Err(format!("✗ 连接失败\n延迟: {}ms\n错误: {}", elapsed_ms, e))
+            Err(format!("✗ Connection failed\nLatency: {}ms\nError: {}", elapsed_ms, e))
         }
     }
 }

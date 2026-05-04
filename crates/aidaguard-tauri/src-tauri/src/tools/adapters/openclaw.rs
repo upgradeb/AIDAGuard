@@ -60,11 +60,11 @@ impl ToolAdapter for OpenClaw {
     }
 
     fn configure(&self, proxy_url: &str) -> Result<(), String> {
-        let path = config_path().ok_or("无法确定 OpenClaw 配置路径".to_string())?;
+        let path = config_path().ok_or("Failed to determine OpenClaw config path".to_string())?;
         let content = fs::read_to_string(&path)
-            .map_err(|e| format!("读取 OpenClaw 配置失败: {}", e))?;
+            .map_err(|e| format!("Failed to read OpenClaw config: {}", e))?;
         let mut json: serde_json::Value = serde_json::from_str(&content)
-            .map_err(|e| format!("解析 OpenClaw 配置失败: {}", e))?;
+            .map_err(|e| format!("Failed to parse OpenClaw config: {}", e))?;
 
         // Update all providers' baseUrl
         if let Some(providers) = json
@@ -81,9 +81,9 @@ impl ToolAdapter for OpenClaw {
         }
 
         let new_content = serde_json::to_string_pretty(&json)
-            .map_err(|e| format!("序列化配置失败: {}", e))?;
+            .map_err(|e| format!("Serialization failed: {}", e))?;
         fs::write(&path, new_content)
-            .map_err(|e| format!("写入配置失败: {}", e))?;
+            .map_err(|e| format!("Failed to write config: {}", e))?;
         Ok(())
     }
 

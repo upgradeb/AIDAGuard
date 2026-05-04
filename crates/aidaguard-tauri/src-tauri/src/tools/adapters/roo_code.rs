@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use crate::tools::home_dir;
 use super::super::ToolAdapter;
 
-/// Roo Code VS Code 扩展存储目录（macOS）
+/// Roo Code VS Code extension storage directory (macOS)
 fn storage_dir() -> Option<PathBuf> {
     #[cfg(target_os = "macos")]
     {
@@ -54,8 +54,8 @@ impl ToolAdapter for RooCode {
     }
 
     fn current_endpoint(&self) -> Option<String> {
-        // Roo Code 将 API provider 配置存储在多个 JSON 文件中
-        // V1: 仅检测安装状态，详细配置读取留待后续增强
+        // Roo Code stores API provider config across multiple JSON files
+        // V1: Only detect installation status; detailed config reading deferred
         None
     }
 
@@ -68,14 +68,14 @@ impl ToolAdapter for RooCode {
     }
 
     fn backup(&self, _backup_dir: &std::path::Path) -> Result<(), String> {
-        Err("Roo Code 一键配置将在后续版本支持".into())
+        Err("One-click configuration for Roo Code will be supported in a future version".into())
     }
 
     fn configure(&self, _proxy_url: &str) -> Result<(), String> {
-        Err("Roo Code 一键配置将在后续版本支持".into())
+        Err("One-click configuration for Roo Code will be supported in a future version".into())
     }
 
     fn restore(&self, _backup_dir: &std::path::Path) -> Result<(), String> {
-        Err("Roo Code 一键配置将在后续版本支持".into())
+        Err("One-click configuration for Roo Code will be supported in a future version".into())
     }
 }

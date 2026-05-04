@@ -7,22 +7,22 @@ use tauri::Emitter;
 use tauri_plugin_notification::NotificationExt;
 use tracing::warn;
 
-/// 将代理内部的检测事件转发给 Tauri 前端，并按配置发送桌面通知。
+/// Forward proxy detection events to the Tauri frontend and send desktop notifications per configuration.
 pub async fn relay_events(
     app_handle: tauri::AppHandle,
     mut rx: tokio::sync::broadcast::Receiver<DetectionEvent>,
     notify_cfg: NotificationConfig,
 ) {
-    // 频率限制：记录每个 rule_id 最近一次通知时间
+    // Rate limit: track last notification time per rule_id
     let mut last_notify: HashMap<String, Instant> = HashMap::new();
 
     loop {
         match rx.recv().await {
             Ok(event) => {
-                // 始终转发给前端（事件流展示）
+                // Always forward to frontend (event stream display)
                 let _ = app_handle.emit("detection-event", &event);
 
-                // 桌面通知
+                // Desktop notification
                 if notify_cfg.enabled {
                     let now = Instant::now();
                     let cooldown = std::time::Duration::from_secs(notify_cfg.rate_limit_secs);
@@ -36,7 +36,7 @@ pub async fn relay_events(
 
                         let title = format!("Aidaguard — {}", &event.rule_id);
                         let body = format!(
-                            "策略: {} | 路径: {} | 状态: {}",
+                            "Strategy: {} | Path: {} | Status: {}",
                             event.strategy, event.request_path, event.response_status
                         );
 
@@ -50,7 +50,7 @@ pub async fn relay_events(
                 }
             }
             Err(tokio::sync::broadcast::error::RecvError::Lagged(n)) => {
-                warn!("事件转发滞后 {} 条消息", n);
+                warn!("Event relay lagged by {} messages", n);
             }
             Err(tokio::sync::broadcast::error::RecvError::Closed) => break,
         }

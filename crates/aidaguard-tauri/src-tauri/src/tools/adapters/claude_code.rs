@@ -23,7 +23,7 @@ impl ToolAdapter for ClaudeCode {
     }
 
     fn current_endpoint(&self) -> Option<String> {
-        // Claude Code 可能通过环境变量 ANTHROPIC_BASE_URL 或 settings.json 配置
+        // Claude Code may be configured via ANTHROPIC_BASE_URL env var or settings.json
         if let Ok(val) = std::env::var("ANTHROPIC_BASE_URL") {
             if !val.is_empty() { return Some(val); }
         }
@@ -59,16 +59,16 @@ impl ToolAdapter for ClaudeCode {
     }
 
     fn configure(&self, proxy_url: &str) -> Result<(), String> {
-        let path = config_path().ok_or("无法确定 Claude Code 配置路径".to_string())?;
+        let path = config_path().ok_or("Failed to determine Claude Code config path".to_string())?;
 
-        // 确保目录存在
+        // Ensure directory exists
         if let Some(parent) = path.parent() {
             let _ = fs::create_dir_all(parent);
         }
 
         let mut json: serde_json::Value = if path.exists() {
             let content = fs::read_to_string(&path)
-                .map_err(|e| format!("读取 Claude Code 配置失败: {}", e))?;
+                .map_err(|e| format!("Failed to read Claude Code config: {}", e))?;
             serde_json::from_str(&content).unwrap_or(serde_json::json!({}))
         } else {
             serde_json::json!({})
@@ -79,9 +79,9 @@ impl ToolAdapter for ClaudeCode {
         }
 
         let new_content = serde_json::to_string_pretty(&json)
-            .map_err(|e| format!("序列化配置失败: {}", e))?;
+            .map_err(|e| format!("Serialization failed: {}", e))?;
         fs::write(&path, new_content)
-            .map_err(|e| format!("写入配置失败: {}", e))?;
+            .map_err(|e| format!("Failed to write config: {}", e))?;
         Ok(())
     }
 

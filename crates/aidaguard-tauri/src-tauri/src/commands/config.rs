@@ -24,17 +24,17 @@ pub async fn save_config(
     let config_dir = app
         .path()
         .app_config_dir()
-        .map_err(|e| format!("无法获取配置目录: {}", e))?;
+        .map_err(|e| format!("Failed to get config directory: {}", e))?;
     let _ = std::fs::create_dir_all(&config_dir);
     let path = config_dir.join("config.toml");
 
-    // 同步 rules_dir 到运行时状态
+    // Sync rules_dir to runtime state
     let rules_dir = crate::resolve_rules_dir(&config.rules_dir, &config_dir);
     *state.rules_dir.write().await = rules_dir;
 
-    config.save_to(&path).map_err(|e| format!("保存配置失败: {}", e))?;
+    config.save_to(&path).map_err(|e| format!("Failed to save config: {}", e))?;
 
-    // 更新运行时状态
+    // Update runtime state
     *state.config.write().await = config;
 
     Ok(())

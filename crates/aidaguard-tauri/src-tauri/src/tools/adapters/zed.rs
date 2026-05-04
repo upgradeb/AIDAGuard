@@ -49,12 +49,12 @@ impl ToolAdapter for Zed {
     }
 
     fn backup(&self, backup_dir: &std::path::Path) -> Result<(), String> {
-        let path = config_path().ok_or("无法确定 Zed 配置路径".to_string())?;
+        let path = config_path().ok_or("Failed to determine Zed config path".to_string())?;
         super::super::backup::backup_config(&path, backup_dir)
     }
 
     fn configure(&self, proxy_url: &str) -> Result<(), String> {
-        let path = config_path().ok_or("无法确定 Zed 配置路径".to_string())?;
+        let path = config_path().ok_or("Failed to determine Zed config path".to_string())?;
         let content = if path.exists() {
             fs::read_to_string(&path).unwrap_or_default()
         } else {
@@ -63,12 +63,12 @@ impl ToolAdapter for Zed {
         let mut json: serde_json::Value = serde_json::from_str(&content)
             .unwrap_or(serde_json::json!({}));
 
-        // Zed 的 openai 配置可以是嵌套对象或顶级键
+        // Zed's openai config can be a nested object or top-level key
         if let Some(obj) = json.as_object_mut() {
-            // 顶级 openai_api_url
+            // Top-level openai_api_url
             obj.insert("openai_api_url".to_string(), serde_json::Value::String(proxy_url.to_string()));
 
-            // 嵌套 openai.api_url
+            // Nested openai.api_url
             if let Some(openai) = obj.get_mut("openai").and_then(|o| o.as_object_mut()) {
                 openai.insert("api_url".to_string(), serde_json::Value::String(proxy_url.to_string()));
             } else {
@@ -79,14 +79,14 @@ impl ToolAdapter for Zed {
         }
 
         let new_content = serde_json::to_string_pretty(&json)
-            .map_err(|e| format!("序列化配置失败: {}", e))?;
+            .map_err(|e| format!("Serialization failed: {}", e))?;
         fs::write(&path, new_content)
-            .map_err(|e| format!("写入配置失败: {}", e))?;
+            .map_err(|e| format!("Failed to write config: {}", e))?;
         Ok(())
     }
 
     fn restore(&self, backup_dir: &std::path::Path) -> Result<(), String> {
-        let path = config_path().ok_or("无法确定 Zed 配置路径".to_string())?;
+        let path = config_path().ok_or("Failed to determine Zed config path".to_string())?;
         super::super::backup::restore_config(&path, backup_dir)
     }
 }

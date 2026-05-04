@@ -5,14 +5,14 @@ use tauri::{
 };
 use tracing::error;
 
-/// 构建系统托盘图标和菜单。
+/// Build system tray icon and menu.
 pub fn build_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-    let start_item = MenuItemBuilder::with_id("start", "启动代理").build(app)?;
-    let stop_item = MenuItemBuilder::with_id("stop", "停止代理").build(app)?;
-    let status_item = MenuItemBuilder::with_id("status", "代理：已停止").build(app)?;
-    let stats_item = MenuItemBuilder::with_id("stats", "检测: 0 | 规则: 0").build(app)?;
-    let show_item = MenuItemBuilder::with_id("show", "打开主窗口").build(app)?;
-    let quit_item = MenuItemBuilder::with_id("quit", "退出 Aidaguard").build(app)?;
+    let start_item = MenuItemBuilder::with_id("start", "Start Proxy").build(app)?;
+    let stop_item = MenuItemBuilder::with_id("stop", "Stop Proxy").build(app)?;
+    let status_item = MenuItemBuilder::with_id("status", "Proxy: Stopped").build(app)?;
+    let stats_item = MenuItemBuilder::with_id("stats", "Detections: 0 | Rules: 0").build(app)?;
+    let show_item = MenuItemBuilder::with_id("show", "Open Main Window").build(app)?;
+    let quit_item = MenuItemBuilder::with_id("quit", "Quit Aidaguard").build(app)?;
 
     let menu = MenuBuilder::new(app)
         .item(&status_item)
@@ -38,7 +38,7 @@ pub fn build_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                         let s = handle.state::<crate::state::AppState>();
                         let result = crate::commands::proxy::start_proxy(handle.clone(), s).await;
                         if let Err(e) = result {
-                            error!("启动代理失败: {}", e);
+                            error!("Failed to start proxy: {}", e);
                         } else {
                             let _ = handle.emit(
                                 "proxy-status-changed",
