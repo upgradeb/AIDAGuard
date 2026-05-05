@@ -12,14 +12,17 @@ fn main() {
             .unwrap();
         let mut config: serde_json::Value =
             serde_json::from_str(&content).unwrap();
-        if let Some(obj) = config.as_object_mut() {
-            obj.insert(
-                "version".to_string(),
-                serde_json::Value::String(version.to_string()),
-            );
+        let current = config.get("version").and_then(|v| v.as_str()).unwrap_or("");
+        if current != version {
+            if let Some(obj) = config.as_object_mut() {
+                obj.insert(
+                    "version".to_string(),
+                    serde_json::Value::String(version.to_string()),
+                );
+            }
+            let out = serde_json::to_string_pretty(&config).unwrap();
+            std::fs::write(config_path, out + "\n").unwrap();
         }
-        let out = serde_json::to_string_pretty(&config).unwrap();
-        std::fs::write(config_path, out + "\n").unwrap();
     }
 
     tauri_build::build()

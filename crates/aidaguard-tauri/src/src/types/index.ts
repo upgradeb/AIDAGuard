@@ -118,4 +118,9 @@ export interface ToolInfo {
   currentEndpoint?: string;
   currentModel?: string;
   previewEndpoint?: string;
+  version: string;
+  description: string;
+  author: string;
+  categories: string[];
+  enabled: boolean;
 }

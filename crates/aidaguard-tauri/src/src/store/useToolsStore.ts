@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { detectTools, applyToolConfig, restoreToolConfig, restoreAllTools } from "../api/tools";
+import { detectTools, applyToolConfig, restoreToolConfig, restoreAllTools, enablePlugin, disablePlugin } from "../api/tools";
 import type { ToolInfo } from "../types";
 
 interface ToolsState {
@@ -12,6 +12,7 @@ interface ToolsState {
   apply: (toolId: string) => Promise<void>;
   restore: (toolId: string) => Promise<void>;
   restoreAll: () => Promise<void>;
+  togglePlugin: (toolId: string) => Promise<void>;
 }
 
 export const useToolsStore = create<ToolsState>((set) => ({
@@ -63,6 +64,24 @@ export const useToolsStore = create<ToolsState>((set) => ({
       set({ tools, loading: false });
     } catch (e) {
       set({ error: String(e), loading: false });
+      throw e;
+    }
+  },
+
+  togglePlugin: async (toolId) => {
+    const tool = useToolsStore.getState().tools.find((t) => t.toolId === toolId);
+    if (!tool) return;
+    set({ error: null });
+    try {
+      if (tool.enabled) {
+        await disablePlugin(toolId);
+      } else {
+        await enablePlugin(toolId);
+      }
+      const tools = await detectTools();
+      set({ tools });
+    } catch (e) {
+      set({ error: String(e) });
       throw e;
     }
   },

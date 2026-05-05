@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::PathBuf;
 use crate::tools::home_dir;
-use super::super::ToolAdapter;
+use super::super::{Plugin, PluginManifest, ToolAdapter};
 
 fn config_path() -> Option<PathBuf> {
     home_dir().map(|h| h.join(".continue").join("config.json"))
@@ -82,5 +82,19 @@ impl ToolAdapter for ContinueDev {
     fn restore(&self, backup_dir: &std::path::Path) -> Result<(), String> {
         let path = config_path().ok_or("Failed to determine Continue config path".to_string())?;
         super::super::backup::restore_config(&path, backup_dir)
+    }
+}
+
+impl Plugin for ContinueDev {
+    fn manifest(&self) -> PluginManifest {
+        PluginManifest {
+            id: "continue_dev".into(),
+            name: "Continue".into(),
+            version: "1.0.0".into(),
+            description: "Open-source AI code assistant".into(),
+            author: "Continue Dev".into(),
+            config_path_template: "~/.continue/config.json".into(),
+            categories: vec!["vscode-extension".into(), "openai-compatible".into()],
+        }
     }
 }

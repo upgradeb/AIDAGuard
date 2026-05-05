@@ -9,6 +9,7 @@ use aidaguard_core::detector::Detector;
 use aidaguard_core::storage::Storage;
 
 use aidaguard_tauri::state::AppState;
+use aidaguard_tauri::tools::{adapters, PluginRegistry};
 use aidaguard_tauri::{commands, resolve_rules_dir, resolve_storage_path, tray};
 
 fn main() {
@@ -61,6 +62,14 @@ fn main() {
 
             let port = config.port;
 
+            // Initialize plugin registry
+            let data_dir = app
+                .path()
+                .app_data_dir()
+                .unwrap_or_else(|_| PathBuf::from("."));
+            let mut registry = PluginRegistry::new(data_dir);
+            adapters::register_all(&mut registry);
+
             // Initialize shared state
             let state = AppState {
                 config: Arc::new(RwLock::new(config)),
@@ -72,6 +81,7 @@ fn main() {
                 proxy_port: Arc::new(Mutex::new(port)),
                 rules_dir: Arc::new(RwLock::new(rules_dir)),
                 rules_watcher: Arc::new(Mutex::new(None)),
+                plugin_registry: Arc::new(RwLock::new(registry)),
             };
 
             app.manage(state);
@@ -125,6 +135,8 @@ fn main() {
             commands::tools::apply_tool_config,
             commands::tools::restore_tool_config,
             commands::tools::restore_all_tools,
+            commands::tools::enable_plugin,
+            commands::tools::disable_plugin,
         ])
         .run(tauri::generate_context!())
         .expect("Failed to start Aidaguard");

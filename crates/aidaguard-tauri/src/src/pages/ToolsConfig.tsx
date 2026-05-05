@@ -10,6 +10,8 @@ import {
   theme,
   Alert,
   Popconfirm,
+  Tooltip,
+  Switch,
 } from "antd";
 import {
   SettingOutlined,
@@ -17,6 +19,8 @@ import {
   CheckCircleOutlined,
   WarningOutlined,
   ApiOutlined,
+  EyeOutlined,
+  EyeInvisibleOutlined,
 } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import { useToolsStore } from "../store/useToolsStore";
@@ -33,6 +37,7 @@ export default function ToolsConfig() {
   const apply = useToolsStore((s) => s.apply);
   const restore = useToolsStore((s) => s.restore);
   const restoreAll = useToolsStore((s) => s.restoreAll);
+  const togglePlugin = useToolsStore((s) => s.togglePlugin);
   const proxyStatus = useProxyStore((s) => s.status);
 
   useEffect(() => {
@@ -55,6 +60,14 @@ export default function ToolsConfig() {
     try {
       await restore(toolId);
       message.success(t("Configuration Restored"));
+    } catch (e) {
+      message.error(String(e));
+    }
+  };
+
+  const handleTogglePlugin = async (toolId: string) => {
+    try {
+      await togglePlugin(toolId);
     } catch (e) {
       message.error(String(e));
     }
@@ -115,7 +128,7 @@ export default function ToolsConfig() {
         >
           <Space size={12}>
             <Typography.Text strong>
-              {t("{{installedCount}}/8 Tools Detected", { installedCount })}
+              {t("{{installedCount}}/{{totalCount}} Tools Detected", { installedCount, totalCount: tools.length })}
             </Typography.Text>
             {configuredCount > 0 && (
               <Tag color="blue">{t("{{configuredCount}} Configured", { configuredCount })}</Tag>
@@ -244,15 +257,28 @@ export default function ToolsConfig() {
                     <div style={{ color: token.colorTextSecondary, marginBottom: 4 }}>
                       {t("Config File: ")}<code>{tool.configPath}</code>
                     </div>
-                    {tool.configured ? (
+                    <div style={{ color: token.colorTextTertiary, marginBottom: 4 }}>
+                      {tool.description}{"  "}
+                      <Typography.Text type="secondary" style={{ fontSize: 11 }}>
+                        v{tool.version} — {tool.author}
+                      </Typography.Text>
+                    </div>
+                    {!tool.enabled && (
+                      <div style={{ color: token.colorWarning, fontWeight: 500, marginTop: 2 }}>
+                        {t("Plugin is disabled — Click toggle to re-enable")}
+                      </div>
+                    )}
+                    {tool.enabled && tool.configured && (
                       <div style={{ color: token.colorPrimary, fontWeight: 500, marginTop: 2 }}>
                         {t("Proxied — Requests will be scanned by Aidaguard for sensitive data")}
                       </div>
-                    ) : tool.installed ? (
+                    )}
+                    {tool.enabled && tool.installed && !tool.configured && (
                       <div style={{ color: token.colorWarning, fontWeight: 500, marginTop: 2 }}>
                         {t("Not Proxied — Click \"Configure\" to route through local proxy")}
                       </div>
-                    ) : (
+                    )}
+                    {tool.enabled && !tool.installed && (
                       <div style={{ color: token.colorTextQuaternary }}>
                         {t("Install this tool to enable one-click configuration")}
                       </div>
@@ -260,6 +286,15 @@ export default function ToolsConfig() {
                   </div>
                 }
               />
+              <Tooltip title={tool.enabled ? t("Disable Plugin") : t("Enable Plugin")}>
+                <Switch
+                  size="small"
+                  checked={tool.enabled}
+                  onChange={() => handleTogglePlugin(tool.toolId)}
+                  checkedChildren={<EyeOutlined />}
+                  unCheckedChildren={<EyeInvisibleOutlined />}
+                />
+              </Tooltip>
             </List.Item>
           )}
         />

@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::PathBuf;
 use crate::tools::home_dir;
-use super::super::ToolAdapter;
+use super::super::{Plugin, PluginManifest, ToolAdapter};
 
 fn config_path() -> Option<PathBuf> {
     home_dir().map(|h| h.join(".claude").join("settings.json"))
@@ -92,5 +92,19 @@ impl ToolAdapter for ClaudeCode {
             }
         }
         Ok(())
+    }
+}
+
+impl Plugin for ClaudeCode {
+    fn manifest(&self) -> PluginManifest {
+        PluginManifest {
+            id: "claude_code".into(),
+            name: "Claude Code".into(),
+            version: "1.0.0".into(),
+            description: "Anthropic's official CLI agent for Claude".into(),
+            author: "Anthropic".into(),
+            config_path_template: "~/.claude/settings.json".into(),
+            categories: vec!["cli-tool".into(), "anthropic-compatible".into()],
+        }
     }
 }

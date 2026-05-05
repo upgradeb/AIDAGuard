@@ -6,7 +6,7 @@ const en = {
   "{{count}} Rules Enabled": "{{count}} Rules Enabled",
   "{{count}} Tools Configured": "{{count}} Tools Configured",
   "{{count}} Upstreams Configured": "{{count}} Upstreams Configured",
-  "{{installedCount}}/8 Tools Detected": "{{installedCount}}/8 Tools Detected",
+  "{{installedCount}}/{{totalCount}} Tools Detected": "{{installedCount}}/{{totalCount}} Tools Detected",
   "{{ruleCount}} Rules · {{fileCount}} Files": "{{ruleCount}} Rules · {{fileCount}} Files",
   "{{total}} Groups Total": "{{total}} Groups Total",
   "About": "About",
@@ -243,7 +243,10 @@ const en = {
   "Upstream Saved": "Upstream Saved",
   "URL": "URL",
   "Used to encrypt stored sensitive data content": "Used to encrypt stored sensitive data content",
-  "Version": "Version"
+  "Version": "Version",
+  "Disable Plugin": "Disable Plugin",
+  "Enable Plugin": "Enable Plugin",
+  "Plugin is disabled — Click toggle to re-enable": "Plugin is disabled — Click toggle to re-enable"
 };
 
 export default en;

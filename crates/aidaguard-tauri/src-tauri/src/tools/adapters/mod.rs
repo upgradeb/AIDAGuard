@@ -25,3 +25,22 @@ pub use hermes_agent::HermesAgent;
 pub use codex::Codex;
 pub use gemini::GeminiCli;
 pub use opencode::OpenCode;
+
+use super::registry::PluginRegistry;
+
+/// Register all built-in tool plugins into the registry.
+pub fn register_all(registry: &mut PluginRegistry) {
+    registry.register(Box::new(RooCode::new()));
+    registry.register(Box::new(Cline::new()));
+    registry.register(Box::new(ContinueDev::new()));
+    registry.register(Box::new(Cursor::new()));
+    registry.register(Box::new(Windsurf::new()));
+    registry.register(Box::new(Zed::new()));
+    registry.register(Box::new(Aider::new()));
+    registry.register(Box::new(ClaudeCode::new()));
+    registry.register(Box::new(OpenClaw::new()));
+    registry.register(Box::new(HermesAgent::new()));
+    registry.register(Box::new(Codex::new()));
+    registry.register(Box::new(GeminiCli::new()));
+    registry.register(Box::new(OpenCode::new()));
+}

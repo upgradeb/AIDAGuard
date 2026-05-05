@@ -6,7 +6,7 @@ const zh = {
   "{{count}} Rules Enabled": "{{count}} 条规则已启用",
   "{{count}} Tools Configured": "{{count}} 个工具已配置",
   "{{count}} Upstreams Configured": "已配置 {{count}} 个上游",
-  "{{installedCount}}/8 Tools Detected": "已检测 {{installedCount}}/8 个工具",
+  "{{installedCount}}/{{totalCount}} Tools Detected": "已检测 {{installedCount}}/{{totalCount}} 个工具",
   "{{ruleCount}} Rules · {{fileCount}} Files": "共 {{ruleCount}} 条规则 · {{fileCount}} 个文件",
   "{{total}} Groups Total": "共 {{total}} 组",
   "About": "关于",
@@ -243,7 +243,10 @@ const zh = {
   "Upstream Saved": "大模型接入已保存",
   "URL": "地址",
   "Used to encrypt stored sensitive data content": "用于加密存储的敏感数据原文",
-  "Version": "版本"
+  "Version": "版本",
+  "Disable Plugin": "禁用插件",
+  "Enable Plugin": "启用插件",
+  "Plugin is disabled — Click toggle to re-enable": "插件已禁用 — 点击开关重新启用"
 };
 
 export default zh;

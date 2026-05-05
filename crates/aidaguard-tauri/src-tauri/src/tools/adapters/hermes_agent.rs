@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::PathBuf;
 use crate::tools::home_dir;
-use super::super::ToolAdapter;
+use super::super::{Plugin, PluginManifest, ToolAdapter};
 
 fn config_path() -> Option<PathBuf> {
     home_dir().map(|h| h.join(".hermes").join("config.yaml"))
@@ -113,5 +113,19 @@ impl ToolAdapter for HermesAgent {
             }
         }
         Ok(())
+    }
+}
+
+impl Plugin for HermesAgent {
+    fn manifest(&self) -> PluginManifest {
+        PluginManifest {
+            id: "hermes".into(),
+            name: "Hermes Agent".into(),
+            version: "1.0.0".into(),
+            description: "AI agent for software development".into(),
+            author: "Hermes".into(),
+            config_path_template: "~/.hermes/config.yaml".into(),
+            categories: vec!["cli-tool".into(), "openai-compatible".into()],
+        }
     }
 }

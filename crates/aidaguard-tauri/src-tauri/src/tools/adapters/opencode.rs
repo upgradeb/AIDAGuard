@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::PathBuf;
 use crate::tools::home_dir;
-use super::super::ToolAdapter;
+use super::super::{Plugin, PluginManifest, ToolAdapter};
 
 fn config_path() -> Option<PathBuf> {
     // Check XDG_CONFIG_HOME first, fall back to ~/.config
@@ -132,5 +132,19 @@ impl ToolAdapter for OpenCode {
             }
         }
         Ok(())
+    }
+}
+
+impl Plugin for OpenCode {
+    fn manifest(&self) -> PluginManifest {
+        PluginManifest {
+            id: "opencode".into(),
+            name: "OpenCode".into(),
+            version: "1.0.0".into(),
+            description: "Open-source AI coding agent".into(),
+            author: "OpenCode Community".into(),
+            config_path_template: "~/.config/opencode/config.toml".into(),
+            categories: vec!["cli-tool".into(), "openai-compatible".into()],
+        }
     }
 }

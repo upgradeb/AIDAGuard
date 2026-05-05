@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 use crate::tools::home_dir;
-use super::super::ToolAdapter;
+use super::super::{Plugin, PluginManifest, ToolAdapter};
 
 /// Roo Code VS Code extension storage directory (macOS)
 fn storage_dir() -> Option<PathBuf> {
@@ -77,5 +77,19 @@ impl ToolAdapter for RooCode {
 
     fn restore(&self, _backup_dir: &std::path::Path) -> Result<(), String> {
         Err("One-click configuration for Roo Code will be supported in a future version".into())
+    }
+}
+
+impl Plugin for RooCode {
+    fn manifest(&self) -> PluginManifest {
+        PluginManifest {
+            id: "roo_code".into(),
+            name: "Roo Code".into(),
+            version: "1.0.0".into(),
+            description: "VS Code extension for AI coding".into(),
+            author: "Roo Code".into(),
+            config_path_template: "VS Code storage".into(),
+            categories: vec!["vscode-extension".into(), "openai-compatible".into()],
+        }
     }
 }

@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 use crate::tools::home_dir;
-use super::super::ToolAdapter;
+use super::super::{Plugin, PluginManifest, ToolAdapter};
 
 fn config_dir() -> Option<PathBuf> {
     #[cfg(target_os = "macos")]
@@ -67,5 +67,19 @@ impl ToolAdapter for Windsurf {
 
     fn restore(&self, _backup_dir: &std::path::Path) -> Result<(), String> {
         Err("One-click configuration for Windsurf will be supported in a future version".into())
+    }
+}
+
+impl Plugin for Windsurf {
+    fn manifest(&self) -> PluginManifest {
+        PluginManifest {
+            id: "windsurf".into(),
+            name: "Windsurf".into(),
+            version: "1.0.0".into(),
+            description: "AI-powered IDE by Codeium".into(),
+            author: "Codeium".into(),
+            config_path_template: "~/.windsurf/settings.json".into(),
+            categories: vec!["editor".into(), "openai-compatible".into()],
+        }
     }
 }

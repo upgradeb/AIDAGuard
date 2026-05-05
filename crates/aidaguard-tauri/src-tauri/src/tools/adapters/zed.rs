@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::PathBuf;
 use crate::tools::home_dir;
-use super::super::ToolAdapter;
+use super::super::{Plugin, PluginManifest, ToolAdapter};
 
 fn config_path() -> Option<PathBuf> {
     home_dir().map(|h| h.join(".config").join("zed").join("settings.json"))
@@ -88,5 +88,19 @@ impl ToolAdapter for Zed {
     fn restore(&self, backup_dir: &std::path::Path) -> Result<(), String> {
         let path = config_path().ok_or("Failed to determine Zed config path".to_string())?;
         super::super::backup::restore_config(&path, backup_dir)
+    }
+}
+
+impl Plugin for Zed {
+    fn manifest(&self) -> PluginManifest {
+        PluginManifest {
+            id: "zed".into(),
+            name: "Zed".into(),
+            version: "1.0.0".into(),
+            description: "High-performance code editor".into(),
+            author: "Zed Industries".into(),
+            config_path_template: "~/.config/zed/settings.json".into(),
+            categories: vec!["editor".into(), "openai-compatible".into()],
+        }
     }
 }

@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 use crate::tools::home_dir;
-use super::super::ToolAdapter;
+use super::super::{Plugin, PluginManifest, ToolAdapter};
 
 fn storage_dir() -> Option<PathBuf> {
     #[cfg(target_os = "macos")]
@@ -74,5 +74,19 @@ impl ToolAdapter for Cline {
 
     fn restore(&self, _backup_dir: &std::path::Path) -> Result<(), String> {
         Err("One-click configuration for Cline will be supported in a future version".into())
+    }
+}
+
+impl Plugin for Cline {
+    fn manifest(&self) -> PluginManifest {
+        PluginManifest {
+            id: "cline".into(),
+            name: "Cline".into(),
+            version: "1.0.0".into(),
+            description: "VS Code extension for autonomous coding".into(),
+            author: "Cline".into(),
+            config_path_template: "VS Code storage".into(),
+            categories: vec!["vscode-extension".into(), "openai-compatible".into()],
+        }
     }
 }

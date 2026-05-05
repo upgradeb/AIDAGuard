@@ -15,6 +15,9 @@ pub fn home_dir() -> Option<PathBuf> {
 
 pub mod adapters;
 pub mod backup;
+pub mod registry;
+
+pub use registry::{Plugin, PluginManifest, PluginRegistry};
 
 /// Tool configuration info (shared between frontend and backend)
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -28,6 +31,12 @@ pub struct ToolInfo {
     pub current_endpoint: Option<String>,
     pub current_model: Option<String>,
     pub preview_endpoint: Option<String>,
+    /// Plugin metadata
+    pub version: String,
+    pub description: String,
+    pub author: String,
+    pub categories: Vec<String>,
+    pub enabled: bool,
 }
 
 /// Tool adapter trait
@@ -43,23 +52,4 @@ pub trait ToolAdapter: Send + Sync {
     fn restore(&self, backup_dir: &std::path::Path) -> Result<(), String>;
     /// Check if already configured by Aidaguard
     fn is_configured(&self) -> bool;
-}
-
-/// Get all registered adapters
-pub fn all_adapters() -> Vec<Box<dyn ToolAdapter>> {
-    vec![
-        Box::new(adapters::RooCode::new()),
-        Box::new(adapters::Cline::new()),
-        Box::new(adapters::ContinueDev::new()),
-        Box::new(adapters::Cursor::new()),
-        Box::new(adapters::Windsurf::new()),
-        Box::new(adapters::Zed::new()),
-        Box::new(adapters::Aider::new()),
-        Box::new(adapters::ClaudeCode::new()),
-        Box::new(adapters::OpenClaw::new()),
-        Box::new(adapters::HermesAgent::new()),
-        Box::new(adapters::Codex::new()),
-        Box::new(adapters::GeminiCli::new()),
-        Box::new(adapters::OpenCode::new()),
-    ]
 }

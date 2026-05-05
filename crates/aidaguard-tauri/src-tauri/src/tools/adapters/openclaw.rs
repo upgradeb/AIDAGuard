@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::PathBuf;
 use crate::tools::home_dir;
-use super::super::ToolAdapter;
+use super::super::{Plugin, PluginManifest, ToolAdapter};
 
 fn config_path() -> Option<PathBuf> {
     home_dir().map(|h| h.join(".openclaw").join("openclaw.json"))
@@ -94,5 +94,19 @@ impl ToolAdapter for OpenClaw {
             }
         }
         Ok(())
+    }
+}
+
+impl Plugin for OpenClaw {
+    fn manifest(&self) -> PluginManifest {
+        PluginManifest {
+            id: "openclaw".into(),
+            name: "OpenClaw".into(),
+            version: "1.0.0".into(),
+            description: "Open-source AI agent framework".into(),
+            author: "OpenClaw".into(),
+            config_path_template: "~/.openclaw/config.json".into(),
+            categories: vec!["cli-tool".into(), "openai-compatible".into()],
+        }
     }
 }

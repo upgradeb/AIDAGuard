@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::PathBuf;
 use crate::tools::home_dir;
-use super::super::ToolAdapter;
+use super::super::{Plugin, PluginManifest, ToolAdapter};
 
 fn config_path() -> Option<PathBuf> {
     home_dir().map(|h| h.join(".gemini").join("settings.json"))
@@ -138,5 +138,19 @@ impl ToolAdapter for GeminiCli {
             }
         }
         Ok(())
+    }
+}
+
+impl Plugin for GeminiCli {
+    fn manifest(&self) -> PluginManifest {
+        PluginManifest {
+            id: "gemini_cli".into(),
+            name: "Gemini CLI".into(),
+            version: "1.0.0".into(),
+            description: "Google Gemini command-line tool".into(),
+            author: "Google".into(),
+            config_path_template: "~/.gemini/.env".into(),
+            categories: vec!["cli-tool".into(), "gemini-compatible".into()],
+        }
     }
 }

@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::PathBuf;
 use crate::tools::home_dir;
-use super::super::ToolAdapter;
+use super::super::{Plugin, PluginManifest, ToolAdapter};
 
 fn config_path() -> Option<PathBuf> {
     // Codex supports .json, .yaml, .toml — check in order
@@ -182,5 +182,19 @@ impl ToolAdapter for Codex {
             }
         }
         Ok(())
+    }
+}
+
+impl Plugin for Codex {
+    fn manifest(&self) -> PluginManifest {
+        PluginManifest {
+            id: "codex".into(),
+            name: "Codex".into(),
+            version: "1.0.0".into(),
+            description: "OpenAI Codex CLI tool".into(),
+            author: "OpenAI".into(),
+            config_path_template: "~/.codex/config.toml".into(),
+            categories: vec!["cli-tool".into(), "openai-compatible".into()],
+        }
     }
 }

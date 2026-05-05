@@ -16,3 +16,11 @@ export async function restoreToolConfig(toolId: string): Promise<string> {
 export async function restoreAllTools(): Promise<string> {
   return invoke("restore_all_tools");
 }
+
+export async function enablePlugin(toolId: string): Promise<void> {
+  return invoke("enable_plugin", { toolId });
+}
+
+export async function disablePlugin(toolId: string): Promise<void> {
+  return invoke("disable_plugin", { toolId });
+}

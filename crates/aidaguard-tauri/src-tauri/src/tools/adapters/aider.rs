@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::PathBuf;
 use crate::tools::home_dir;
-use super::super::ToolAdapter;
+use super::super::{Plugin, PluginManifest, ToolAdapter};
 
 fn config_path() -> Option<PathBuf> {
     home_dir().map(|h| h.join(".aider.conf.yml"))
@@ -102,5 +102,19 @@ impl ToolAdapter for Aider {
     fn restore(&self, backup_dir: &std::path::Path) -> Result<(), String> {
         let path = config_path().ok_or("Failed to determine Aider config path".to_string())?;
         super::super::backup::restore_config(&path, backup_dir)
+    }
+}
+
+impl Plugin for Aider {
+    fn manifest(&self) -> PluginManifest {
+        PluginManifest {
+            id: "aider".into(),
+            name: "Aider".into(),
+            version: "1.0.0".into(),
+            description: "AI pair programming in terminal".into(),
+            author: "Aider AI".into(),
+            config_path_template: "~/.aider.conf.yml".into(),
+            categories: vec!["cli-tool".into(), "openai-compatible".into()],
+        }
     }
 }

@@ -6,6 +6,8 @@ use std::time::Instant;
 use tokio::sync::{Mutex, RwLock};
 use tokio::task::JoinHandle;
 
+use crate::tools::PluginRegistry;
+
 /// Tauri-managed application state shared between proxy tasks and Tauri commands.
 pub struct AppState {
     /// Current configuration
@@ -26,4 +28,6 @@ pub struct AppState {
     pub rules_dir: Arc<RwLock<String>>,
     /// Rule file hot-reload watcher (must be held to stay alive)
     pub rules_watcher: Arc<Mutex<Option<notify::RecommendedWatcher>>>,
+    /// Plugin registry for AI tool adapters
+    pub plugin_registry: Arc<RwLock<PluginRegistry>>,
 }
