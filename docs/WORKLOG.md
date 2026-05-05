@@ -689,3 +689,238 @@ aidaguard/
 
 4. **合规引用规则** — 建立规则前先收集各国对敏感数据保护的具体要求，每条规则明确标注遵循了哪条法规要求。同一条规则可能对应多个不同国家/地区的要求（例如 GDPR 与中国《个人信息保护法》对同一类 PII 都有检测要求）。
 ```
+
+---
+
+## Phase 12 — Presidio 架构分析与 Rust 检测引擎设计 (2026-05-05)
+
+开展检测引擎升级前，对 Microsoft Presidio 项目进行了全面技术分析。
+
+### 核心发现
+
+1. **双层引擎** — Analyzer（检测）+ Anonymizer（脱敏），通过 `RecognizerResult` 衔接
+2. **三层检测** — Regex 宽口径匹配（~0.3 分）→ Checksum 校验（Luhn / mod-97 等）→ Context 上下文增强 → 综合输出置信度
+3. **校验三态返回** — `True`(升满分) / `False`(丢弃) / `None`(保持原始分)
+4. **NLP 必要性** — 结构化实体(regex)覆盖 80%，但人名/地名/机构名/日期等需要 ONNX NER 模型（~50MB 按需加载）
+
+### 实体类型全景
+
+- Presidio 用 spaCy OntoNotes 5.0（18 类 NER 实体），但对敏感数据检测远不够
+- 敏感数据应分三类：
+  - **结构化**（regeex+校验）：信用卡、身份证、手机号、SSN、IBAN 等
+  - **非结构化**（NLP NER）：人名、地名、机构、日期、民族/宗教（NORP 特殊类别）
+  - **网络/系统**（regex）：Email、IP、API Key、JWT、私钥等
+
+### 多区域 NER 策略
+
+- 全局实体：CreditCard、Email、IP 等所有地区通用
+- 区域实体：身份证(CN)、SSN(US)、NINO(UK)、CPF(BR) 等
+- NLP 按语言加载：中文 `bert-base-chinese`、英文 `bert-base-NER`、德文 `bert-base-german-cased` 等
+- 区域 Preset Bundle：CN/US/EU-{DE,FR}/UK/JP/BR/IN/SG/KR 各预设实体+语言+法规
+
+### Rust 引擎项目结构
+
+```
+crates/aidaguard-detector/       ← 新 crate
+├── core/          entity_type, recognizer trait, registry, result
+├── recognizers/   pattern/ (regex+校验), nlp/ (ONNX推理)
+├── validation/    luhn, mod_n, email, context
+├── anonymizer/    replace, mask, hash, encrypt
+└── pipeline.rs    编排 Analyze → PostProcess → Anonymize
+```
+
+- **NlpEngine trait** 可插拔：空实现 / ONNX / Candle / rust-bert
+- **NlpEngineProvider trait** 按语言加载/卸载模型
+
+详细分析见: memory/presidio-analysis.md
+
+---
+
+## Phase 13 — 统一项目文件架构 (2026-05-05)
+
+### 13.1 当前架构问题
+
+| 问题 | 说明 |
+|------|------|
+| `aidaguard-core` 职责混乱 | 既是 library 又是 binary，混入 5 个独立模块：detector、replacer、proxy、storage、config |
+| `proxy/server.rs` 隐式紧耦合 | 定义自己的 `ProxyState`，与 `AppState` 部分重复 |
+| 依赖重复声明 | `aidaguard-tauri` 重新声明 regex、serde_yaml、notify、reqwest，本应由 core 透传 |
+| 逻辑重复 | `commands/rules.rs` 的 `read_rule_files()` 与 `detector/mod.rs` 的 `load_from_dir()` 各自实现一遍 YAML 遍历+解析 |
+| 无预留扩展位 | 即将引入 `aidaguard-detector`、`aidaguard-upstream`，当前 flat 布局无处安放 |
+
+### 13.2 目标架构
+
+```
+crates/
+├── aidaguard-core/            ← 零依赖类型 + trait (最底层)
+│   └── src/
+│       ├── types/
+│       │   ├── match.rs        ← Match, Strategy, Mode
+│       │   ├── rule.rs         ← RuleDef, RuleFile, CompiledRule
+│       │   ├── entity.rs       ← EntityType, EntityCategory
+│       │   └── config.rs       ← Config (全局设置，不含 upstreams)
+│       ├── engine.rs           ← DetectionEngine trait
+│       └── lib.rs
+│
+├── aidaguard-upstream/        ← 大模型供应商管理 (NEW)
+│   └── src/
+│       ├── protocol.rs         ← ProtocolType, AuthType (内置枚举)
+│       ├── provider.rs         ← ProviderConfig (从 YAML 加载)
+│       ├── model.rs            ← ModelInfo (id, context, capabilities, cost)
+│       ├── client.rs           ← 统一 LLM 客户端 (openai/anthropic 协议分发)
+│       ├── manager.rs          ← UpstreamManager (CRUD、默认、切换)
+│       ├── connectivity.rs     ← 连通性测试 + 延迟测量
+│       └── types.rs            ← UpstreamConfig, ToolAssignment
+│
+├── aidaguard-detector/        ← Presidio 风格检测引擎 (NEW)
+│   └── src/
+│       ├── core/               ← recognizer trait, registry, result
+│       ├── recognizers/
+│       │   ├── pattern/        ← PatternRecognizer (regex + checksum)
+│       │   └── nlp/            ← NlpRecognizer (ONNX NER, 可选)
+│       ├── validation/         ← Luhn, mod-N, context scoring
+│       └── anonymizer/         ← replace, mask, hash, encrypt
+│
+├── aidaguard-proxy/           ← 代理服务器 (从 core 抽出)
+│   └── src/
+│       ├── server.rs           ← HTTP proxy + detect + replace + restore
+│       ├── forwarder.rs        ← 调用 upstream::client 转发
+│       └── stream.rs           ← SSE 流处理
+│
+├── aidaguard-storage/         ← 审计存储 (从 core 抽出)
+│   └── src/
+│       ├── storage.rs          ← SQLite + AES 加密
+│       └── models.rs           ← DetectionRecord, AuditGroup
+│
+├── aidaguard-plugins/         ← AI 工具插件系统 (从 tauri 抽出)
+│   └── src/
+│       ├── plugin.rs           ← PluginManifest, Plugin trait
+│       ├── registry.rs         ← PluginRegistry + 状态持久化
+│       ├── backup.rs           ← 配置备份/还原
+│       └── adapters/           ← 13 个工具适配器
+│
+└── aidaguard-tauri/           ← 桌面壳 (薄层，只做命令编排)
+    └── src-tauri/src/
+        ├── state.rs            ← AppState 组装所有引擎
+        ├── commands/           ← 薄 Tauri command 包装
+        │   ├── proxy.rs        ← start/stop proxy
+        │   ├── rules.rs        ← 规则 CRUD + test + generate
+        │   ├── tools.rs        ← 插件 enable/disable/configure/restore
+        │   ├── config.rs       ← 全局 settings 读写
+        │   ├── upstream.rs     ← 上游 CRUD + 连接测试
+        │   └── audit.rs        ← 审计日志查询 + 导出
+        ├── events.rs
+        └── tray.rs
+```
+
+### 13.3 依赖方向 (单向，无循环)
+
+```
+                      aidaguard-core (types + traits)
+                     /     |        |         \
+                    /      |        |          \
+           upstream   detector   storage     plugins
+               \         |         |           /
+                \        |         |          /
+                 \       |         |         /
+                  aidaguard-proxy (组合所有引擎)
+                          |
+                    aidaguard-tauri (组装一切, thin shell)
+```
+
+### 13.4 各 crate 职责
+
+| Crate | 职责 | 核心导出 |
+|---|---|---|
+| `aidaguard-core` | 共享类型 + 引擎 trait | `Match`, `Strategy`, `DetectionEngine`, `RuleDef`, `Config` |
+| `aidaguard-upstream` | 大模型供应商管理 + 统一客户端 | `UpstreamManager`, `UpstreamClient`, `ProviderConfig`, `ModelInfo` |
+| `aidaguard-detector` | 检测：regex + NLP + 校验 + 匿名化 | `AnalyzerEngine`, `Recognizer`, `EntityType` |
+| `aidaguard-proxy` | HTTP 代理：拦截 → 检测 → 替换 → 转发 → 还原 | `start()`, `start_with_state()` |
+| `aidaguard-storage` | 审计持久化 | `Storage`, `DetectionRecord` |
+| `aidaguard-plugins` | AI 工具配置管理 | `PluginRegistry`, `PluginManifest` |
+| `aidaguard-tauri` | 桌面壳 + Tauri commands | 无 (二进制) |
+
+### 13.5 LLM 供应商声明式设计
+
+供应商和模型作为 **数据** 而非 **代码**，用户可通过 YAML 文件自行添加新厂商，无需编译。
+
+**内置协议层**（Rust，覆盖 99% 场景）：
+
+```rust
+pub enum ProtocolType {
+    OpenAiCompatible,      // /v1/chat/completions
+    AnthropicCompatible,   // /v1/messages
+}
+
+pub enum AuthType {
+    BearerToken,           // Authorization: Bearer <key>
+    ApiKeyHeader(String),  // x-api-key, x-goog-api-key, ...
+}
+```
+
+**供应商文件**（YAML，用户可自行添加、修改、分享）：
+
+```yaml
+# providers/deepseek.yaml
+id: deepseek
+name: DeepSeek
+protocol: openai_compatible
+auth: bearer_token
+endpoint: https://api.deepseek.com/v1
+models:
+  - id: deepseek-v4
+    name: DeepSeek V4
+    context: 128000
+    max_output: 8192
+    capabilities: [chat, streaming]
+```
+
+**内置供应商目录**：
+
+```
+providers/
+├── openai.yaml
+├── anthropic.yaml
+├── gemini.yaml
+├── deepseek.yaml
+├── qwen.yaml
+├── zhipu.yaml
+├── groq.yaml
+├── aws_bedrock.yaml
+└── custom_example.yaml
+```
+
+只有协议层需要 Rust 代码。当某个厂商的协议无法声明式覆盖时（如 AWS SigV4 签名），才内置新的 `AuthType` 变体。
+
+### 13.6 三种声明式扩展模式
+
+项目中出现了统一的扩展模式：
+
+| 扩展点 | 格式 | 目录 | 加载 |
+|---|---|---|---|
+| 检测规则 | YAML | `rules/` | `Detector::load_from_dir()` |
+| 工具插件 | Rust struct (编译进) | — | `PluginRegistry::register()` |
+| LLM 供应商 | YAML | `providers/` | `ProviderRegistry::load_from_dir()` |
+
+### 13.7 新旧对比
+
+| | 当前 | 统一后 |
+|---|---|---|
+| 上游数据 | `UpstreamConfig` 扁平结构，手动填 URL | `ProviderConfig` 声明式，选厂商自动填端点 |
+| 协议适配 | `if is_anthropic { ... } else { ... }` | `ProtocolType` 枚举 + 统一 client |
+| 模型管理 | 逗号分隔字符串 `models: "gpt-5,claude-4"` | `ModelInfo` 结构化，带能力和上下文窗口 |
+| 添加厂商 | 改代码 | 写一个 YAML 文件 |
+| 切换模型 | 手动改配置文件 | UI 一键切换，自动更新所有工具配置 |
+
+### 13.8 迁移步骤
+
+| 步骤 | 内容 | 涉及文件 |
+|------|------|---------|
+| 1 | `aidaguard-core` 精简为 types + traits | 移走 proxy/、storage/ 到独立 crate |
+| 2 | 新建 `aidaguard-storage` | 移入 storage/ |
+| 3 | 新建 `aidaguard-plugins` | 移入 tools/ (已部分完成) |
+| 4 | 新建 `aidaguard-upstream` | 定义 Provider、统一 client、内置供应商 YAML |
+| 5 | 新建 `aidaguard-proxy` | 移入 server/forwarder/stream，对接 upstream::client |
+| 6 | 新建 `aidaguard-detector` 骨架 | 预留 crate，Phase 14+ 实现 |
+| 7 | `aidaguard-tauri` 改为只做组装 | 删除重复依赖，commands 改为调用各 crate |
+| 8 | 删除 `aidaguard-core` 的 `[[bin]]` | CLI 入口移到 tauri 或独立 binary crate |
