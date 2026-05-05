@@ -924,3 +924,948 @@ providers/
 | 6 | 新建 `aidaguard-detector` 骨架 | 预留 crate，Phase 14+ 实现 |
 | 7 | `aidaguard-tauri` 改为只做组装 | 删除重复依赖，commands 改为调用各 crate |
 | 8 | 删除 `aidaguard-core` 的 `[[bin]]` | CLI 入口移到 tauri 或独立 binary crate |
+
+---
+
+## Phase 14 — 新架构迁移开发计划 (2026-05-05)
+
+### 14.1 总览
+
+| Step | 内容 | 类型 | 预计工作量 | 依赖 |
+|------|------|------|-----------|------|
+| S1 | 新建 `aidaguard-storage` | 拆分 | 小 | — |
+| S2 | 新建 `aidaguard-plugins` | 拆分 | 小 | — |
+| S3 | 新建 `aidaguard-detector` 骨架 | 新建 | 极小 | — |
+| S4 | 新建 `aidaguard-upstream` | 新建 | 中 | — |
+| S5 | 新建 `aidaguard-proxy` | 拆分 | 中 | S4 |
+| S6 | 重构 `aidaguard-core` | 精简 | 中 | S1, S5 |
+| S7 | 清理 `aidaguard-tauri` | 精简 | 中 | S1, S2, S4, S5, S6 |
+| S8 | 移除 CLI binary | 收尾 | 极小 | S7 |
+
+### 14.2 依赖关系图
+
+```
+S1 (storage) ──────────────────────┐
+                                    │
+S2 (plugins) ──────────────────────┤
+                                    ├──→ S6 (core 精简) ──┐
+S4 (upstream) ──→ S5 (proxy) ──────┘                      │
+                                                           ├──→ S7 (tauri 清理) ──→ S8 (移除 binary)
+S3 (detector 骨架) ────────────────────────────────────────┘
+```
+
+S1、S2、S3、S4 可以并行开始。S5 依赖 S4。S6 依赖 S1+S5。S7 依赖所有前置步骤。S8 收尾。
+
+---
+
+### 14.3 Step 1: 新建 `aidaguard-storage`
+
+**目标**：将 `aidaguard_core::storage` 模块独立为新 crate。
+
+**当前状态**：
+- `aidaguard_core::storage` 包含 `Storage` 结构体 + `DetectionRecord` + `AuditGroup` + `AuditStats` + `RuleCount`
+- 依赖：`rusqlite`, `aes-gcm`, `pbkdf2`, `sha2`, `rand` (全部 workspace deps)
+- 消费者：`proxy/server.rs`, `commands/audit.rs`, `commands/proxy.rs`, `events.rs`, `main.rs`
+
+**操作清单**：
+
+| # | 操作 | 文件 |
+|---|------|------|
+| 1.1 | 创建 crate 目录和 Cargo.toml | `crates/aidaguard-storage/Cargo.toml` (NEW) |
+| 1.2 | 移入 storage 模块 | `crates/aidaguard-storage/src/lib.rs` (NEW，内容 = 原 storage/mod.rs) |
+| 1.3 | 在 workspace 注册 | `Cargo.toml` — members 新增 `"crates/aidaguard-storage"` |
+| 1.4 | aidaguard-core 透传 | `crates/aidaguard-core/src/storage/mod.rs` 改为 `pub use aidaguard_storage::*;` |
+| 1.5 | aidaguard-tauri 直接依赖 storage | `crates/aidaguard-tauri/src-tauri/Cargo.toml` 新增 `aidaguard-storage = { path = "../../aidaguard-storage" }` |
+| 1.6 | 更新 use 语句 | `proxy/server.rs`, `commands/audit.rs`, `commands/proxy.rs`, `events.rs`, `main.rs` — `use aidaguard_core::storage::*` → `use aidaguard_storage::*` |
+
+**验证**：`cargo build -p aidaguard-tauri` + `cargo test -p aidaguard-storage` 全部通过。
+
+---
+
+### 14.4 Step 2: 新建 `aidaguard-plugins`
+
+**目标**：将 `tools/` 模块从 `aidaguard-tauri` 独立为新 crate。
+
+**当前状态**：
+- `tools/mod.rs` — PluginManifest, Plugin trait, ToolAdapter trait, ToolInfo, ToolConfig
+- `tools/registry.rs` — PluginRegistry
+- `tools/backup.rs` — 配置备份/还原
+- `tools/adapters/` — 13 个适配器
+- 只有 adapter 的 `configure()` 方法需要 `proxy_port: u16`（纯数值，无 Tauri 依赖）
+
+**操作清单**：
+
+| # | 操作 | 文件 |
+|---|------|------|
+| 2.1 | 创建 crate 目录和 Cargo.toml | `crates/aidaguard-plugins/Cargo.toml` (NEW) — 依赖 serde, serde_json, dirs |
+| 2.2 | 移入 plugins 核心 | `crates/aidaguard-plugins/src/lib.rs` (NEW) |
+| 2.3 | 移入 PluginManifest + Plugin trait | `crates/aidaguard-plugins/src/plugin.rs` (NEW，内容 = 原 tools/mod.rs) |
+| 2.4 | 移入 PluginRegistry | `crates/aidaguard-plugins/src/registry.rs` (NEW，内容 = 原 tools/registry.rs) |
+| 2.5 | 移入 backup | `crates/aidaguard-plugins/src/backup.rs` (NEW，内容 = 原 tools/backup.rs) |
+| 2.6 | 移入 adapters | `crates/aidaguard-plugins/src/adapters/` (NEW，13 个 adapter 文件) |
+| 2.7 | 在 workspace 注册 | `Cargo.toml` — members 新增 `"crates/aidaguard-plugins"` |
+| 2.8 | aidaguard-tauri 依赖 plugins | `Cargo.toml` 新增 `aidaguard-plugins = { path = "../../aidaguard-plugins" }` |
+| 2.9 | 更新 tauri 端 use 语句 | `commands/tools.rs`, `state.rs`, `main.rs` — `use crate::tools::*` → `use aidaguard_plugins::*` |
+| 2.10 | 删除 tauri 端 tools/ 目录 | 移除 `tools/mod.rs`, `tools/registry.rs`, `tools/backup.rs`, `tools/adapters/` |
+
+**验证**：`cargo build -p aidaguard-tauri` 编译通过，前端 ToolsConfig 页面正常工作。
+
+---
+
+### 14.5 Step 3: 新建 `aidaguard-detector` 骨架
+
+**目标**：创建空 crate 作为后续 Presidio 引擎的占位。
+
+**操作清单**：
+
+| # | 操作 | 文件 |
+|---|------|------|
+| 3.1 | 创建 Cargo.toml | `crates/aidaguard-detector/Cargo.toml` (NEW) — 依赖 aidaguard-core |
+| 3.2 | 创建占位 lib.rs | `crates/aidaguard-detector/src/lib.rs` (NEW) — `pub use aidaguard_core::DetectionEngine;` + 空 doc |
+| 3.3 | 在 workspace 注册 | `Cargo.toml` — members 新增 `"crates/aidaguard-detector"` |
+
+**验证**：`cargo build -p aidaguard-detector` 编译通过。
+
+---
+
+### 14.6 Step 4: 新建 `aidaguard-upstream`
+
+**目标**：创建供应商管理系统 + 声明式 YAML 供应商 + 统一 LLM 客户端。
+
+**操作清单**：
+
+| # | 操作 | 文件 |
+|---|------|------|
+| 4.1 | 创建 Cargo.toml | `crates/aidaguard-upstream/Cargo.toml` (NEW) — 依赖 aidaguard-core, serde, serde_yaml, reqwest |
+| 4.2 | 定义类型 | `crates/aidaguard-upstream/src/types.rs` (NEW) — `ProtocolType`, `AuthType`, `ProviderConfig`, `ModelInfo`, `ModelCapabilities`, `ToolAssignment` |
+| 4.3 | 实现 ProviderConfig 加载 | `crates/aidaguard-upstream/src/provider.rs` (NEW) — `ProviderRegistry`, `load_from_dir()`, 内置供应商索引 |
+| 4.4 | 实现统一 LLM 客户端 | `crates/aidaguard-upstream/src/client.rs` (NEW) — `UpstreamClient` with `chat()`, `chat_json()`, `test_connectivity()` |
+| 4.5 | 实现管理器 | `crates/aidaguard-upstream/src/manager.rs` (NEW) — `UpstreamManager` CRUD + 默认切换 |
+| 4.6 | 创建内置供应商 YAML | `providers/openai.yaml`, `anthropic.yaml`, `deepseek.yaml`, `qwen.yaml`, `zhipu.yaml`, `groq.yaml`, `gemini.yaml`, `custom_example.yaml` (NEW) |
+| 4.7 | 在 workspace 注册 | `Cargo.toml` — members 新增 `"crates/aidaguard-upstream"` |
+| 4.8 | 迁移现有 UpstreamConfig → 新类型 | `aidaguard_core::config` 移除 `UpstreamConfig`/`UpstreamProtocol`，上游管理改用 `aidaguard_upstream::types` |
+
+**核心类型设计**：
+
+```rust
+// types.rs
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ProtocolType {
+    OpenAiCompatible,
+    AnthropicCompatible,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum AuthType {
+    BearerToken,
+    ApiKeyHeader { header: String },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProviderConfig {
+    pub id: String,
+    pub name: String,
+    pub protocol: ProtocolType,
+    pub auth: AuthType,
+    pub endpoint: String,
+    #[serde(default)]
+    pub models: Vec<ModelInfo>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ModelInfo {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub context: usize,
+    #[serde(default)]
+    pub max_output: usize,
+    #[serde(default)]
+    pub capabilities: Vec<String>,  // "chat", "vision", "function_calling", "streaming"
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpstreamConfig {
+    #[serde(flatten)]
+    pub provider: ProviderConfig,   // 从 YAML 加载的供应商信息
+    pub api_key: Option<String>,    // 用户填入的密钥
+    #[serde(default)]
+    pub is_default: bool,
+    #[serde(default = "default_timeout")]
+    pub timeout_secs: u64,
+    #[serde(default)]
+    pub rate_limit_qps: u32,
+}
+```
+
+**验证**：`cargo build -p aidaguard-upstream` + `cargo test -p aidaguard-upstream` 通过。内置供应商 YAML 全部可解析。
+
+---
+
+### 14.7 Step 5: 新建 `aidaguard-proxy`
+
+**目标**：将 proxy 模块从 `aidaguard-core` 移入独立 crate，并对接 `aidaguard-upstream::client`。
+
+**操作清单**：
+
+| # | 操作 | 文件 |
+|---|------|------|
+| 5.1 | 创建 Cargo.toml | `crates/aidaguard-proxy/Cargo.toml` (NEW) — 依赖 aidaguard-core, aidaguard-upstream, aidaguard-storage, axum, reqwest, tokio, tracing |
+| 5.2 | 移入 proxy 模块 | `crates/aidaguard-proxy/src/lib.rs` (NEW) + `server.rs` + `forwarder.rs` + `stream.rs` |
+| 5.3 | 替换 LLM 调用逻辑 | `forwarder.rs` — 删除内联的 Anthropic/OpenAI 协议分支，改为调用 `UpstreamClient::chat()` |
+| 5.4 | 替换 server.rs 中的上游解析 | `server.rs` — 删除 `start()` 中的内联上游解析，改用 `UpstreamManager` |
+| 5.5 | 在 workspace 注册 | `Cargo.toml` — members 新增 `"crates/aidaguard-proxy"` |
+| 5.6 | aidaguard-core 透传 | `crates/aidaguard-core/src/proxy/mod.rs` 改为 `pub use aidaguard_proxy::*;` |
+| 5.7 | aidaguard-tauri 直接依赖 proxy | `Cargo.toml` 新增 `aidaguard-proxy = { path = "../../aidaguard-proxy" }` |
+
+**forwarder 重构对比**：
+
+```
+Before (内联协议判断):
+  if is_anthropic { header x-api-key, body with messages }
+  else { header Authorization: Bearer, body with chat/completions }
+
+After (统一客户端):
+  upstream_client.chat(&upstream, &body).await
+```
+
+**验证**：`cargo build -p aidaguard-tauri` + `cargo test -p aidaguard-proxy` 通过。代理启动后正常转发请求。
+
+---
+
+### 14.8 Step 6: 重构 `aidaguard-core`
+
+**目标**：精简 core 为纯 types + traits，旧的 `Detector` 实现 `DetectionEngine` trait。
+
+**操作清单**：
+
+| # | 操作 | 文件 |
+|---|------|------|
+| 6.1 | 新建 `DetectionEngine` trait | `crates/aidaguard-core/src/engine.rs` (NEW) |
+| 6.2 | 重构目录结构 | 创建 `crates/aidaguard-core/src/types/` 目录，拆入 match.rs, strategy.rs, rule.rs, entity.rs |
+| 6.3 | 实现 DetectionEngine for Detector | `detector/mod.rs` — `impl DetectionEngine for Detector { ... }` |
+| 6.4 | 清理 Cargo.toml | 移除 axum, reqwest, rusqlite, futures, notify 等不再需要的 deps |
+| 6.5 | 更新 lib.rs | 精简 exports，移除 `pub mod proxy; pub mod storage;` |
+
+**`DetectionEngine` trait**：
+
+```rust
+pub trait DetectionEngine: Send + Sync {
+    fn detect(&self, text: &str) -> Vec<Match>;
+    fn rule_count(&self) -> usize;
+    fn rule_name(&self, id: &str) -> Option<&str>;
+}
+```
+
+旧的 `Detector` 已经拥有这三个方法，只需 `impl DetectionEngine for Detector` 即可无缝对接。
+
+**验证**：`cargo build -p aidaguard-core` + `cargo test -p aidaguard-core` 通过。所有原有测试继续通过。
+
+---
+
+### 14.9 Step 7: 清理 `aidaguard-tauri`
+
+**目标**：删除重复依赖，命令改为调用各独立 crate 的 API。
+
+**操作清单**：
+
+| # | 操作 | 文件 |
+|---|------|------|
+| 7.1 | 清理 Cargo.toml 依赖 | 移除 regex, serde_yaml, notify, reqwest, csv, serde_json（已由各 crate 声明或透传） |
+| 7.2 | 更新 state.rs | `AppState` — 删除 `Arc<RwLock<Detector>>`，改为 `Arc<RwLock<Box<dyn DetectionEngine>>>` 或使用具体类型 |
+| 7.3 | 更新 commands/rules.rs | 删除 `read_rule_files()` / `write_rule_file()`，改为调用 `aidaguard-core` 的统一实现 |
+| 7.4 | 更新 commands/upstream.rs | 删除内联 HTTP 测试逻辑，改为调用 `UpstreamClient::test_connectivity()` |
+| 7.5 | 更新 commands/proxy.rs | 初始化改为使用 `aidaguard_proxy::start_with_state()` |
+| 7.6 | 更新 commands/config.rs | 上游管理字段引用改为 `aidaguard_upstream::types` |
+| 7.7 | 更新 events.rs | storage 引用改为 `aidaguard_storage` |
+
+**验证**：`cargo build -p aidaguard-tauri` + `npx tsc --noEmit` + `cargo test` 全部通过。`cargo tauri dev` 正常启动，所有功能可用。
+
+---
+
+### 14.10 Step 8: 移除 CLI binary
+
+**目标**：删除 `aidaguard-core` 的 `[[bin]]`。
+
+**操作清单**：
+
+| # | 操作 | 文件 |
+|---|------|------|
+| 8.1 | 删除 [[bin]] 声明 | `crates/aidaguard-core/Cargo.toml` — 移除 `[[bin]]` section |
+| 8.2 | 删除 main.rs | `crates/aidaguard-core/src/main.rs` — 删除文件 |
+
+> 如果后续需要独立 CLI 工具，可以在 `crates/aidaguard-cli/` 新建独立 binary crate，而非污染 core。
+
+**验证**：`cargo build --workspace` 通过，无 binary 输出。
+
+---
+
+### 14.11 风险与缓解
+
+| 风险 | 缓解 |
+|------|------|
+| `cargo check` 中途长时间不可用 | 每步结束时验证编译，不跨步 |
+| 类型引用路径变更导致大面积修改 | Step 1-6 期间 aidaguard-core 保留 `pub use` 透传，等 Step 7 统一切 |
+| `AppState` 改动影响所有 commands | Step 7 集中处理，前置步骤不碰 state |
+| aidaguard-tauri Cargo.toml 改动破坏构建 | 先确认 workspace.dependencies 中所有 crate 可用 |
+
+### 14.12 各 Step 后的 workspace Cargo.toml 变化
+
+```
+Before:
+members = ["crates/aidaguard-core", "crates/aidaguard-tauri/src-tauri"]
+
+After Step 1-5:
+members = [
+    "crates/aidaguard-core",
+    "crates/aidaguard-storage",     # S1
+    "crates/aidaguard-plugins",     # S2
+    "crates/aidaguard-detector",    # S3
+    "crates/aidaguard-upstream",    # S4
+    "crates/aidaguard-proxy",       # S5
+    "crates/aidaguard-tauri/src-tauri",
+]
+```
+
+---
+
+## Phase 15 — 业务逻辑验证与 core 模块精确定义 (2026-05-05)
+
+### 15.1 逐业务流追踪
+
+逐条验证每个用户操作在新架构下的完整调用链路。
+
+#### 流 1: 启动代理
+
+```
+用户点击 "Start Proxy"
+  → Tauri command start_proxy()
+    → 从 UpstreamManager 解析默认上游 (url + api_key + name)
+      ↑ aidaguard-upstream
+    → 从 Config 读取 port, max_body_size, rules_dir
+      ↑ aidaguard-core
+    → engine.write().await.reload(&rules_dir)
+      ↑ aidaguard-core::DetectionEngine trait
+    → Storage::open(db_path, enc_key)
+      ↑ aidaguard-storage
+    → start_with_state(port, max_body_size, engine, storage, upstream, ...)
+      ↑ aidaguard-proxy
+        → server.rs: 每个请求:
+          engine.read().await.detect(text)  → Vec<Match>
+          replacer::replace(text, &matches) → (String, PlaceholderMap)
+          forwarder.forward(...)             → Response
+          replacer::restore(resp, &map)      → String
+          storage.record(...)                → ()
+```
+
+✅ 所有依赖单向流动，无循环。
+
+#### 流 2: 规则 CRUD
+
+```
+用户 创建/编辑/删除 规则
+  → Tauri command save_rule / delete_rule / toggle_rule
+    → read_rule_files(&dir) → Vec<(String, RuleFile)>
+      ↑ aidaguard-core (RuleDef, RuleFile 类型)
+    → 修改内存中的 RuleFile, write_rule_file()
+    → engine.write().await.reload(&dir)
+      ↑ aidaguard-core::DetectionEngine trait
+```
+
+✅ 规则文件 I/O 在 tauri commands 中（薄层），类型在 core。
+
+#### 流 3: 正则测试
+
+```
+用户 在 RuleEditor 中点击 "Run Test"
+  → Tauri command test_rule(pattern, test_text)
+    → compile_regex(&pattern) → Regex
+      ↑ aidaguard-core
+    → regex.find_iter(&test_text) → 手动构造 Vec<Match>
+    → replacer::replace(&test_text, &matches) → (String, PlaceholderMap)
+      ↑ aidaguard-core
+    → 返回 MatchInfo + sanitized_text
+```
+
+✅ 所有依赖都在 core，不经过 engine trait。
+
+#### 流 4: 大模型生成规则
+
+```
+用户 输入样例文本，点击 "Generate Rule"
+  → Tauri command generate_rule(sample_text)
+    → UpstreamManager::default_upstream() → UpstreamConfig
+      ↑ aidaguard-upstream
+    → UpstreamClient::chat_json(system_prompt, user_prompt) → GeneratedRule
+      ↑ aidaguard-upstream (统一 client，不再内联 if is_anthropic)
+    → 返回 GeneratedRule 到前端供用户确认
+```
+
+✅ 生成逻辑不再散落在 rules.rs 中，由 upstream client 统一处理。
+
+#### 流 5: AI 工具配置
+
+```
+用户 进入 ToolsConfig 页面
+  → Tauri command detect_tools()
+    → PluginRegistry::all_plugins() → Vec<ToolInfo>
+      ↑ aidaguard-plugins
+
+用户 点击 "Configure" / "Restore"
+  → Plugin::configure(proxy_port) / Plugin::restore()
+    ↑ aidaguard-plugins (纯文件操作，无 Tauri 依赖)
+```
+
+✅ plugins crate 完全独立，只依赖 core 的类型。
+
+#### 流 6: 审计日志查询
+
+```
+用户 查看审计日志
+  → Tauri command list_audit / get_audit_detail / get_audit_stats
+    → Storage::list_filtered / get_by_id / stats()
+      ↑ aidaguard-storage
+```
+
+✅ storage crate 完全独立。
+
+#### 流 7: 上游管理
+
+```
+用户 添加/编辑/删除 上游
+  → Tauri command add_upstream / update_upstream / delete_upstream
+    → UpstreamManager::add / update / delete
+      ↑ aidaguard-upstream
+    → 持久化到 upstreams.json
+
+用户 测试连通性
+  → UpstreamClient::test_connectivity(url, api_key, timeout)
+    ↑ aidaguard-upstream
+```
+
+✅ upstream crate 独立管理自己的持久化。
+
+---
+
+### 15.2 core 模块精确定义
+
+经过业务流验证，`aidaguard-core` 的最终范围确定如下：
+
+```
+crates/aidaguard-core/
+├── Cargo.toml                  ← deps: regex, serde, serde_yaml, toml, uuid, anyhow, tracing, tokio, notify
+├── src/
+│   ├── lib.rs                  ← re-exports
+│   ├── types/
+│   │   ├── mod.rs
+│   │   ├── match_.rs           ← Match, Strategy, Mode
+│   │   ├── rule.rs             ← RuleDef, RuleFile, CompiledRule, compile_regex()
+│   │   ├── entity.rs           ← EntityType, EntityCategory (Phase 14+)
+│   │   └── config.rs           ← Config, StorageConfig, NotificationConfig
+│   ├── engine.rs               ← DetectionEngine trait
+│   ├── detector.rs             ← Detector (基线 regex 实现, impls DetectionEngine)
+│   ├── replacer.rs             ← replace(), restore(), PlaceholderMap
+│   └── watcher.rs              ← watch_rules() (generic over DetectionEngine)
+```
+
+#### 每个模块的理由
+
+| 模块 | 放在 core 的理由 | 不放的理由 |
+|------|-----------------|-----------|
+| **types/** | 所有 crate 都引用 Match/Strategy/RuleDef/Config，必须在最底层 | — |
+| **engine.rs** | trait 是抽象接口，定义在类型旁边最合理 | trait 只有一个 impl，过度抽象 |
+| **detector.rs** | 基线引擎，始终可用，所有 consumer 需要它作为默认 impl | 可移到 aidaguard-detector 作为 PatternRecognizer |
+| **replacer.rs** | 纯函数，186 行，仅依赖 Match/Strategy，被 proxy 和 rules 使用 | 可移到 detector（作为 anonymizer 的一部分） |
+| **watcher.rs** | 规则热加载，与 Detector 紧密配合 | 只有 tauri 调用，可移到 tauri |
+| **config.rs** | 应用配置格式，被 main.rs 和 commands/config.rs 使用 | 只是 Tauri 设置页使用，可移到 tauri |
+
+**最终裁决**：
+
+- **replacer** — 留在 core。它是 Match 的配套工具，移到 detector 会让简单引用（如 test_rule）也依赖 detector。
+- **watcher** — 留在 core。抽成 generic `watch_rules<E: DetectionEngine>`，未来旧 Detector 和新 AnalyzerEngine 都能用。
+- **detector (旧)** — 留在 core。它是 DetectionEngine 的唯一实现，删掉后 tauri 无法启动。等 aidaguard-detector 的 AnalyzerEngine 完成后，可考虑废弃。
+- **config** — 留在 core。虽然只有 tauri 用 Config 做持久化，但它定义了 config.toml 的 schema，是所有模块的配置来源。proxy 的 `start_with_state` 也接受 Config 参数。
+
+### 15.3 关键设计决策
+
+#### D1: `DetectionEngine::reload()` 的签名
+
+```rust
+pub trait DetectionEngine: Send + Sync {
+    fn detect(&self, text: &str) -> Vec<Match>;
+    fn rule_count(&self) -> usize;
+    fn rule_name(&self, id: &str) -> Option<&str>;
+    fn reload(&mut self, dir: &Path) -> Result<usize>;
+}
+```
+
+`reload` 放在 trait 中（而不是外部函数），因为：
+- 旧 Detector 和新 AnalyzerEngine 的 reload 逻辑不同（YAML vs YAML+NLP）
+- commands/rules.rs 中 7 处调用 `detector.load_from_dir()`，需要统一接口
+- watcher.rs 需要 generic reload
+
+#### D2: Config 暂时不动
+
+当前 `Config` 包含 `upstreams: Vec<UpstreamConfig>` 和 `target_url`、`api_key`。在迁移阶段：
+- UpstreamManager 使用独立的 `upstreams.json` 持久化
+- Config 的旧字段标记 `#[deprecated]`，但保留兼容
+- 下一个大版本清理
+
+这不影响架构，纯粹是兼容性考量。
+
+#### D3: DetectionEvent 的位置
+
+`DetectionEvent` 从 `aidaguard_core::proxy` 移动到 `aidaguard_proxy`。因为：
+- 它是代理检测事件的广播载体，与 proxy 逻辑紧密相关
+- 消费者（events.rs）已经在 tauri 层，tauri 直接依赖 proxy crate
+
+#### D4: `start_with_state` 参数优化
+
+当前接受整个 `Config`（20+ 字段），实际只用 5 个：
+
+```rust
+// Before (臃肿):
+start_with_state(config: Config, ...)
+
+// After (精简):
+start_with_state(
+    port: u16,
+    max_body_size: usize,
+    engine: Arc<RwLock<Box<dyn DetectionEngine>>>,
+    storage: Option<Arc<Storage>>,
+    event_tx: Option<Sender<DetectionEvent>>,
+    shutdown_signal: F,
+    upstream_name: String,
+    api_key: String,
+    target_url: String,
+)
+```
+
+proxy crate 不再依赖 Config 类型。
+
+### 15.4 AppState 变更
+
+```rust
+// Before:
+pub struct AppState {
+    pub detector: Arc<RwLock<Detector>>,
+    // ...
+}
+
+// After:
+pub struct AppState {
+    pub engine: Arc<RwLock<Box<dyn DetectionEngine>>>,  // ← 重命名 + trait object
+    // ...
+}
+```
+
+受影响位置 (6 处)：
+- `main.rs:76` — 构造: `Arc::new(RwLock::new(Box::new(Detector::new())))`
+- `commands/proxy.rs:76,231` — 读写 engine
+- `commands/rules.rs:148,176,206,265,323,542` — engine.write().await.reload()
+- `proxy/server.rs:182,198,301,352` — engine.read().await.detect() / rule_count()
+
+全部是机械替换，无逻辑变更。
+
+### 15.5 各 crate 依赖确认
+
+| Crate | 直接依赖 |
+|------|---------|
+| **aidaguard-core** | regex, serde, serde_yaml, toml, uuid, anyhow, tracing, tokio, notify |
+| **aidaguard-storage** | aidaguard-core, rusqlite, aes-gcm, pbkdf2, sha2, rand, serde_json, tracing |
+| **aidaguard-plugins** | aidaguard-core, serde, serde_json, tracing |
+| **aidaguard-upstream** | aidaguard-core, serde, serde_yaml, reqwest, tracing |
+| **aidaguard-detector** | aidaguard-core (仅 skeleton) |
+| **aidaguard-proxy** | aidaguard-core, aidaguard-upstream, aidaguard-storage, axum, reqwest, tokio, tracing |
+| **aidaguard-tauri** | 以上全部 + tauri, tauri-plugin-notification, csv, tracing-subscriber |
+
+### 15.6 验证清单
+
+迁移完成后逐项验证：
+
+| # | 验证项 | 方法 |
+|---|--------|------|
+| 1 | `cargo build --workspace` 通过 | CI |
+| 2 | `cargo test --workspace` 全部通过 | 25 个现有测试 + 新增 |
+| 3 | `npx tsc --noEmit` 零错误 | 前端类型检查 |
+| 4 | `cargo tauri dev` 启动正常 | 手动 |
+| 5 | 启动代理 → 发送测试请求 → 检测 → 审计记录 | 手动端到端 |
+| 6 | 规则 CRUD：新建/编辑/删除/切换/测试 | 手动 |
+| 7 | 工具配置：检测/配置/还原 | 手动 |
+| 8 | 上游管理：添加/编辑/删除/连接测试/切换默认 | 手动 |
+| 9 | 设置保存 & 重启后恢复 | 手动 |
+| 10 | 热加载：修改 YAML 规则文件 → 代理自动重载 | 手动 |
+
+---
+
+## Phase 16 — v0.3.0 测试用例设计 (2026-05-05)
+
+### 16.1 版本信息
+
+Workspace 版本号升级至 `0.3.0`（`Cargo.toml` line 10）。
+
+### 16.2 现有测试盘点
+
+迁移前共有 **25 个单元测试**，均通过：
+
+| 模块 (当前) | 测试数 | 目标 crate (迁移后) |
+|------------|--------|-------------------|
+| `detector/mod.rs` | 8 | aidaguard-core |
+| `replacer/mod.rs` | 7 | aidaguard-core |
+| `storage/mod.rs` | 5 | aidaguard-storage |
+| `proxy/stream.rs` | 5 | aidaguard-proxy |
+| **合计** | **25** | — |
+
+所有现有测试在迁移后继续保留，仅 `use` 路径随 crate 移动更新。
+
+---
+
+### 16.3 测试用例总览
+
+| Crate | 测试数 | 状态 | 优先级 |
+|-------|--------|------|--------|
+| aidaguard-core | 43 | 15 已有 + 28 新增 | P0 |
+| aidaguard-storage | 15 | 5 已有 + 10 新增 | P0 |
+| aidaguard-plugins | 18 | 0 已有 + 18 新增 | P0 |
+| aidaguard-upstream | 22 | 0 已有 + 22 新增 | P0 |
+| aidaguard-proxy | 17 | 5 已有 + 12 新增 | P1 |
+| aidaguard-detector | 0 | skeleton only | P2 |
+| aidaguard-tauri | 0 | 手动端到端验证 | P2 |
+| **合计** | **115** | — | — |
+
+> P0 = 迁移完成即需要，P1 = 迁移后补充，P2 = 后续版本
+
+---
+
+### 16.4 aidaguard-core (43 tests)
+
+#### 16.4.1 types/match.rs — 3 tests (NEW)
+
+| # | 测试 | 验证点 |
+|---|------|--------|
+| T-CORE-01 | `test_match_creation` | Match struct 所有字段可构造，值正确 |
+| T-CORE-02 | `test_strategy_serde` | Strategy::Placeholder → `"placeholder"`, Strategy::Mask → `"mask"` |
+| T-CORE-03 | `test_mode_serde` | Mode::Detect → `"detect"`, Mode::Filter → `"filter"` |
+
+#### 16.4.2 types/rule.rs — 5 tests (NEW)
+
+| # | 测试 | 验证点 |
+|---|------|--------|
+| T-CORE-04 | `test_rule_def_deserialize` | YAML 最小字段 → RuleDef，默认值正确 (enabled=true, priority=100, strategy=placeholder, mode=filter) |
+| T-CORE-05 | `test_rule_file_deserialize` | 多规则 YAML 文件 → RuleFile，rules 数组正确展开 |
+| T-CORE-06 | `test_compile_regex_valid` | 合法 pattern → Ok(Regex) |
+| T-CORE-07 | `test_compile_regex_invalid` | 非法 pattern → Err |
+| T-CORE-08 | `test_compile_regex_size_limit` | pattern 超过 2000 字符 → Err |
+
+#### 16.4.3 types/entity.rs — 6 tests (NEW)
+
+| # | 测试 | 验证点 |
+|---|------|--------|
+| T-CORE-09 | `test_entity_type_display` | 每个 EntityType 变体的 Display 输出正确 |
+| T-CORE-10 | `test_entity_category_assignment` | Structured 变体归入 EntityCategory::Structured 等 |
+| T-CORE-11 | `test_entity_type_from_str` | "CREDIT_CARD" → EntityType::CreditCard |
+| T-CORE-12 | `test_entity_type_serde` | EntityType 序列化 → 反序列化 roundtrip |
+| T-CORE-13 | `test_entity_type_all_regions` | 每个区域至少有一个对应的结构化实体 |
+| T-CORE-14 | `test_custom_entity` | EntityType::Custom("my_type") 的 Display/Serde |
+
+#### 16.4.4 types/config.rs — 4 tests (NEW)
+
+| # | 测试 | 验证点 |
+|---|------|--------|
+| T-CORE-15 | `test_config_defaults` | Config::default() 各字段默认值正确 |
+| T-CORE-16 | `test_config_save_load_roundtrip` | Config → save_to → load_from → 值一致 |
+| T-CORE-17 | `test_config_load_missing_file` | 文件不存在 → None |
+| T-CORE-18 | `test_storage_config_defaults` | StorageConfig 默认 enabled=false |
+
+#### 16.4.5 engine.rs — 2 tests (NEW)
+
+| # | 测试 | 验证点 |
+|---|------|--------|
+| T-CORE-19 | `test_detector_impls_engine` | Detector 满足 `DetectionEngine` trait bound (编译期) |
+| T-CORE-20 | `test_engine_trait_object` | `Box<dyn DetectionEngine>` 可构造并调用 detect |
+
+#### 16.4.6 detector.rs — 13 tests (8 已有 + 5 NEW)
+
+**已有测试（迁移）**：
+
+| # | 测试 | 来源 |
+|---|------|------|
+| T-CORE-21 | `test_detect_phone` | 现有 — 手机号匹配 |
+| T-CORE-22 | `test_detect_multiple` | 现有 — 多个规则同时匹配 |
+| T-CORE-23 | `test_no_match` | 现有 — 无敏感数据 |
+| T-CORE-24 | `test_overlap_same_priority` | 现有 — 重叠去重 |
+| T-CORE-25 | `test_id_card_with_x` | 现有 — 身份证校验位 X |
+| T-CORE-26 | `test_deduplication` | 现有 — 同位置去重 |
+| T-CORE-27 | `test_empty_input` | 现有 — 空文本 |
+| T-CORE-28 | `test_email_exclude_retina` | 现有 — 排除正则在混合场景过滤 |
+
+**新增**：
+
+| # | 测试 | 验证点 |
+|---|------|--------|
+| T-CORE-29 | `test_detect_only_mode` | Mode::Detect 规则产生匹配但不进入 filter_hits |
+| T-CORE-30 | `test_priority_ordering` | 高优先级规则先于低优先级匹配 |
+| T-CORE-31 | `test_reload_from_dir` | load_from_dir 替换已有规则集 |
+| T-CORE-32 | `test_reload_empty_dir` | 空目录 → 0 条规则 |
+| T-CORE-33 | `test_add_rule_disabled` | 添加 disabled 规则后 detect 无匹配 |
+
+#### 16.4.7 replacer.rs — 10 tests (7 已有 + 3 NEW)
+
+**已有测试（迁移）**：
+
+| # | 测试 | 来源 |
+|---|------|------|
+| T-CORE-34 | `test_replace_placeholder_single` | 现有 |
+| T-CORE-35 | `test_replace_placeholder_multiple` | 现有 |
+| T-CORE-36 | `test_replace_then_restore` | 现有 |
+| T-CORE-37 | `test_mask_phone` | 现有 |
+| T-CORE-38 | `test_mask_short` | 现有 |
+| T-CORE-39 | `test_no_matches` | 现有 |
+| T-CORE-40 | `test_restore_empty` | 现有 |
+
+**新增**：
+
+| # | 测试 | 验证点 |
+|---|------|--------|
+| T-CORE-41 | `test_mask_email` | 邮箱地址掩码保留首尾 (如 `t***@e***.com`) |
+| T-CORE-42 | `test_replace_mixed_strategies` | 同文本中同时使用 Placeholder 和 Mask |
+| T-CORE-43 | `test_placeholder_uniqueness` | 两次相同 match 生成不同的占位符 UUID |
+
+---
+
+### 16.5 aidaguard-storage (15 tests)
+
+#### 已有测试（5 个，迁移）
+
+| # | 测试 | 来源 |
+|---|------|------|
+| T-STO-01 | `test_record_and_list` | 现有 |
+| T-STO-02 | `test_multiple_records` | 现有 |
+| T-STO-03 | `test_empty_db` | 现有 |
+| T-STO-04 | `test_encrypt_decrypt_roundtrip` | 现有 |
+| T-STO-05 | `test_decrypt_invalid_data` | 现有 |
+
+#### 新增测试 (10 个)
+
+| # | 测试 | 验证点 |
+|---|------|--------|
+| T-STO-06 | `test_delete_record` | 删除单条 → count 减 1，get_by_id 返回 None |
+| T-STO-07 | `test_list_filtered_by_rule_id` | rule_id_filter 过滤正确 |
+| T-STO-08 | `test_list_filtered_by_path` | path_filter 过滤正确 |
+| T-STO-09 | `test_list_filtered_by_date` | date_from_ms / date_to_ms 范围过滤 |
+| T-STO-10 | `test_list_filtered_by_strategy` | strategy_filter 过滤正确 |
+| T-STO-11 | `test_count_filtered` | count_filtered 返回过滤后总数 |
+| T-STO-12 | `test_stats_today` | stats().today_count 正确 |
+| T-STO-13 | `test_stats_rule_distribution` | stats().rule_distribution 聚合正确 |
+| T-STO-14 | `test_stats_db_size` | stats().db_size_bytes > 0 |
+| T-STO-15 | `test_migration_add_column` | 打开旧 schema DB 自动 ALTER TABLE ADD COLUMN |
+
+---
+
+### 16.6 aidaguard-plugins (18 tests, 全部 NEW)
+
+#### 16.6.1 plugin.rs — 5 tests
+
+| # | 测试 | 验证点 |
+|---|------|--------|
+| T-PLG-01 | `test_manifest_serialization` | PluginManifest → JSON → PluginManifest roundtrip |
+| T-PLG-02 | `test_manifest_required_fields` | id/name/version 必填 |
+| T-PLG-03 | `test_tool_adapter_trait` | 编译期验证 Trait 方法签名 |
+| T-PLG-04 | `test_tool_info_from_manifest` | PluginManifest → ToolInfo 转换正确 |
+| T-PLG-05 | `test_plugin_categories` | categories 字段序列化/反序列化 |
+
+#### 16.6.2 registry.rs — 7 tests
+
+| # | 测试 | 验证点 |
+|---|------|--------|
+| T-PLG-06 | `test_register_plugin` | register → all_plugins 包含该插件 |
+| T-PLG-07 | `test_enable_disable_plugin` | disable → is_enabled=false, enable → is_enabled=true |
+| T-PLG-08 | `test_disable_twice_ok` | 重复 disable 不报错 |
+| T-PLG-09 | `test_enable_twice_ok` | 重复 enable 不报错 |
+| T-PLG-10 | `test_get_plugin_by_id` | get("claude_code") → Some |
+| T-PLG-11 | `test_get_nonexistent` | get("nonexistent") → None |
+| T-PLG-12 | `test_state_persistence` | disable → 新建 registry → is_enabled=false (持久化验证) |
+
+#### 16.6.3 adapters — 6 tests
+
+| # | 测试 | 验证点 |
+|---|------|--------|
+| T-PLG-13 | `test_adapter_detect_installed` | 模拟已安装工具 → detect 返回 true |
+| T-PLG-14 | `test_adapter_detect_not_installed` | 工具未安装 → detect 返回 false |
+| T-PLG-15 | `test_adapter_read_config` | 读取模拟配置文件 → ToolConfig |
+| T-PLG-16 | `test_adapter_backup_restore` | configure → backup 存在 → restore → 配置恢复 |
+| T-PLG-17 | `test_adapter_configure_twice_idempotent` | 连续配置两次不报错 |
+| T-PLG-18 | `test_adapter_restore_no_backup` | 无备份时 restore → Err |
+
+---
+
+### 16.7 aidaguard-upstream (22 tests, 全部 NEW)
+
+#### 16.7.1 types.rs — 4 tests
+
+| # | 测试 | 验证点 |
+|---|------|--------|
+| T-UPS-01 | `test_protocol_type_serde` | "openai_compatible" / "anthropic_compatible" 反序列化 |
+| T-UPS-02 | `test_auth_type_serde` | BearerToken / ApiKeyHeader 反序列化 |
+| T-UPS-03 | `test_model_info_deserialize` | YAML → ModelInfo (带 capabilities 列表) |
+| T-UPS-04 | `test_upstream_config_from_provider` | ProviderConfig + api_key → UpstreamConfig |
+
+#### 16.7.2 provider.rs — 5 tests
+
+| # | 测试 | 验证点 |
+|---|------|--------|
+| T-UPS-05 | `test_load_provider_yaml` | 解析 openai.yaml → ProviderConfig (8 fields) |
+| T-UPS-06 | `test_load_all_builtin_providers` | providers/ 目录全部 YAML 可解析 |
+| T-UPS-07 | `test_provider_yaml_missing_required` | 缺少 id 字段 → Err |
+| T-UPS-08 | `test_provider_yaml_invalid_protocol` | 未知 protocol → Err |
+| T-UPS-09 | `test_model_capabilities_filter` | ModelInfo.capabilities 包含 ["chat", "streaming"] |
+
+#### 16.7.3 client.rs — 6 tests
+
+| # | 测试 | 验证点 |
+|---|------|--------|
+| T-UPS-10 | `test_build_openai_request` | OpenAI 协议 → URL=`/v1/chat/completions`, Auth=`Bearer <key>` |
+| T-UPS-11 | `test_build_anthropic_request` | Anthropic 协议 → URL=`/v1/messages`, Header=`x-api-key` |
+| T-UPS-12 | `test_build_anthropic_request_with_version` | 包含 `anthropic-version` header |
+| T-UPS-13 | `test_client_timeout` | 超时 → Err (不 hang) |
+| T-UPS-14 | `test_chat_json_parse` | 模拟 LLM JSON 响应 → 正确解析为目标类型 |
+| T-UPS-15 | `test_chat_json_parse_fenced` | ````json {...}```` 代码块 → 正确提取并解析 |
+
+#### 16.7.4 connectivity.rs — 4 tests
+
+| # | 测试 | 验证点 |
+|---|------|--------|
+| T-UPS-16 | `test_connectivity_success` | 模拟 200 响应 → Ok(TestResult) |
+| T-UPS-17 | `test_connectivity_timeout` | 超时 → Err |
+| T-UPS-18 | `test_connectivity_auth_error` | 401 → Err 带状态码 |
+| T-UPS-19 | `test_connectivity_invalid_url` | 无效 URL → Err |
+
+#### 16.7.5 manager.rs — 3 tests
+
+| # | 测试 | 验证点 |
+|---|------|--------|
+| T-UPS-20 | `test_add_upstream` | 添加上游 → list 包含 |
+| T-UPS-21 | `test_set_default_upstream` | set_default → 旧 default 取消，新 default 设置 |
+| T-UPS-22 | `test_delete_upstream` | 删除 → list 不包含 |
+
+---
+
+### 16.8 aidaguard-proxy (17 tests)
+
+#### 16.8.1 stream.rs — 5 tests (已有，迁移)
+
+| # | 测试 | 来源 |
+|---|------|------|
+| T-PRX-01 | `test_find_safe_len_no_placeholder` | 现有 |
+| T-PRX-02 | `test_find_safe_len_partial_prefix` | 现有 |
+| T-PRX-03 | `test_find_safe_len_complete_placeholder` | 现有 |
+| T-PRX-04 | `test_find_safe_len_complete_then_incomplete` | 现有 |
+| T-PRX-05 | `test_find_safe_len_single_bracket` | 现有 |
+
+#### 16.8.2 forwarder.rs — 4 tests (NEW)
+
+| # | 测试 | 验证点 |
+|---|------|--------|
+| T-PRX-06 | `test_forward_headers_skip_hop_by_hop` | host/authorization/connection 等被过滤 |
+| T-PRX-07 | `test_forward_headers_preserve_custom` | 自定义 header 保留 |
+| T-PRX-08 | `test_extract_model_openai_format` | `{"model": "gpt-5"}` → "gpt-5" |
+| T-PRX-09 | `test_extract_model_anthropic_format` | `{"model": "claude-opus-4-7"}` → "claude-opus-4-7" |
+
+#### 16.8.3 server.rs — 8 tests (NEW)
+
+| # | 测试 | 验证点 |
+|---|------|--------|
+| T-PRX-10 | `test_health_check` | GET /health → 200, status=ok, version/rules_count 存在 |
+| T-PRX-11 | `test_reload_endpoint` | POST /reload → 200, rules_count 更新 |
+| T-PRX-12 | `test_proxy_handler_no_sensitive_data` | 无敏感数据 → 直接转发，body 不变 |
+| T-PRX-13 | `test_proxy_handler_sensitive_data_filter` | 敏感数据 Filter 模式 → 替换后转发 |
+| T-PRX-14 | `test_proxy_handler_sensitive_data_detect` | 敏感数据 Detect 模式 → 不替换，原样转发 |
+| T-PRX-15 | `test_proxy_body_too_large` | Content-Length > max → 413 |
+| T-PRX-16 | `test_extract_client_name_user_agent` | User-Agent header → tool_name |
+| T-PRX-17 | `test_extract_context` | 敏感数据周围 N 字符上下文提取 |
+
+---
+
+### 16.9 测试开发计划
+
+#### 阶段 1: 核心类型测试 (配合 S6 core 重构)
+
+| 步骤 | 内容 | 测试数 |
+|------|------|--------|
+| T1 | types/match.rs + types/rule.rs | 8 (T-CORE-01 ~ T-CORE-08) |
+| T2 | types/entity.rs + types/config.rs | 10 (T-CORE-09 ~ T-CORE-18) |
+| T3 | engine.rs + detector.rs 补充 | 7 (T-CORE-19~20, T-CORE-29~33) |
+| T4 | replacer.rs 补充 | 3 (T-CORE-41~43) |
+
+#### 阶段 2: 存储测试 (配合 S1 storage 拆分)
+
+| 步骤 | 内容 | 测试数 |
+|------|------|--------|
+| T5 | storage 已有测试迁移 | 5 (T-STO-01~05) |
+| T6 | storage 新增测试 | 10 (T-STO-06~15) |
+
+#### 阶段 3: 插件测试 (配合 S2 plugins 拆分)
+
+| 步骤 | 内容 | 测试数 |
+|------|------|--------|
+| T7 | plugin.rs + registry.rs | 12 (T-PLG-01~12) |
+| T8 | adapters 测试 | 6 (T-PLG-13~18) |
+
+#### 阶段 4: 上游测试 (配合 S4 upstream 新建)
+
+| 步骤 | 内容 | 测试数 |
+|------|------|--------|
+| T9 | types.rs + provider.rs | 9 (T-UPS-01~09) |
+| T10 | client.rs + connectivity.rs | 10 (T-UPS-10~19) |
+| T11 | manager.rs | 3 (T-UPS-20~22) |
+
+#### 阶段 5: 代理测试 (配合 S5 proxy 拆分)
+
+| 步骤 | 内容 | 测试数 |
+|------|------|--------|
+| T12 | stream.rs 已有测试迁移 | 5 (T-PRX-01~05) |
+| T13 | forwarder.rs + server.rs 新增 | 12 (T-PRX-06~17) |
+
+#### 依赖关系
+
+```
+T1 ──→ T3 ──→ T4
+  ──→ T2
+            T5 ──→ T6
+            T7 ──→ T8
+            T9 ──→ T10 ──→ T11
+            T12 ──→ T13
+```
+
+T1~T4、T5、T7、T9、T12 可以并行开始。
+
+### 16.10 覆盖率目标
+
+| Crate | 行覆盖率目标 | 分支覆盖率目标 |
+|-------|------------|--------------|
+| aidaguard-core | ≥ 90% | ≥ 85% |
+| aidaguard-storage | ≥ 85% | ≥ 80% |
+| aidaguard-plugins | ≥ 80% | ≥ 75% |
+| aidaguard-upstream | ≥ 85% | ≥ 80% |
+| aidaguard-proxy | ≥ 80% | ≥ 75% |
+| aidaguard-detector | — (skeleton) | — |
+
+### 16.11 运行命令
+
+```bash
+# 全部测试
+cargo test --workspace
+
+# 单个 crate
+cargo test -p aidaguard-core
+cargo test -p aidaguard-storage
+cargo test -p aidaguard-plugins
+cargo test -p aidaguard-upstream
+cargo test -p aidaguard-proxy
+
+# 带覆盖率 (需要 cargo-llvm-cov)
+cargo llvm-cov --workspace --html
+```
