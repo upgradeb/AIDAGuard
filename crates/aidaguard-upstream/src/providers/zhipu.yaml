@@ -1,0 +1,17 @@
+id: zhipu
+name: ZhipuAI (GLM)
+protocol: open_ai_compatible
+auth:
+  type: bearer_token
+endpoint: https://open.bigmodel.cn/api/paas/v4
+models:
+  - id: glm-4
+    name: GLM-4
+    context: 128000
+    max_output: 4096
+    capabilities: [chat, function_calling, streaming]
+  - id: glm-4-flash
+    name: GLM-4 Flash
+    context: 128000
+    max_output: 4096
+    capabilities: [chat, streaming]

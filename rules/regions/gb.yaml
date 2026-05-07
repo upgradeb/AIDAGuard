@@ -1,0 +1,12 @@
+version: '1.0'
+name: United Kingdom Region Rules
+description: UK-specific personal information patterns (UK DPA 2018 / UK GDPR)
+rules:
+  - id: uk_nino
+    name: UK National Insurance Number
+    pattern: '(?-u:\b)[A-Za-z]{2}\d{6}[ABCDabcd](?-u:\b)'
+    enabled: false
+    strategy: placeholder
+    mode: detect
+    priority: 90
+    compliance: [UK_DPA_2018, UK_GDPR]

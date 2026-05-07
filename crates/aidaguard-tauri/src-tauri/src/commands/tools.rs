@@ -1,6 +1,6 @@
 use tauri::Manager;
 use crate::state::AppState;
-use crate::tools::{self, ToolInfo};
+use aidaguard_plugins::{self, ToolInfo};
 
 /// Detect all installed AI tools and return their status
 #[tauri::command]
@@ -53,7 +53,7 @@ pub async fn apply_tool_config(
 
     let data_dir = app.path().app_data_dir()
         .map_err(|e| format!("Failed to get data directory: {}", e))?;
-    let backup_dir = tools::backup::backup_dir_for(&data_dir, &tool_id);
+    let backup_dir = aidaguard_plugins::backup::backup_dir_for(&data_dir, &tool_id);
 
     let registry = state.plugin_registry.read().await;
     let plugin = registry.get(&tool_id)
@@ -79,7 +79,7 @@ pub async fn restore_tool_config(
 
     let data_dir = app.path().app_data_dir()
         .map_err(|e| format!("Failed to get data directory: {}", e))?;
-    let backup_dir = tools::backup::backup_dir_for(&data_dir, &tool_id);
+    let backup_dir = aidaguard_plugins::backup::backup_dir_for(&data_dir, &tool_id);
 
     if !backup_dir.exists() || std::fs::read_dir(&backup_dir).map(|mut d| d.next().is_none()).unwrap_or(true) {
         return Err(format!("{} has no backup. Please run \"Configure\" first to create a backup.", tool_id));
@@ -112,7 +112,7 @@ pub async fn restore_all_tools(
     let mut errors = Vec::new();
 
     for plugin in registry.iter() {
-        let backup_dir = tools::backup::backup_dir_for(&data_dir, plugin.id());
+        let backup_dir = aidaguard_plugins::backup::backup_dir_for(&data_dir, plugin.id());
         match plugin.restore(&backup_dir) {
             Ok(()) => restored.push(plugin.name().to_string()),
             Err(e) => {

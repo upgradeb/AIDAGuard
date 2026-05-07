@@ -6,10 +6,10 @@ use tracing_subscriber::EnvFilter;
 
 use aidaguard_core::config::Config;
 use aidaguard_core::detector::Detector;
-use aidaguard_core::storage::Storage;
+use aidaguard_storage::Storage;
 
 use aidaguard_tauri::state::AppState;
-use aidaguard_tauri::tools::{adapters, PluginRegistry};
+use aidaguard_plugins::{adapters, PluginRegistry};
 use aidaguard_tauri::{commands, resolve_rules_dir, resolve_storage_path, tray};
 
 fn main() {

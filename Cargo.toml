@@ -3,7 +3,13 @@ resolver = "2"
 
 members = [
     "crates/aidaguard-core",
+    "crates/aidaguard-storage",
+    "crates/aidaguard-plugins",
+    "crates/aidaguard-detector",
+    "crates/aidaguard-upstream",
+    "crates/aidaguard-proxy",
     "crates/aidaguard-tauri/src-tauri",
+    "tests",
 ]
 
 [workspace.package]
@@ -25,8 +31,6 @@ reqwest = { version = "0.12", features = ["stream", "rustls-tls", "json"], defau
 
 # 正则检测
 regex = "1"
-once_cell = "1"
-aho-corasick = "1"
 
 # 序列化
 serde = { version = "1", features = ["derive"] }
@@ -47,14 +51,12 @@ rusqlite = { version = "0.31", features = ["bundled"] }
 aes-gcm = "0.10"
 pbkdf2 = { version = "0.12", features = ["simple"] }
 rand = "0.8"
-keyring = "2"
 
 # UUID
 uuid = { version = "1", features = ["v4"] }
 
 # 错误处理
 anyhow = "1"
-thiserror = "1"
 
 # 加密哈希
 sha2 = "0.10"

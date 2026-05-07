@@ -1,12 +1,12 @@
 use aidaguard_core::config::Config;
 use aidaguard_core::detector::Detector;
-use aidaguard_core::storage::Storage;
+use aidaguard_storage::Storage;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::{Mutex, RwLock};
 use tokio::task::JoinHandle;
 
-use crate::tools::PluginRegistry;
+use aidaguard_plugins::PluginRegistry;
 
 /// Tauri-managed application state shared between proxy tasks and Tauri commands.
 pub struct AppState {

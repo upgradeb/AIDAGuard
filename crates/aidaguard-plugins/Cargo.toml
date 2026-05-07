@@ -1,0 +1,11 @@
+[package]
+name = "aidaguard-plugins"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Aidaguard AI tool plugin system with declarative manifests and enable/disable lifecycle"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true

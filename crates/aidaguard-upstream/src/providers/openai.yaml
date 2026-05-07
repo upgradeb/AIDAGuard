@@ -1,0 +1,17 @@
+id: openai
+name: OpenAI
+protocol: open_ai_compatible
+auth:
+  type: bearer_token
+endpoint: https://api.openai.com/v1
+models:
+  - id: gpt-5
+    name: GPT-5
+    context: 128000
+    max_output: 16384
+    capabilities: [chat, vision, function_calling, streaming]
+  - id: gpt-4.1
+    name: GPT-4.1
+    context: 1000000
+    max_output: 32768
+    capabilities: [chat, function_calling, streaming]

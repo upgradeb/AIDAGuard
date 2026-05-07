@@ -8,7 +8,7 @@ use tokio::sync::RwLock;
 use tracing::{info, warn};
 
 /// 安全编译正则，设置 size_limit 防止 ReDoS 攻击。
-fn compile_regex(pattern: &str) -> Result<Regex> {
+pub fn compile_regex(pattern: &str) -> Result<Regex> {
     // 限制模式长度，防止极端情况
     if pattern.len() > 2000 {
         return Err(anyhow::anyhow!("正则模式过长 ({} bytes)，上限 2000", pattern.len()));
@@ -17,6 +17,29 @@ fn compile_regex(pattern: &str) -> Result<Regex> {
         .size_limit(1 << 20) // 1 MB DFA 大小限制
         .build()
         .with_context(|| format!("正则编译失败: {}", pattern))
+}
+
+/// 递归收集目录下所有 YAML 文件中的规则定义。
+fn collect_yaml_files(dir: &Path, rules: &mut Vec<RuleDef>, count: &mut usize) -> Result<()> {
+    let entries = std::fs::read_dir(dir)
+        .with_context(|| format!("无法读取规则目录: {}", dir.display()))?;
+
+    for entry in entries {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_dir() {
+            collect_yaml_files(&path, rules, count)?;
+        } else if path.extension().map_or(false, |ext| ext == "yaml" || ext == "yml") {
+            *count += 1;
+            info!("加载规则文件: {}", path.display());
+            let contents = std::fs::read_to_string(&path)
+                .with_context(|| format!("无法读取文件: {}", path.display()))?;
+            let rule_file: RuleFile = serde_yaml::from_str(&contents)
+                .with_context(|| format!("YAML 解析失败: {}", path.display()))?;
+            rules.extend(rule_file.rules);
+        }
+    }
+    Ok(())
 }
 
 /// 替换策略
@@ -68,6 +91,9 @@ pub struct RuleDef {
     pub mode: Mode,
     #[serde(default = "default_priority")]
     pub priority: u32,
+    /// Applicable compliance frameworks (e.g. GDPR, PIPL, HIPAA, PCI_DSS)
+    #[serde(default)]
+    pub compliance: Vec<String>,
 }
 
 /// YAML 规则文件顶层结构
@@ -112,38 +138,59 @@ impl Detector {
         Self { rules: Vec::new() }
     }
 
-    /// 从指定目录加载所有 YAML 规则文件，替换当前规则集
+    /// 从指定目录递归加载所有 YAML 规则文件，替换当前规则集。
     pub fn load_from_dir(&mut self, dir: &Path) -> Result<usize> {
         let mut all_rules = Vec::new();
-
-        let entries = std::fs::read_dir(dir)
-            .with_context(|| format!("无法读取规则目录: {}", dir.display()))?;
-
-        for entry in entries {
-            let entry = entry?;
-            let path = entry.path();
-            if path.extension().map_or(false, |ext| ext == "yaml" || ext == "yml") {
-                info!("加载规则文件: {}", path.display());
-                let contents = std::fs::read_to_string(&path)
-                    .with_context(|| format!("无法读取文件: {}", path.display()))?;
-                let rule_file: RuleFile = serde_yaml::from_str(&contents)
-                    .with_context(|| format!("YAML 解析失败: {}", path.display()))?;
-                all_rules.extend(rule_file.rules);
-            }
-        }
+        let mut yaml_count = 0;
+        collect_yaml_files(dir, &mut all_rules, &mut yaml_count)?;
 
         let count_before = self.rules.len();
         self.compile(all_rules);
         info!(
-            "已加载 {} 条规则（替换了原有的 {} 条）",
+            "已从 {} 个 YAML 文件加载 {} 条规则（替换了原有的 {} 条）",
+            yaml_count,
             self.rules.len(),
             count_before
         );
         Ok(self.rules.len())
     }
 
-    /// 追加单条规则
+    /// 从指定目录加载所有 YAML 规则文件，追加到当前规则集（不替换）。
+    pub fn append_from_dir(&mut self, dir: &Path) -> Result<usize> {
+        let mut all_rules = Vec::new();
+        let mut yaml_count = 0;
+        collect_yaml_files(dir, &mut all_rules, &mut yaml_count)?;
+        self.compile_append(all_rules);
+        Ok(self.rules.len())
+    }
+
+    /// 从基准目录加载多个规则预设子目录。
+    ///
+    /// 每个预设名称对应 `base_dir` 下的一个子目录，所有子目录中的
+    /// `.yaml`/`.yml` 文件都会被加载并合并。
+    pub fn load_from_presets(&mut self, base_dir: &Path, presets: &[&str]) -> Result<usize> {
+        self.rules.clear();
+        for preset in presets {
+            let dir = base_dir.join(preset);
+            if dir.is_dir() {
+                self.append_from_dir(&dir)?;
+            } else {
+                warn!("规则预设目录不存在，跳过: {}", dir.display());
+            }
+        }
+        info!(
+            "已从 {} 个预设加载 {} 条规则",
+            presets.len(),
+            self.rules.len()
+        );
+        Ok(self.rules.len())
+    }
+
+    /// 追加单条规则。如果 `def.enabled` 为 false，跳过编译并返回 Ok.
     pub fn add_rule(&mut self, def: RuleDef) -> Result<()> {
+        if !def.enabled {
+            return Ok(());
+        }
         let regex = compile_regex(&def.pattern)
             .with_context(|| format!("规则 [{}] 的正则编译失败: {}", def.id, def.pattern))?;
         let exclude_regex = if let Some(ref excl) = def.exclude {
@@ -181,6 +228,31 @@ impl Detector {
         // 按优先级降序排列，高优先级先处理
         compiled.sort_by(|a, b| b.def.priority.cmp(&a.def.priority));
         self.rules = compiled;
+    }
+
+    fn compile_append(&mut self, defs: Vec<RuleDef>) {
+        for def in defs {
+            if !def.enabled {
+                continue;
+            }
+            match compile_regex(&def.pattern) {
+                Ok(regex) => {
+                    let exclude_regex = def.exclude.as_ref().and_then(|excl| {
+                        match compile_regex(excl) {
+                            Ok(re) => Some(re),
+                            Err(e) => {
+                                warn!("规则 [{}] 的排除正则编译失败: {}", def.id, e);
+                                None
+                            }
+                        }
+                    });
+                    self.rules.push(CompiledRule { def, regex, exclude_regex });
+                }
+                Err(e) => warn!("规则 [{}] 正则编译失败: {}", def.id, e),
+            }
+        }
+        // Re-sort after append: priority descending
+        self.rules.sort_by(|a, b| b.def.priority.cmp(&a.def.priority));
     }
 
     /// 已编译的规则数量
@@ -256,6 +328,24 @@ impl Default for Detector {
     }
 }
 
+impl crate::engine::DetectionEngine for Detector {
+    fn detect(&self, text: &str) -> Vec<Match> {
+        self.detect(text)
+    }
+
+    fn rule_count(&self) -> usize {
+        self.rule_count()
+    }
+
+    fn rule_name(&self, id: &str) -> Option<&str> {
+        self.rule_name(id)
+    }
+
+    fn reload(&mut self, dir: &Path) -> Result<usize, anyhow::Error> {
+        self.load_from_dir(dir)
+    }
+}
+
 /// 启动规则目录热加载。文件变更时自动重新加载 `detector`。
 ///
 /// 返回的 `RecommendedWatcher` 必须被调用方持有，否则 watcher 会被 drop、热加载失效。
@@ -278,7 +368,7 @@ pub fn watch_rules(
     )?;
 
     watcher
-        .watch(&dir, RecursiveMode::NonRecursive)
+        .watch(&dir, RecursiveMode::Recursive)
         .with_context(|| format!("无法监听规则目录: {}", dir.display()))?;
 
     info!("已启动规则目录热加载: {}", dir.display());
@@ -299,134 +389,4 @@ pub fn watch_rules(
     });
 
     Ok(watcher)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn make_detector() -> Detector {
-        let mut d = Detector::new();
-        d.add_rule(RuleDef {
-            id: "phone".into(),
-            name: "手机号".into(),
-            pattern: r"1[3-9]\d{9}".into(),
-            exclude: None,
-            enabled: true,
-            strategy: Strategy::Placeholder,
-            mode: Mode::Filter,
-            priority: 100,
-        })
-        .unwrap();
-        d.add_rule(RuleDef {
-            id: "id_card".into(),
-            name: "身份证".into(),
-            pattern: r"\d{17}[\dXx]".into(),
-            exclude: None,
-            enabled: true,
-            strategy: Strategy::Placeholder,
-            mode: Mode::Filter,
-            priority: 100,
-        })
-        .unwrap();
-        d.add_rule(RuleDef {
-            id: "email".into(),
-            name: "邮箱".into(),
-            pattern: r"[\w.+-]+@[\w-]+\.\w+".into(),
-            exclude: None,
-            enabled: true,
-            strategy: Strategy::Mask,
-            mode: Mode::Filter,
-            priority: 90,
-        })
-        .unwrap();
-        d
-    }
-
-    #[test]
-    fn test_detect_phone() {
-        let d = make_detector();
-        let hits = d.detect("我的手机是13812345678，请记录");
-        assert_eq!(hits.len(), 1);
-        assert_eq!(hits[0].rule_id, "phone");
-        assert_eq!(hits[0].text, "13812345678");
-    }
-
-    #[test]
-    fn test_detect_multiple() {
-        let d = make_detector();
-        let hits = d.detect("手机13812345678，邮箱test@example.com");
-        assert_eq!(hits.len(), 2);
-    }
-
-    #[test]
-    fn test_no_match() {
-        let d = make_detector();
-        let hits = d.detect("今天天气真好");
-        assert_eq!(hits.len(), 0);
-    }
-
-    #[test]
-    fn test_overlap_same_priority() {
-        // 身份证包含18位数字，可能和银行卡等规则重叠
-        let d = make_detector();
-        // "320102199001011234" 匹配身份证规则（18位），同时也匹配银行卡的16-19位数字
-        // 但我们的 detector 只注册了 phone, id_card, email，没有 bank_card
-        // 不会重叠。仅确认身份证本身被正确检测。
-        let hits = d.detect("身份证320102199001011234在这里");
-        assert_eq!(hits.len(), 1);
-        assert_eq!(hits[0].rule_id, "id_card");
-    }
-
-    #[test]
-    fn test_id_card_with_x() {
-        let d = make_detector();
-        let hits = d.detect("号码32010219900101123X");
-        assert_eq!(hits.len(), 1);
-        assert_eq!(hits[0].text, "32010219900101123X");
-    }
-
-    #[test]
-    fn test_deduplication() {
-        let d = make_detector();
-        // 手机号 + 身份证有明确分隔，不会有跨边界重叠
-        let hits = d.detect("13812345678和320102199001011234");
-        assert_eq!(hits.len(), 2);
-    }
-
-    #[test]
-    fn test_empty_input() {
-        let d = make_detector();
-        let hits = d.detect("");
-        assert_eq!(hits.len(), 0);
-    }
-
-    #[test]
-    fn test_email_exclude_retina() {
-        let mut d = Detector::new();
-        d.add_rule(RuleDef {
-            id: "email".into(),
-            name: "邮箱".into(),
-            pattern: r"[\w.+-]+@[\w-]+\.\w+".into(),
-            exclude: Some(r"@\d+x\.(?:png|jpg|jpeg|gif|svg|webp|ico|pdf)\b".into()),
-            enabled: true,
-            strategy: Strategy::Mask,
-            mode: Mode::Filter,
-            priority: 90,
-        })
-        .unwrap();
-
-        // 真实邮箱应该被检测
-        let hits = d.detect("联系 test@example.com 或 123456@qq.com");
-        assert_eq!(hits.len(), 2);
-
-        // Retina 文件名不应被检测
-        let hits = d.detect("图标文件 icon@2x.png 和 logo@3x.jpg");
-        assert_eq!(hits.len(), 0);
-
-        // 混合场景
-        let hits = d.detect("图片 icon@2x.png，邮箱 admin@foo.com");
-        assert_eq!(hits.len(), 1);
-        assert_eq!(hits[0].text, "admin@foo.com");
-    }
 }

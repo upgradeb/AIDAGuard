@@ -1,0 +1,22 @@
+id: qwen
+name: Qwen (Tongyi)
+protocol: open_ai_compatible
+auth:
+  type: bearer_token
+endpoint: https://dashscope.aliyuncs.com/compatible-mode/v1
+models:
+  - id: qwen-max
+    name: Qwen Max
+    context: 131072
+    max_output: 8192
+    capabilities: [chat, function_calling, streaming]
+  - id: qwen-plus
+    name: Qwen Plus
+    context: 131072
+    max_output: 8192
+    capabilities: [chat, function_calling, streaming]
+  - id: qwen-turbo
+    name: Qwen Turbo
+    context: 1000000
+    max_output: 8192
+    capabilities: [chat, streaming]

@@ -1,0 +1,15 @@
+[package]
+name = "aidaguard-tests"
+version = "0.3.0"
+edition = "2021"
+publish = false
+
+[dev-dependencies]
+aidaguard-core = { path = "../crates/aidaguard-core" }
+aidaguard-storage = { path = "../crates/aidaguard-storage" }
+aidaguard-plugins = { path = "../crates/aidaguard-plugins" }
+aidaguard-upstream = { path = "../crates/aidaguard-upstream" }
+aidaguard-proxy = { path = "../crates/aidaguard-proxy" }
+uuid = { version = "1", features = ["v4"] }
+serde_json = "1"
+serde_yaml = "0.9"

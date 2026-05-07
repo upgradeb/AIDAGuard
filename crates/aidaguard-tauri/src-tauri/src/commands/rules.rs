@@ -62,12 +62,19 @@ fn rules_dir(state: &AppState) -> PathBuf {
 
 fn read_rule_files(dir: &std::path::Path) -> Result<Vec<(String, RuleFile)>, String> {
     let mut results = Vec::new();
+    read_rule_files_recursive(dir, &mut results)?;
+    Ok(results)
+}
+
+fn read_rule_files_recursive(dir: &std::path::Path, results: &mut Vec<(String, RuleFile)>) -> Result<(), String> {
     let entries = std::fs::read_dir(dir)
         .map_err(|e| format!("Failed to read rules directory: {}", e))?;
     for entry in entries {
         let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
         let path = entry.path();
-        if path.extension().map_or(false, |ext| ext == "yaml" || ext == "yml") {
+        if path.is_dir() {
+            read_rule_files_recursive(&path, results)?;
+        } else if path.extension().map_or(false, |ext| ext == "yaml" || ext == "yml") {
             let content = std::fs::read_to_string(&path)
                 .map_err(|e| format!("Failed to read file {}: {}", path.display(), e))?;
             let file: RuleFile = serde_yaml::from_str(&content)
@@ -79,7 +86,7 @@ fn read_rule_files(dir: &std::path::Path) -> Result<Vec<(String, RuleFile)>, Str
             results.push((cat, file));
         }
     }
-    Ok(results)
+    Ok(())
 }
 
 fn write_rule_file(dir: &std::path::Path, category: &str, file: &RuleFile) -> Result<(), String> {

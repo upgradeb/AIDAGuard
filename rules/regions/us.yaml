@@ -1,0 +1,12 @@
+version: '1.0'
+name: United States Region Rules
+description: US-specific personal information patterns (CCPA / HIPAA scope)
+rules:
+  - id: us_ssn
+    name: US Social Security Number
+    pattern: '(?-u:\b)\d{3}-\d{2}-\d{4}(?-u:\b)'
+    enabled: false
+    strategy: placeholder
+    mode: detect
+    priority: 100
+    compliance: [CCPA, HIPAA]

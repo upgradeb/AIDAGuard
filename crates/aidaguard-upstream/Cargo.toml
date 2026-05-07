@@ -1,0 +1,17 @@
+[package]
+name = "aidaguard-upstream"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Aidaguard LLM upstream management with declarative YAML providers and unified client"
+
+[dependencies]
+aidaguard-core = { path = "../aidaguard-core" }
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml.workspace = true
+reqwest.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+anyhow.workspace = true

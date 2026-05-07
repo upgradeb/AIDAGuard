@@ -5,8 +5,8 @@ use tauri::Manager;
 use tracing::{error, info, warn};
 
 use aidaguard_core::detector::watch_rules;
-use aidaguard_core::proxy::start_with_state;
-use aidaguard_core::storage::Storage;
+use aidaguard_proxy::start_with_state;
+use aidaguard_storage::Storage;
 use aidaguard_core::DetectionEvent;
 
 use crate::events;

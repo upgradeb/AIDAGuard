@@ -1,0 +1,23 @@
+id: anthropic
+name: Anthropic
+protocol: anthropic_compatible
+auth:
+  type: api_key_header
+  header: x-api-key
+endpoint: https://api.anthropic.com/v1
+models:
+  - id: claude-opus-4-7
+    name: Claude Opus 4.7
+    context: 200000
+    max_output: 32768
+    capabilities: [chat, vision, function_calling, streaming]
+  - id: claude-sonnet-4-6
+    name: Claude Sonnet 4.6
+    context: 200000
+    max_output: 16384
+    capabilities: [chat, vision, function_calling, streaming]
+  - id: claude-haiku-4-5
+    name: Claude Haiku 4.5
+    context: 200000
+    max_output: 8192
+    capabilities: [chat, vision, streaming]

@@ -1,0 +1,21 @@
+[package]
+name = "aidaguard-proxy"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Aidaguard HTTP proxy engine — detect-and-replace sensitive data during LLM API calls"
+
+[dependencies]
+aidaguard-core = { path = "../aidaguard-core" }
+aidaguard-storage = { path = "../aidaguard-storage" }
+aidaguard-upstream = { path = "../aidaguard-upstream" }
+axum.workspace = true
+reqwest.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+futures.workspace = true
+anyhow.workspace = true
+notify.workspace = true

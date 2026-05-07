@@ -1,0 +1,17 @@
+id: groq
+name: Groq
+protocol: open_ai_compatible
+auth:
+  type: bearer_token
+endpoint: https://api.groq.com/openai/v1
+models:
+  - id: llama-4-scout-17b-16e-instruct
+    name: Llama 4 Scout 17B
+    context: 131072
+    max_output: 8192
+    capabilities: [chat, function_calling, streaming]
+  - id: deepseek-r1-distill-llama-70b
+    name: DeepSeek R1 Distill Llama 70B
+    context: 128000
+    max_output: 32768
+    capabilities: [chat, streaming]

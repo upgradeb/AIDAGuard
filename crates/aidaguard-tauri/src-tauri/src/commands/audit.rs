@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-use aidaguard_core::storage::{AuditGroup, AuditStats, DetectionRecord};
+use aidaguard_storage::{AuditGroup, AuditStats, DetectionRecord};
 use crate::state::AppState;
 
 #[derive(Debug, Clone, Serialize)]

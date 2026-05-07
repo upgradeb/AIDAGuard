@@ -1,0 +1,25 @@
+[package]
+name = "aidaguard-detector"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Aidaguard detection engine with regex, checksum validation, context scoring, and optional NLP NER"
+
+[features]
+default = []
+# nlp feature deferred to Phase 3 — requires ort rc and tokenizers
+
+[dependencies]
+aidaguard-core = { path = "../aidaguard-core" }
+regex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml.workspace = true
+anyhow.workspace = true
+tracing.workspace = true
+notify.workspace = true
+tokio.workspace = true
+sha2.workspace = true
+aes-gcm.workspace = true
+rand.workspace = true

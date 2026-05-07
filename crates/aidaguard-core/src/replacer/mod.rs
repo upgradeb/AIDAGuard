@@ -38,6 +38,11 @@ impl PlaceholderMap {
     pub fn placeholders(&self) -> impl Iterator<Item = &String> {
         self.mappings.keys()
     }
+
+    /// Return a reference to the full mappings table.
+    pub fn mappings(&self) -> &HashMap<String, String> {
+        &self.mappings
+    }
 }
 
 /// 将文本中的匹配项替换为占位符或掩码。
@@ -84,7 +89,7 @@ pub fn restore(text: &str, map: &PlaceholderMap) -> String {
 }
 
 /// 简单掩码：保留首尾少量字符，中间用 * 代替
-fn mask_value(text: &str) -> String {
+pub fn mask_value(text: &str) -> String {
     let len = text.chars().count();
     if len <= 3 {
         return "*".repeat(len);
@@ -100,86 +105,4 @@ fn mask_value(text: &str) -> String {
     let back: String = chars[len - keep_back..].iter().collect();
 
     format!("{}***{}", front, back)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::detector::Match;
-
-    fn make_match(start: usize, end: usize, text: &str, rule_id: &str, strategy: Strategy) -> Match {
-        Match {
-            rule_id: rule_id.into(),
-            start,
-            end,
-            text: text.into(),
-            priority: 100,
-            strategy,
-            mode: crate::detector::Mode::Filter,
-        }
-    }
-
-    #[test]
-    fn test_replace_placeholder_single() {
-        // "我的手机" = 12 bytes, "13812345678" = 11 bytes
-        let hits = vec![make_match(12, 23, "13812345678", "phone_cn", Strategy::Placeholder)];
-        let (result, map) = replace("我的手机13812345678，请记录", &hits);
-        assert!(!result.contains("13812345678"));
-        assert!(result.starts_with("我的手机[[PHONE_CN@"));
-        assert_eq!(map.mappings.len(), 1);
-    }
-
-    #[test]
-    fn test_replace_placeholder_multiple() {
-        // "手机号" = 9 bytes, "13812345678" = 11 bytes, "，邮箱" = 9 bytes, "test@example.com" = 16 bytes
-        let hits = vec![
-            make_match(9, 20, "13812345678", "phone_cn", Strategy::Placeholder),
-            make_match(29, 45, "test@example.com", "email", Strategy::Placeholder),
-        ];
-        let (result, map) = replace("手机号13812345678，邮箱test@example.com", &hits);
-        assert!(!result.contains("13812345678"));
-        assert!(!result.contains("test@example.com"));
-        assert_eq!(map.mappings.len(), 2);
-    }
-
-    #[test]
-    fn test_replace_then_restore() {
-        let original = "手机号13812345678，邮箱test@example.com";
-        let hits = vec![
-            make_match(9, 20, "13812345678", "phone_cn", Strategy::Placeholder),
-            make_match(29, 45, "test@example.com", "email", Strategy::Placeholder),
-        ];
-        let (sanitized, map) = replace(original, &hits);
-        let restored = restore(&sanitized, &map);
-        assert_eq!(restored, original);
-    }
-
-    #[test]
-    fn test_mask_phone() {
-        // mask: 13812345678 → 138****678
-        let result = mask_value("13812345678");
-        assert!(result.contains("***"));
-        assert!(result.starts_with("138"));
-        assert!(!result.contains("13812345678"));
-    }
-
-    #[test]
-    fn test_mask_short() {
-        // 3 chars or less → all *
-        let result = mask_value("ab");
-        assert_eq!(result, "**");
-    }
-
-    #[test]
-    fn test_no_matches() {
-        let (result, map) = replace("无敏感数据", &[]);
-        assert_eq!(result, "无敏感数据");
-        assert!(map.mappings.is_empty());
-    }
-
-    #[test]
-    fn test_restore_empty() {
-        let map = PlaceholderMap::new();
-        assert_eq!(restore("原始文本", &map), "原始文本");
-    }
 }

@@ -1,0 +1,66 @@
+version: '1.0'
+name: Healthcare Domain Rules
+description: Medical and health-related sensitive data patterns (HIPAA scope)
+rules:
+  - id: medical_record_no
+    name: Medical Record Number
+    pattern: 'MR\d{6,10}'
+    enabled: true
+    strategy: placeholder
+    mode: detect
+    priority: 100
+    compliance: [HIPAA]
+
+  - id: diagnosis_code
+    name: ICD Diagnosis Code
+    pattern: '(?-u:\b)[A-Z]\d{2}(?:\.\d{1,4})?(?-u:\b)'
+    enabled: true
+    strategy: placeholder
+    mode: detect
+    priority: 80
+    compliance: [HIPAA]
+
+  - id: patient_name_hint
+    name: Patient Name Hint
+    pattern: '(?:患者|病人|就诊人|体检人)[：:]\s*[一-龥]{2,4}'
+    enabled: true
+    strategy: placeholder
+    mode: detect
+    priority: 90
+    compliance: [HIPAA, PIPL]
+
+  - id: medical_term_icd
+    name: Medical Term (ICD Related)
+    pattern: '(?:诊断|确诊|疑似|既往史|现病史|主诉)[：:]\s*[一-龥\w，,、\s]+'
+    enabled: true
+    strategy: mask
+    mode: detect
+    priority: 70
+    compliance: [HIPAA]
+
+  - id: blood_pressure
+    name: Blood Pressure Reading
+    pattern: '(?-u:\b)\d{2,3}/\d{2,3}\s*(?:mmHg|毫米汞柱)?(?-u:\b)'
+    enabled: false
+    strategy: placeholder
+    mode: detect
+    priority: 60
+    compliance: [HIPAA]
+
+  - id: drug_prescription
+    name: Drug Prescription
+    pattern: '(?:处方|用药|剂量|服用)[：:]\s*[一-龥\w]+'
+    enabled: false
+    strategy: placeholder
+    mode: detect
+    priority: 80
+    compliance: [HIPAA]
+
+  - id: hospital_name
+    name: Hospital Name
+    pattern: '[一-龥]{2,}(?:医院|卫生院|诊所|保健院|急救中心|疾控中心)'
+    enabled: true
+    strategy: mask
+    mode: detect
+    priority: 70
+    compliance: [HIPAA, PIPL]

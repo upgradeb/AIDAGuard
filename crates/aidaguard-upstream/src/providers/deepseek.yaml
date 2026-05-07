@@ -1,0 +1,17 @@
+id: deepseek
+name: DeepSeek
+protocol: open_ai_compatible
+auth:
+  type: bearer_token
+endpoint: https://api.deepseek.com/v1
+models:
+  - id: deepseek-chat
+    name: DeepSeek Chat
+    context: 128000
+    max_output: 8192
+    capabilities: [chat, function_calling, streaming]
+  - id: deepseek-reasoner
+    name: DeepSeek Reasoner
+    context: 128000
+    max_output: 32768
+    capabilities: [chat, streaming]
