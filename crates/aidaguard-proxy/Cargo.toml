@@ -8,6 +8,7 @@ description = "Aidaguard HTTP proxy engine — detect-and-replace sensitive data
 
 [dependencies]
 aidaguard-core = { path = "../aidaguard-core" }
+aidaguard-detector = { path = "../aidaguard-detector" }
 aidaguard-storage = { path = "../aidaguard-storage" }
 aidaguard-upstream = { path = "../aidaguard-upstream" }
 axum.workspace = true

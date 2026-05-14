@@ -5,7 +5,7 @@ use tokio::sync::{Mutex, RwLock};
 use tracing_subscriber::EnvFilter;
 
 use aidaguard_core::config::Config;
-use aidaguard_core::detector::Detector;
+use aidaguard_detector::AnalyzerEngine;
 use aidaguard_storage::Storage;
 
 use aidaguard_tauri::state::AppState;
@@ -70,10 +70,18 @@ fn main() {
             let mut registry = PluginRegistry::new(data_dir);
             adapters::register_all(&mut registry);
 
+            // Build detection engine before config is moved into state
+            let engine = AnalyzerEngine::builder()
+                .with_all_pattern_recognizers()
+                .with_config_rules(&config)
+                .with_min_confidence(0.3)
+                .build()
+                .expect("Failed to build AnalyzerEngine");
+
             // Initialize shared state
             let state = AppState {
                 config: Arc::new(RwLock::new(config)),
-                detector: Arc::new(RwLock::new(Detector::new())),
+                detector: Arc::new(RwLock::new(engine)),
                 storage: Arc::new(Mutex::new(storage)),
                 proxy_handle: Arc::new(Mutex::new(None)),
                 proxy_shutdown: Arc::new(Mutex::new(None)),

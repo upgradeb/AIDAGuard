@@ -1,5 +1,5 @@
 use aidaguard_core::config::Config;
-use aidaguard_core::detector::Detector;
+use aidaguard_detector::AnalyzerEngine;
 use aidaguard_storage::Storage;
 use std::sync::Arc;
 use std::time::Instant;
@@ -12,8 +12,8 @@ use aidaguard_plugins::PluginRegistry;
 pub struct AppState {
     /// Current configuration
     pub config: Arc<RwLock<Config>>,
-    /// Rule detector
-    pub detector: Arc<RwLock<Detector>>,
+    /// Detection engine (pattern recognizers + legacy YAML rules)
+    pub detector: Arc<RwLock<AnalyzerEngine>>,
     /// Audit storage (None means not enabled)
     pub storage: Arc<Mutex<Option<Arc<Storage>>>>,
     /// Proxy task handle

@@ -6,17 +6,17 @@ fn make_detector() -> Detector {
     d.add_rule(RuleDef {
         id: "phone".into(), name: "phone".into(),
         pattern: r"1[3-9]\d{9}".into(), exclude: None,
-        enabled: true, strategy: Strategy::Placeholder, mode: Mode::Filter, priority: 100,
+        enabled: true, strategy: Strategy::Placeholder, mode: Mode::Filter, priority: 100, compliance: vec![],
     }).unwrap();
     d.add_rule(RuleDef {
         id: "id_card".into(), name: "id_card".into(),
         pattern: r"\d{17}[\dXx]".into(), exclude: None,
-        enabled: true, strategy: Strategy::Placeholder, mode: Mode::Filter, priority: 100,
+        enabled: true, strategy: Strategy::Placeholder, mode: Mode::Filter, priority: 100, compliance: vec![],
     }).unwrap();
     d.add_rule(RuleDef {
         id: "email".into(), name: "email".into(),
         pattern: r"[\w.+-]+@[\w-]+\.\w+".into(), exclude: None,
-        enabled: true, strategy: Strategy::Mask, mode: Mode::Filter, priority: 90,
+        enabled: true, strategy: Strategy::Mask, mode: Mode::Filter, priority: 90, compliance: vec![],
     }).unwrap();
     d
 }
@@ -66,7 +66,7 @@ fn make_detector() -> Detector {
         id: "email".into(), name: "email".into(),
         pattern: r"[\w.+-]+@[\w-]+\.\w+".into(),
         exclude: Some(r"@\d+x\.(?:png|jpg|jpeg|gif|svg|webp|ico|pdf)\b".into()),
-        enabled: true, strategy: Strategy::Mask, mode: Mode::Filter, priority: 90,
+        enabled: true, strategy: Strategy::Mask, mode: Mode::Filter, priority: 90, compliance: vec![],
     }).unwrap();
     let hits = d.detect("contact test@example.com or 123456@qq.com");
     assert_eq!(hits.len(), 2);
@@ -81,7 +81,7 @@ fn make_detector() -> Detector {
     d.add_rule(RuleDef {
         id: "phone".into(), name: "phone".into(),
         pattern: r"1[3-9]\d{9}".into(), exclude: None,
-        enabled: true, strategy: Strategy::Placeholder, mode: Mode::Detect, priority: 100,
+        enabled: true, strategy: Strategy::Placeholder, mode: Mode::Detect, priority: 100, compliance: vec![],
     }).unwrap();
     let hits = d.detect("my phone 13812345678");
     assert_eq!(hits.len(), 1);
@@ -91,11 +91,11 @@ fn make_detector() -> Detector {
     let mut d = Detector::new();
     d.add_rule(RuleDef {
         id: "low".into(), name: "Low".into(), pattern: r"\d+".into(), exclude: None,
-        enabled: true, strategy: Strategy::Placeholder, mode: Mode::Filter, priority: 10,
+        enabled: true, strategy: Strategy::Placeholder, mode: Mode::Filter, priority: 10, compliance: vec![],
     }).unwrap();
     d.add_rule(RuleDef {
         id: "high".into(), name: "High".into(), pattern: r"\d{11}".into(), exclude: None,
-        enabled: true, strategy: Strategy::Placeholder, mode: Mode::Filter, priority: 200,
+        enabled: true, strategy: Strategy::Placeholder, mode: Mode::Filter, priority: 200, compliance: vec![],
     }).unwrap();
     let hits = d.detect("13812345678");
     assert_eq!(hits.len(), 1);
@@ -123,7 +123,7 @@ rules:
     let mut d2 = Detector::new();
     d2.add_rule(RuleDef {
         id: "old".into(), name: "Old".into(), pattern: "x".into(), exclude: None,
-        enabled: true, strategy: Strategy::Placeholder, mode: Mode::Filter, priority: 100,
+        enabled: true, strategy: Strategy::Placeholder, mode: Mode::Filter, priority: 100, compliance: vec![],
     }).unwrap();
     assert_eq!(d2.rule_count(), 1);
     d2.load_from_dir(&dir).unwrap();
@@ -143,7 +143,7 @@ rules:
     d.add_rule(RuleDef {
         id: "disabled_rule".into(), name: "Disabled".into(),
         pattern: r"\d{11}".into(), exclude: None,
-        enabled: false, strategy: Strategy::Placeholder, mode: Mode::Filter, priority: 100,
+        enabled: false, strategy: Strategy::Placeholder, mode: Mode::Filter, priority: 100, compliance: vec![],
     }).unwrap();
     assert_eq!(d.rule_count(), 0);
     let hits = d.detect("13812345678");

@@ -5,6 +5,7 @@ use tauri::Manager;
 use tracing::{error, info, warn};
 
 use aidaguard_core::detector::watch_rules;
+use aidaguard_core::DetectionEngine;
 use aidaguard_proxy::start_with_state;
 use aidaguard_storage::Storage;
 use aidaguard_core::DetectionEvent;
@@ -71,19 +72,20 @@ pub async fn start_proxy(
         return Err("API Key not set. Please configure an API Key for the default upstream in \"LLM Upstreams\".".into());
     }
 
-    // Load rules (using resolved rules_dir)
+    // Load rules (using resolved rules_dir and config presets)
     let resolved_rules_dir = state.rules_dir.read().await.clone();
-    let mut detector = state.detector.write().await;
+    let presets = config.rule_presets();
+    let mut engine = state.detector.write().await;
     let rules_path = std::path::Path::new(&resolved_rules_dir);
     if rules_path.exists() {
-        detector
-            .load_from_dir(rules_path)
+        engine
+            .reload_presets(rules_path, &presets)
             .map_err(|e| format!("Failed to load rules: {}", e))?;
     } else {
         warn!("Rules directory does not exist: {}", resolved_rules_dir);
     }
-    let _rules_count = detector.rule_count();
-    drop(detector);
+    let _rules_count = engine.rule_count();
+    drop(engine);
 
     // Open storage (if not already open)
     let storage = if config.storage.enabled {
@@ -147,9 +149,11 @@ pub async fn start_proxy(
     *state.proxy_start_time.lock().await = Some(Instant::now());
 
     // Start proxy task
+    let proxy_presets = state.config.read().await.rule_presets();
     let handle = tokio::spawn(async move {
         if let Err(e) = start_with_state(
             config,
+            proxy_presets,
             detector_clone,
             storage_clone,
             Some(event_tx),
@@ -167,7 +171,8 @@ pub async fn start_proxy(
     // Start rule hot-reload
     let rules_dir = state.rules_dir.read().await.clone();
     let rules_path = std::path::PathBuf::from(&rules_dir);
-    match watch_rules(state.detector.clone(), rules_path) {
+    let hot_reload_presets = state.config.read().await.rule_presets();
+    match watch_rules(state.detector.clone(), rules_path, hot_reload_presets) {
         Ok(watcher) => {
             *state.rules_watcher.lock().await = Some(watcher);
         }

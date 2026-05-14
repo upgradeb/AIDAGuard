@@ -1,6 +1,6 @@
 version: '1.0'
-name: United Kingdom Region Rules
-description: UK-specific personal information patterns (UK DPA 2018 / UK GDPR)
+name: United Kingdom General Rules
+description: General PII patterns for the UK under UK DPA 2018 / UK GDPR
 rules:
   - id: uk_nino
     name: UK National Insurance Number

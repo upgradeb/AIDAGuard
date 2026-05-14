@@ -57,6 +57,31 @@ impl RecognizerRegistry {
         self
     }
 
+    /// Load NLP recognizers for all unstructured entity types.
+    /// When the `nlp` feature is disabled, this is a no-op.
+    pub fn load_nlp_recognizers(&mut self) -> &mut Self {
+        #[cfg(feature = "nlp")]
+        {
+            use crate::recognizers::nlp::NlpRecognizer;
+            use aidaguard_core::EntityType;
+            self.register(Arc::new(NlpRecognizer::new(EntityType::PersonName, "PersonNameNlpRecognizer")));
+            self.register(Arc::new(NlpRecognizer::new(EntityType::Address, "AddressNlpRecognizer")));
+            self.register(Arc::new(NlpRecognizer::new(EntityType::Organization, "OrganizationNlpRecognizer")));
+            self.register(Arc::new(NlpRecognizer::new(EntityType::DateOfBirth, "DateOfBirthNlpRecognizer")));
+            self.register(Arc::new(NlpRecognizer::new(EntityType::Age, "AgeNlpRecognizer")));
+            self.register(Arc::new(NlpRecognizer::new(EntityType::Nationality, "NationalityNlpRecognizer")));
+            self.register(Arc::new(NlpRecognizer::new(EntityType::Religion, "ReligionNlpRecognizer")));
+            self.register(Arc::new(NlpRecognizer::new(EntityType::MedicalTerm, "MedicalTermNlpRecognizer")));
+            self.register(Arc::new(NlpRecognizer::new(EntityType::Occupation, "OccupationNlpRecognizer")));
+            self.register(Arc::new(NlpRecognizer::new(EntityType::Education, "EducationNlpRecognizer")));
+        }
+        #[cfg(not(feature = "nlp"))]
+        {
+            // No-op: NLP feature is disabled
+        }
+        self
+    }
+
     /// Run all registered recognizers against text and collect all results.
     pub fn analyze_all(&self, text: &str) -> Vec<RecognizerResult> {
         let mut results = Vec::new();

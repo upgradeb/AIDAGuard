@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use aidaguard_core::config::Config;
 use aidaguard_core::detector::{Detector, Match, Mode, Strategy};
 use aidaguard_core::DetectionEngine;
 
@@ -104,6 +105,15 @@ impl DetectionEngine for AnalyzerEngine {
             Ok(0)
         }
     }
+
+    fn reload_presets(&mut self, base_dir: &Path, presets: &[String]) -> Result<usize, anyhow::Error> {
+        if let Some(ref mut legacy) = self.legacy_detector {
+            let presets_str: Vec<&str> = presets.iter().map(|s| s.as_str()).collect();
+            legacy.load_from_presets(base_dir, &presets_str)
+        } else {
+            Ok(0)
+        }
+    }
 }
 
 /// Builder for [`AnalyzerEngine`].
@@ -125,10 +135,19 @@ impl AnalyzerEngineBuilder {
     /// Set the rules base directory and enable specific presets.
     ///
     /// Each preset name corresponds to a subdirectory under `base_dir`
-    /// (e.g. `"global"`, `"regions/cn"`, `"domains/medical"`).
+    /// (e.g. `"global"`, `"cn"`, `"cn/medical"`).
     pub fn with_rules_presets(mut self, base_dir: impl Into<String>, presets: &[&str]) -> Self {
         self.rules_base_dir = Some(base_dir.into());
         self.rules_presets = presets.iter().map(|s| s.to_string()).collect();
+        self
+    }
+
+    /// Load rules according to the region and industry configuration.
+    ///
+    /// Computes presets from `Config::rule_presets()` and sets the rules directory.
+    pub fn with_config_rules(mut self, config: &Config) -> Self {
+        self.rules_base_dir = Some(config.rules_dir.clone());
+        self.rules_presets = config.rule_presets();
         self
     }
 
@@ -150,6 +169,7 @@ impl AnalyzerEngineBuilder {
 
         if self.load_predefined {
             registry.load_predefined();
+            registry.load_nlp_recognizers();
         }
 
         let legacy_detector = if let Some(base_dir) = self.rules_base_dir {

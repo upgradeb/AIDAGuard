@@ -8,7 +8,7 @@ description = "Aidaguard detection engine with regex, checksum validation, conte
 
 [features]
 default = []
-# nlp feature deferred to Phase 3 — requires ort rc and tokenizers
+nlp = []
 
 [dependencies]
 aidaguard-core = { path = "../aidaguard-core" }

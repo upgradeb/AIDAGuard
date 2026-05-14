@@ -1,4 +1,5 @@
 use aidaguard_core::config::Config;
+use aidaguard_core::DetectionEngine;
 use tauri::Manager;
 use crate::state::AppState;
 
@@ -30,7 +31,15 @@ pub async fn save_config(
 
     // Sync rules_dir to runtime state
     let rules_dir = crate::resolve_rules_dir(&config.rules_dir, &config_dir);
-    *state.rules_dir.write().await = rules_dir;
+    *state.rules_dir.write().await = rules_dir.clone();
+
+    // Reload rules with updated presets if region or industries changed
+    let presets = config.rule_presets();
+    let rules_path = std::path::Path::new(&rules_dir);
+    if rules_path.exists() {
+        let mut engine = state.detector.write().await;
+        let _ = engine.reload_presets(rules_path, &presets);
+    }
 
     config.save_to(&path).map_err(|e| format!("Failed to save config: {}", e))?;
 

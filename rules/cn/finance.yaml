@@ -1,0 +1,12 @@
+version: '1.0'
+name: China Financial Rules
+description: Financial data patterns for China under PIPL
+rules:
+  - id: amount_cny
+    name: Amount (CNY)
+    pattern: '(?:¥|CNY\s?|RMB\s?|元)?\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?\s*(?:元|块)?'
+    enabled: true
+    strategy: mask
+    mode: detect
+    priority: 70
+    compliance: [PIPL]

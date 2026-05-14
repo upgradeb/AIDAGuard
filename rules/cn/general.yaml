@@ -1,0 +1,48 @@
+version: '1.0'
+name: China General Rules
+description: General PII patterns applicable in China under PIPL
+rules:
+  - id: phone_cn
+    name: Chinese Phone Number
+    pattern: '1[3-9]\d{9}'
+    enabled: true
+    strategy: placeholder
+    mode: detect
+    priority: 100
+    compliance: [PIPL]
+
+  - id: id_card_cn
+    name: Chinese ID Card
+    pattern: '\d{17}[\dXx]'
+    enabled: true
+    strategy: placeholder
+    mode: detect
+    priority: 100
+    compliance: [PIPL]
+
+  - id: bank_card
+    name: Bank Card Number
+    pattern: '(?-u:\b)\d{16,19}(?-u:\b)'
+    enabled: true
+    strategy: placeholder
+    mode: detect
+    priority: 100
+    compliance: [PIPL]
+
+  - id: car_plate_cn
+    name: Chinese Car Plate
+    pattern: '(?-u:\b)[京津沪渝冀豫云辽黑湘皖鲁新苏浙赣鄂桂甘晋蒙陕吉闽贵粤川青藏琼宁][A-Z][A-Z0-9]{4,5}[A-Z0-9挂学警港澳](?-u:\b)'
+    enabled: true
+    strategy: mask
+    mode: detect
+    priority: 80
+    compliance: [PIPL]
+
+  - id: passport_cn
+    name: Chinese Passport Number
+    pattern: '(?-u:\b)[EGeg]\d{8}(?-u:\b)'
+    enabled: true
+    strategy: placeholder
+    mode: detect
+    priority: 90
+    compliance: [PIPL]

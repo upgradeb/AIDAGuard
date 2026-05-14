@@ -1,6 +1,6 @@
 version: '1.0'
-name: United States Region Rules
-description: US-specific personal information patterns (CCPA / HIPAA scope)
+name: United States General Rules
+description: General PII patterns applicable in the US under CCPA
 rules:
   - id: us_ssn
     name: US Social Security Number

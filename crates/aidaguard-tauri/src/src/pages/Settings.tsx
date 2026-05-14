@@ -9,14 +9,32 @@ import {
   Switch,
   Button,
   Descriptions,
+  Checkbox,
   message,
   theme,
+  Alert,
 } from "antd";
 import { SaveOutlined } from "@ant-design/icons";
 import { useConfigStore } from "../store/useConfigStore";
 import { getAppVersion } from "../api/config";
 import ThemeSwitcher from "../components/ThemeSwitcher";
 import type { Config } from "../types";
+
+const REGION_OPTIONS = [
+  { value: "global", labelKey: "Global (All Regions)" },
+  { value: "cn", labelKey: "China (PIPL)" },
+  { value: "us", labelKey: "United States (CCPA/HIPAA)" },
+  { value: "eu", labelKey: "European Union (GDPR)" },
+  { value: "gb", labelKey: "United Kingdom (UK DPA)" },
+];
+
+const INDUSTRIES_BY_REGION: Record<string, string[]> = {
+  global: [],
+  cn: ["general", "finance", "medical", "personal"],
+  us: ["general", "finance", "medical"],
+  eu: ["general", "finance"],
+  gb: ["general"],
+};
 
 export default function Settings() {
   const { t } = useTranslation();
@@ -26,6 +44,7 @@ export default function Settings() {
   const fetchConfig = useConfigStore((s) => s.fetchConfig);
   const save = useConfigStore((s) => s.saveConfig);
   const [appVersion, setAppVersion] = useState("");
+  const [region, setRegion] = useState<string>("global");
 
   const [form] = Form.useForm<Config>();
 
@@ -37,6 +56,7 @@ export default function Settings() {
   useEffect(() => {
     if (config) {
       form.setFieldsValue(config);
+      setRegion(config.region || "global");
     }
   }, [config]);
 
@@ -50,11 +70,19 @@ export default function Settings() {
     }
   };
 
+  const handleRegionChange = (value: string) => {
+    setRegion(value);
+    form.setFieldValue("region", value);
+    form.setFieldValue("rule_industries", []);
+  };
+
   const cardStyle = {
     borderRadius: 12,
     border: `1px solid ${token.colorBorderSecondary}`,
     marginBottom: 16,
   };
+
+  const industries = INDUSTRIES_BY_REGION[region] || [];
 
   return (
     <div style={{ height: "100%", overflow: "auto" }}>
@@ -86,6 +114,45 @@ export default function Settings() {
           >
             <InputNumber min={1} max={100} style={{ width: 200 }} />
           </Form.Item>
+        </Card>
+
+        {/* 检测策略 */}
+        <Card title={t("Detection Policy")} size="small" style={cardStyle}>
+          <Form.Item
+            name="region"
+            label={t("Region / Country")}
+            extra={t("Select region or country for applicable detection rules")}
+          >
+            <Select
+              style={{ width: 280 }}
+              onChange={handleRegionChange}
+              options={REGION_OPTIONS.map((opt) => ({
+                value: opt.value,
+                label: t(opt.labelKey),
+              }))}
+            />
+          </Form.Item>
+          {region === "global" ? (
+            <Alert
+              type="info"
+              showIcon
+              message={t("Global baseline rules are always loaded regardless of region selection.")}
+              style={{ marginBottom: 16 }}
+            />
+          ) : (
+            <Form.Item
+              name="rule_industries"
+              label={t("Rule Industries")}
+              extra={t("Select industries within the region for domain-specific rules")}
+            >
+              <Checkbox.Group
+                options={industries.map((ind) => ({
+                  label: t(ind),
+                  value: ind,
+                }))}
+              />
+            </Form.Item>
+          )}
         </Card>
 
         {/* 存储设置 */}

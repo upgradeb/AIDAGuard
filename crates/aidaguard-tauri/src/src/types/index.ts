@@ -83,6 +83,8 @@ export interface Config {
   rules_dir: string;
   log_level: string;
   max_body_size_mb: number;
+  region: string;
+  rule_industries: string[];
   storage: StorageConfig;
   upstreams: UpstreamConfig[];
   notification: NotificationConfig;

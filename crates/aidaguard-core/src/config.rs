@@ -11,6 +11,8 @@ fn default_storage_enabled() -> bool { false }
 fn default_storage_db_path() -> String { "./data/aidaguard.db".to_string() }
 fn default_notification_enabled() -> bool { true }
 fn default_notification_rate_limit_secs() -> u64 { 60 }
+fn default_region() -> String { "global".to_string() }
+fn default_rule_industries() -> Vec<String> { Vec::new() }
 
 /// 存储子配置
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -150,6 +152,14 @@ pub struct Config {
     /// 桌面通知配置
     #[serde(default)]
     pub notification: NotificationConfig,
+
+    /// Active region for rule presets (e.g. "cn", "us", "eu", "gb", "global")
+    #[serde(default = "default_region")]
+    pub region: String,
+
+    /// Enabled industry sub-presets within the region (e.g. ["medical", "finance"])
+    #[serde(default = "default_rule_industries")]
+    pub rule_industries: Vec<String>,
 }
 
 impl Default for Config {
@@ -164,6 +174,8 @@ impl Default for Config {
             storage: StorageConfig::default(),
             upstreams: Vec::new(),
             notification: NotificationConfig::default(),
+            region: default_region(),
+            rule_industries: default_rule_industries(),
         }
     }
 }
@@ -190,6 +202,23 @@ impl Config {
                 None
             }
         }
+    }
+
+    /// Compute the list of rule preset paths from region and industry settings.
+    ///
+    /// Always includes `"global"` as baseline, then the region directory,
+    /// then region/industry subdirectories for each enabled industry.
+    pub fn rule_presets(&self) -> Vec<String> {
+        let mut presets = vec!["global".to_string()];
+        if self.region != "global" && !self.region.is_empty() {
+            presets.push(self.region.clone());
+            for industry in &self.rule_industries {
+                if !industry.is_empty() {
+                    presets.push(format!("{}/{}", self.region, industry));
+                }
+            }
+        }
+        presets
     }
 
     /// 将配置写入 TOML 文件。

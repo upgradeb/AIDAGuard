@@ -246,7 +246,22 @@ const en = {
   "Version": "Version",
   "Disable Plugin": "Disable Plugin",
   "Enable Plugin": "Enable Plugin",
-  "Plugin is disabled — Click toggle to re-enable": "Plugin is disabled — Click toggle to re-enable"
+  "Plugin is disabled — Click toggle to re-enable": "Plugin is disabled — Click toggle to re-enable",
+  "Detection Policy": "Detection Policy",
+  "Region / Country": "Region / Country",
+  "Select region or country for applicable detection rules": "Select a region or country for applicable detection rules. Takes effect after proxy restart.",
+  "Rule Industries": "Rule Industries",
+  "Select industries within the region for domain-specific rules": "Select industries within the region for domain-specific compliance rules.",
+  "Global (All Regions)": "Global (All Regions)",
+  "China (PIPL)": "China (PIPL)",
+  "United States (CCPA/HIPAA)": "United States (CCPA/HIPAA)",
+  "European Union (GDPR)": "European Union (GDPR)",
+  "United Kingdom (UK DPA)": "United Kingdom (UK DPA)",
+  "general": "General",
+  "finance": "Finance",
+  "medical": "Medical",
+  "personal": "Personal",
+  "Global baseline rules are always loaded regardless of region selection.": "Global baseline rules are always loaded regardless of region selection."
 };
 
 export default en;

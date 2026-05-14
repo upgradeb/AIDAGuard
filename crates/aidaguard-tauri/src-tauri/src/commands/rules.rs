@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use tracing::info;
 
+use aidaguard_core::DetectionEngine;
 use aidaguard_core::detector::{Match, RuleDef, RuleFile};
 use aidaguard_core::replacer;
 use crate::state::AppState;
@@ -62,27 +63,25 @@ fn rules_dir(state: &AppState) -> PathBuf {
 
 fn read_rule_files(dir: &std::path::Path) -> Result<Vec<(String, RuleFile)>, String> {
     let mut results = Vec::new();
-    read_rule_files_recursive(dir, &mut results)?;
+    read_rule_files_recursive(dir, dir, &mut results)?;
     Ok(results)
 }
 
-fn read_rule_files_recursive(dir: &std::path::Path, results: &mut Vec<(String, RuleFile)>) -> Result<(), String> {
+fn read_rule_files_recursive(dir: &std::path::Path, base_dir: &std::path::Path, results: &mut Vec<(String, RuleFile)>) -> Result<(), String> {
     let entries = std::fs::read_dir(dir)
         .map_err(|e| format!("Failed to read rules directory: {}", e))?;
     for entry in entries {
         let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
         let path = entry.path();
         if path.is_dir() {
-            read_rule_files_recursive(&path, results)?;
+            read_rule_files_recursive(&path, base_dir, results)?;
         } else if path.extension().map_or(false, |ext| ext == "yaml" || ext == "yml") {
             let content = std::fs::read_to_string(&path)
                 .map_err(|e| format!("Failed to read file {}: {}", path.display(), e))?;
             let file: RuleFile = serde_yaml::from_str(&content)
                 .map_err(|e| format!("YAML parse failed {}: {}", path.display(), e))?;
-            let cat = path.file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("unknown")
-                .to_string();
+            let rel_path = path.strip_prefix(base_dir).unwrap_or(&path);
+            let cat = rel_path.with_extension("").to_string_lossy().to_string();
             results.push((cat, file));
         }
     }
@@ -91,6 +90,10 @@ fn read_rule_files_recursive(dir: &std::path::Path, results: &mut Vec<(String, R
 
 fn write_rule_file(dir: &std::path::Path, category: &str, file: &RuleFile) -> Result<(), String> {
     let path = dir.join(format!("{}.yaml", category));
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create directory: {}", e))?;
+    }
     let content = serde_yaml::to_string(file)
         .map_err(|e| format!("YAML serialization failed: {}", e))?;
     std::fs::write(&path, content)
@@ -151,9 +154,10 @@ pub async fn save_rule(
 
     write_rule_file(&dir, &cat, &file)?;
 
-    // Reload rules into detector
-    let mut detector = state.detector.write().await;
-    detector.load_from_dir(&dir).map_err(|e| format!("Failed to reload rules: {}", e))?;
+    // Reload rules into engine
+    let presets = state.config.read().await.rule_presets();
+    let mut engine = state.detector.write().await;
+    engine.reload_presets(&dir, &presets).map_err(|e| format!("Failed to reload rules: {}", e))?;
     info!("Rule saved: {} -> {}", rule_id, cat);
 
     Ok(())
@@ -180,8 +184,9 @@ pub async fn delete_rule(
 
     write_rule_file(&dir, &cat, &file)?;
 
-    let mut detector = state.detector.write().await;
-    detector.load_from_dir(&dir).map_err(|e| format!("Failed to reload rules: {}", e))?;
+    let presets = state.config.read().await.rule_presets();
+    let mut engine = state.detector.write().await;
+    engine.reload_presets(&dir, &presets).map_err(|e| format!("Failed to reload rules: {}", e))?;
     info!("Rule deleted: {}", rule_id);
 
     Ok(())
@@ -210,8 +215,9 @@ pub async fn toggle_rule(
         return Err(format!("Rule {} does not exist", rule_id));
     }
 
-    let mut detector = state.detector.write().await;
-    detector.load_from_dir(&dir).map_err(|e| format!("Failed to reload rules: {}", e))?;
+    let presets = state.config.read().await.rule_presets();
+    let mut engine = state.detector.write().await;
+    engine.reload_presets(&dir, &presets).map_err(|e| format!("Failed to reload rules: {}", e))?;
 
     Ok(())
 }
@@ -269,8 +275,9 @@ pub async fn reload_rules(
     state: tauri::State<'_, AppState>,
 ) -> Result<String, String> {
     let dir = rules_dir(&state);
-    let mut detector = state.detector.write().await;
-    let count = detector.load_from_dir(&dir)
+    let presets = state.config.read().await.rule_presets();
+    let mut engine = state.detector.write().await;
+    let count = engine.reload_presets(&dir, &presets)
         .map_err(|e| format!("Failed to reload rules: {}", e))?;
     info!("Rules reloaded: {} rules", count);
     Ok(format!("Loaded {} rules", count))
@@ -327,8 +334,9 @@ pub async fn delete_category(
     std::fs::remove_file(&path)
         .map_err(|e| format!("Failed to delete category file: {}", e))?;
 
-    let mut detector = state.detector.write().await;
-    let _ = detector.load_from_dir(&dir);
+    let presets = state.config.read().await.rule_presets();
+    let mut engine = state.detector.write().await;
+    let _ = engine.reload_presets(&dir, &presets);
     info!("Category deleted: {}", name);
     Ok(())
 }
@@ -546,8 +554,9 @@ pub async fn rename_category(
     std::fs::rename(&old_path, &new_path)
         .map_err(|e| format!("Failed to rename category: {}", e))?;
 
-    let mut detector = state.detector.write().await;
-    let _ = detector.load_from_dir(&dir);
+    let presets = state.config.read().await.rule_presets();
+    let mut engine = state.detector.write().await;
+    let _ = engine.reload_presets(&dir, &presets);
     info!("Category renamed: {} -> {}", old_name, new_name);
     Ok(())
 }

@@ -246,7 +246,22 @@ const zh = {
   "Version": "版本",
   "Disable Plugin": "禁用插件",
   "Enable Plugin": "启用插件",
-  "Plugin is disabled — Click toggle to re-enable": "插件已禁用 — 点击开关重新启用"
+  "Plugin is disabled — Click toggle to re-enable": "插件已禁用 — 点击开关重新启用",
+  "Detection Policy": "检测策略",
+  "Region / Country": "国家或地区",
+  "Select region or country for applicable detection rules": "选择适用国家或地区的数据保护法规，重启代理后生效",
+  "Rule Industries": "行业分类",
+  "Select industries within the region for domain-specific rules": "选择该地区内的行业合规规则",
+  "Global (All Regions)": "全球通用（不区分国家）",
+  "China (PIPL)": "中国 (PIPL)",
+  "United States (CCPA/HIPAA)": "美国 (CCPA/HIPAA)",
+  "European Union (GDPR)": "欧盟 (GDPR)",
+  "United Kingdom (UK DPA)": "英国 (UK DPA)",
+  "general": "通用",
+  "finance": "金融",
+  "medical": "医疗",
+  "personal": "个人信息",
+  "Global baseline rules are always loaded regardless of region selection.": "无论选择哪个地区，全球通用基线规则始终加载。"
 };
 
 export default zh;

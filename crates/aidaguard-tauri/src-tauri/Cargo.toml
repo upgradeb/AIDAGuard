@@ -15,6 +15,7 @@ tauri.workspace = true
 tauri-plugin-notification = "2"
 tokio-util.workspace = true
 aidaguard-core = { path = "../../aidaguard-core" }
+aidaguard-detector = { path = "../../aidaguard-detector" }
 aidaguard-storage = { path = "../../aidaguard-storage" }
 aidaguard-plugins = { path = "../../aidaguard-plugins" }
 aidaguard-proxy = { path = "../../aidaguard-proxy" }

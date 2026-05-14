@@ -344,14 +344,19 @@ impl crate::engine::DetectionEngine for Detector {
     fn reload(&mut self, dir: &Path) -> Result<usize, anyhow::Error> {
         self.load_from_dir(dir)
     }
+
+    fn reload_presets(&mut self, base_dir: &Path, presets: &[String]) -> Result<usize, anyhow::Error> {
+        let presets_str: Vec<&str> = presets.iter().map(|s| s.as_str()).collect();
+        self.load_from_presets(base_dir, &presets_str)
+    }
 }
 
-/// 启动规则目录热加载。文件变更时自动重新加载 `detector`。
-///
-/// 返回的 `RecommendedWatcher` 必须被调用方持有，否则 watcher 会被 drop、热加载失效。
-pub fn watch_rules(
-    detector: Arc<RwLock<Detector>>,
+/// Start rule directory hot-reload. When files change, the detector is reloaded
+/// using preset-based loading. Returns a watcher that must be held by the caller.
+pub fn watch_rules<D: crate::engine::DetectionEngine + 'static>(
+    detector: Arc<RwLock<D>>,
     dir: PathBuf,
+    presets: Vec<String>,
 ) -> Result<notify::RecommendedWatcher> {
     let changed = Arc::new(tokio::sync::Notify::new());
     let changed_clone = changed.clone();
@@ -376,12 +381,11 @@ pub fn watch_rules(
     tokio::spawn(async move {
         loop {
             changed.notified().await;
-            // 防抖：200ms 内的连续事件合并处理
             tokio::time::sleep(std::time::Duration::from_millis(200)).await;
 
             info!("检测到规则文件变更，重新加载...");
             let mut d = detector.write().await;
-            match d.load_from_dir(&dir) {
+            match d.reload_presets(&dir, &presets) {
                 Ok(n) => info!("热加载完成，当前 {} 条规则", n),
                 Err(e) => warn!("规则热加载失败: {}", e),
             }

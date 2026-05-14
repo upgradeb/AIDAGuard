@@ -14,9 +14,10 @@ use tokio::sync::RwLock;
 use tracing::{debug, error, info, warn};
 
 use aidaguard_core::config::Config;
-use aidaguard_core::detector::Detector;
+use aidaguard_core::DetectionEngine;
 use aidaguard_core::replacer::{self, PlaceholderMap};
 use aidaguard_storage::Storage;
+use aidaguard_detector::AnalyzerEngine;
 use crate::forwarder::Forwarder;
 use crate::stream;
 use crate::DetectionEvent;
@@ -28,12 +29,13 @@ struct ProxyState {
     api_key: Arc<String>,
     target_url: Arc<String>,
     upstream_name: Arc<String>,
-    detector: Arc<RwLock<Detector>>,
+    detector: Arc<RwLock<AnalyzerEngine>>,
     storage: Option<Arc<Storage>>,
     start_time: Instant,
     version: &'static str,
     max_body_size: usize,
     rules_dir: Arc<String>,
+    presets: Arc<Vec<String>>,
     event_tx: Option<tokio::sync::broadcast::Sender<DetectionEvent>>,
 }
 
@@ -64,18 +66,17 @@ pub async fn start(mut config: Config) -> Result<(), anyhow::Error> {
             .unwrap_or_default()
     };
 
-    let mut detector = Detector::new();
-    let rules_path = std::path::Path::new(&config.rules_dir);
-    if rules_path.exists() {
-        detector.load_from_dir(rules_path)?;
-    } else {
-        warn!("规则目录不存在: {}", config.rules_dir);
-    }
-    let detector = Arc::new(RwLock::new(detector));
+    let presets = config.rule_presets();
+    let engine = AnalyzerEngine::builder()
+        .with_all_pattern_recognizers()
+        .with_config_rules(&config)
+        .with_min_confidence(0.3)
+        .build()?;
+    let detector = Arc::new(RwLock::new(engine));
 
     let storage = open_storage(&config);
 
-    start_with_state(config, detector, storage, None, std::future::pending(), upstream_name).await
+    start_with_state(config, presets, detector, storage, None, std::future::pending(), upstream_name).await
 }
 
 /// 启动代理服务器，接受外部管理的 Detector / Storage 及关闭信号。
@@ -87,7 +88,8 @@ pub async fn start(mut config: Config) -> Result<(), anyhow::Error> {
 /// * `shutdown_signal` — 触发后开始优雅关闭（axum graceful shutdown）
 pub async fn start_with_state<F>(
     config: Config,
-    detector: Arc<RwLock<Detector>>,
+    presets: Vec<String>,
+    detector: Arc<RwLock<AnalyzerEngine>>,
     storage: Option<Arc<Storage>>,
     event_tx: Option<tokio::sync::broadcast::Sender<DetectionEvent>>,
     shutdown_signal: F,
@@ -138,6 +140,7 @@ where
         version: aidaguard_core::VERSION,
         max_body_size,
         rules_dir: rules_dir.clone(),
+        presets: Arc::new(presets),
         event_tx,
     };
 
@@ -209,8 +212,8 @@ async fn reload_rules(
     axum::extract::State(state): axum::extract::State<ProxyState>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     let rules_path = std::path::Path::new(state.rules_dir.as_str());
-    let mut detector = state.detector.write().await;
-    match detector.load_from_dir(rules_path) {
+    let mut engine = state.detector.write().await;
+    match engine.reload_presets(rules_path, &state.presets) {
         Ok(count) => {
             info!("规则手动重载完成: {} 条", count);
             Ok(Json(serde_json::json!({

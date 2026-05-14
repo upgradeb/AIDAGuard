@@ -18,4 +18,10 @@ pub trait DetectionEngine: Send + Sync {
 
     /// Reload rules from a directory of YAML files, replacing the current rule set.
     fn reload(&mut self, dir: &Path) -> Result<usize, anyhow::Error>;
+
+    /// Reload rules from a base directory using named preset subdirectories.
+    fn reload_presets(&mut self, base_dir: &Path, _presets: &[String]) -> Result<usize, anyhow::Error> {
+        // Default: fall back to loading the base directory directly
+        self.reload(base_dir)
+    }
 }

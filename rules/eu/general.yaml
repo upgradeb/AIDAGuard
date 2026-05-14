@@ -1,0 +1,5 @@
+version: '1.0'
+name: European Union General Rules
+description: General PII patterns applicable in the EU under GDPR
+rules:
+  # EU general rules — extend with VAT numbers, national ID patterns, etc.

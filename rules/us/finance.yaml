@@ -1,0 +1,5 @@
+version: '1.0'
+name: United States Financial Rules
+description: US-specific financial data patterns
+rules:
+  # US financial rules — extend with ABA routing numbers, account patterns, etc.
