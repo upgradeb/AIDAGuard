@@ -70,3 +70,11 @@ tauri = { version = "2", features = ["tray-icon"] }
 tauri-build = "2"
 tokio-util = "0.7"
 csv = "1.3"
+
+# NLP / NER (optional, gated by nlp feature)
+candle-core = "0.10"
+candle-nn = "0.10"
+candle-transformers = "0.10"
+tokenizers = "0.23"
+hf-hub = { version = "1.0.0-rc", features = ["blocking"] }
+dirs = "6"

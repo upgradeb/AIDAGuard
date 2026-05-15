@@ -8,7 +8,7 @@ description = "Aidaguard detection engine with regex, checksum validation, conte
 
 [features]
 default = []
-nlp = []
+nlp = ["dep:candle-core", "dep:candle-nn", "dep:candle-transformers", "dep:tokenizers", "dep:hf-hub", "dep:dirs"]
 
 [dependencies]
 aidaguard-core = { path = "../aidaguard-core" }
@@ -23,3 +23,9 @@ tokio.workspace = true
 sha2.workspace = true
 aes-gcm.workspace = true
 rand.workspace = true
+candle-core = { workspace = true, optional = true }
+candle-nn = { workspace = true, optional = true }
+candle-transformers = { workspace = true, optional = true }
+tokenizers = { workspace = true, optional = true }
+hf-hub = { workspace = true, optional = true }
+dirs = { workspace = true, optional = true }
