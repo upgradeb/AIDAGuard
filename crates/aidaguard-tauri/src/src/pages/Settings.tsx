@@ -155,6 +155,31 @@ export default function Settings() {
           )}
         </Card>
 
+        {/* NLP 设置 */}
+        <Card title={t("NLP Settings")} size="small" style={cardStyle}>
+          <Form.Item
+            name={["nlp", "enabled"]}
+            label={t("NER Model")}
+            valuePropName="checked"
+            extra={t("Enable NLP-based detection of unstructured entities (names, addresses, organizations)")}
+          >
+            <Switch />
+          </Form.Item>
+          <Form.Item
+            name={["nlp", "default_language"]}
+            label={t("Model Language")}
+            extra={t("Select the language for the NER model. The model will be downloaded on first use.")}
+          >
+            <Select
+              style={{ width: 180 }}
+              options={[
+                { value: "en", label: "English (bert-base-NER)" },
+                { value: "zh", label: "中文 (bert-base-chinese-ner)" },
+              ]}
+            />
+          </Form.Item>
+        </Card>
+
         {/* 存储设置 */}
         <Card title={t("Storage Settings")} size="small" style={cardStyle}>
           <Form.Item

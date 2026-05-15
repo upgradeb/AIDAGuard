@@ -117,12 +117,24 @@ impl DetectionEngine for AnalyzerEngine {
 }
 
 /// Builder for [`AnalyzerEngine`].
-#[derive(Default)]
 pub struct AnalyzerEngineBuilder {
     rules_base_dir: Option<String>,
     rules_presets: Vec<String>,
     min_confidence: f64,
     load_predefined: bool,
+    nlp_language: String,
+}
+
+impl Default for AnalyzerEngineBuilder {
+    fn default() -> Self {
+        Self {
+            rules_base_dir: None,
+            rules_presets: Vec::new(),
+            min_confidence: 0.0,
+            load_predefined: false,
+            nlp_language: "en".to_string(),
+        }
+    }
 }
 
 impl AnalyzerEngineBuilder {
@@ -163,13 +175,27 @@ impl AnalyzerEngineBuilder {
         self
     }
 
+    /// Set the NLP model language (e.g. "en", "zh"). Default is "en".
+    pub fn with_nlp_language(mut self, language: impl Into<String>) -> Self {
+        self.nlp_language = language.into();
+        self
+    }
+
+    /// Apply NLP settings from config (enabled flag + default language).
+    pub fn with_nlp_config(mut self, nlp: &aidaguard_core::config::NlpConfig) -> Self {
+        if nlp.enabled {
+            self.nlp_language = nlp.default_language.clone();
+        }
+        self
+    }
+
     /// Build the engine.
     pub fn build(self) -> Result<AnalyzerEngine, anyhow::Error> {
         let mut registry = RecognizerRegistry::new();
 
         if self.load_predefined {
             registry.load_predefined();
-            registry.load_nlp_recognizers();
+            registry.load_nlp_recognizers(&self.nlp_language);
         }
 
         let legacy_detector = if let Some(base_dir) = self.rules_base_dir {

@@ -120,6 +120,35 @@ impl Default for NotificationConfig {
     }
 }
 
+fn default_nlp_enabled() -> bool { true }
+fn default_nlp_language() -> String { "en".to_string() }
+
+/// NLP/NER 子配置
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct NlpConfig {
+    /// 是否启用 NLP NER 检测（非结构化实体）
+    #[serde(default = "default_nlp_enabled")]
+    pub enabled: bool,
+
+    /// 默认语言 ("en" | "zh")
+    #[serde(default = "default_nlp_language")]
+    pub default_language: String,
+
+    /// 模型缓存目录，留空使用系统默认
+    #[serde(default)]
+    pub cache_dir: Option<String>,
+}
+
+impl Default for NlpConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_nlp_enabled(),
+            default_language: default_nlp_language(),
+            cache_dir: None,
+        }
+    }
+}
+
 /// Aidaguard 配置
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Config {
@@ -160,6 +189,10 @@ pub struct Config {
     /// Enabled industry sub-presets within the region (e.g. ["medical", "finance"])
     #[serde(default = "default_rule_industries")]
     pub rule_industries: Vec<String>,
+
+    /// NLP / NER configuration
+    #[serde(default)]
+    pub nlp: NlpConfig,
 }
 
 impl Default for Config {
@@ -176,6 +209,7 @@ impl Default for Config {
             notification: NotificationConfig::default(),
             region: default_region(),
             rule_industries: default_rule_industries(),
+            nlp: NlpConfig::default(),
         }
     }
 }

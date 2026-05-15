@@ -74,6 +74,7 @@ fn main() {
             let engine = AnalyzerEngine::builder()
                 .with_all_pattern_recognizers()
                 .with_config_rules(&config)
+                .with_nlp_config(&config.nlp)
                 .with_min_confidence(0.3)
                 .build()
                 .expect("Failed to build AnalyzerEngine");

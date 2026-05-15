@@ -261,7 +261,17 @@ const zh = {
   "finance": "金融",
   "medical": "医疗",
   "personal": "个人信息",
-  "Global baseline rules are always loaded regardless of region selection.": "无论选择哪个地区，全球通用基线规则始终加载。"
+  "Global baseline rules are always loaded regardless of region selection.": "无论选择哪个地区，全球通用基线规则始终加载。",
+  "NLP Settings": "NLP 设置",
+  "NER Model": "NER 模型",
+  "Enable NLP-based detection of unstructured entities (names, addresses, organizations)": "启用基于 NLP 的非结构化实体检测（人名、地址、机构名）",
+  "Model Language": "模型语言",
+  "Select the language for the NER model. The model will be downloaded on first use.": "选择 NER 模型语言。首次使用时将自动下载模型。",
+  "Download NLP Model": "下载 NLP 模型",
+  "Pre-download the NLP model now to avoid first-use delay (~400 MB)": "预下载 NLP 模型以避免首次使用时的等待（约 400 MB）",
+  "Downloading NLP model...": "正在下载 NLP 模型...",
+  "NLP model downloaded successfully": "NLP 模型下载成功",
+  "NLP model download failed": "NLP 模型下载失败"
 };
 
 export default zh;

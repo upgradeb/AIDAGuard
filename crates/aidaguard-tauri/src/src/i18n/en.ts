@@ -261,7 +261,17 @@ const en = {
   "finance": "Finance",
   "medical": "Medical",
   "personal": "Personal",
-  "Global baseline rules are always loaded regardless of region selection.": "Global baseline rules are always loaded regardless of region selection."
+  "Global baseline rules are always loaded regardless of region selection.": "Global baseline rules are always loaded regardless of region selection.",
+  "NLP Settings": "NLP Settings",
+  "NER Model": "NER Model",
+  "Enable NLP-based detection of unstructured entities (names, addresses, organizations)": "Enable NLP-based detection of unstructured entities (names, addresses, organizations)",
+  "Model Language": "Model Language",
+  "Select the language for the NER model. The model will be downloaded on first use.": "Select the language for the NER model. The model will be downloaded on first use.",
+  "Download NLP Model": "Download NLP Model",
+  "Pre-download the NLP model now to avoid first-use delay (~400 MB)": "Pre-download the NLP model now to avoid first-use delay (~400 MB)",
+  "Downloading NLP model...": "Downloading NLP model...",
+  "NLP model downloaded successfully": "NLP model downloaded successfully",
+  "NLP model download failed": "NLP model download failed"
 };
 
 export default en;

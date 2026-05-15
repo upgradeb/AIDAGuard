@@ -76,6 +76,12 @@ export interface NotificationConfig {
   rate_limit_secs: number;
 }
 
+export interface NlpConfig {
+  enabled: boolean;
+  default_language: string;
+  cache_dir?: string;
+}
+
 export interface Config {
   api_key: string;
   port: number;
@@ -88,6 +94,7 @@ export interface Config {
   storage: StorageConfig;
   upstreams: UpstreamConfig[];
   notification: NotificationConfig;
+  nlp: NlpConfig;
 }
 
 export interface UpstreamConfig {

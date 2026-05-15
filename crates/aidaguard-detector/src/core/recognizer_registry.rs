@@ -58,26 +58,28 @@ impl RecognizerRegistry {
     }
 
     /// Load NLP recognizers for all unstructured entity types.
+    /// `language` selects the NER model (e.g. "en", "zh").
     /// When the `nlp` feature is disabled, this is a no-op.
-    pub fn load_nlp_recognizers(&mut self) -> &mut Self {
+    pub fn load_nlp_recognizers(&mut self, language: &str) -> &mut Self {
         #[cfg(feature = "nlp")]
         {
             use crate::recognizers::nlp::NlpRecognizer;
             use aidaguard_core::EntityType;
-            self.register(Arc::new(NlpRecognizer::new(EntityType::PersonName, "PersonNameNlpRecognizer")));
-            self.register(Arc::new(NlpRecognizer::new(EntityType::Address, "AddressNlpRecognizer")));
-            self.register(Arc::new(NlpRecognizer::new(EntityType::Organization, "OrganizationNlpRecognizer")));
-            self.register(Arc::new(NlpRecognizer::new(EntityType::DateOfBirth, "DateOfBirthNlpRecognizer")));
-            self.register(Arc::new(NlpRecognizer::new(EntityType::Age, "AgeNlpRecognizer")));
-            self.register(Arc::new(NlpRecognizer::new(EntityType::Nationality, "NationalityNlpRecognizer")));
-            self.register(Arc::new(NlpRecognizer::new(EntityType::Religion, "ReligionNlpRecognizer")));
-            self.register(Arc::new(NlpRecognizer::new(EntityType::MedicalTerm, "MedicalTermNlpRecognizer")));
-            self.register(Arc::new(NlpRecognizer::new(EntityType::Occupation, "OccupationNlpRecognizer")));
-            self.register(Arc::new(NlpRecognizer::new(EntityType::Education, "EducationNlpRecognizer")));
+            let lang = language.to_string();
+            self.register(Arc::new(NlpRecognizer::new(EntityType::PersonName, "PersonNameNlpRecognizer").with_language(&lang)));
+            self.register(Arc::new(NlpRecognizer::new(EntityType::Address, "AddressNlpRecognizer").with_language(&lang)));
+            self.register(Arc::new(NlpRecognizer::new(EntityType::Organization, "OrganizationNlpRecognizer").with_language(&lang)));
+            self.register(Arc::new(NlpRecognizer::new(EntityType::DateOfBirth, "DateOfBirthNlpRecognizer").with_language(&lang)));
+            self.register(Arc::new(NlpRecognizer::new(EntityType::Age, "AgeNlpRecognizer").with_language(&lang)));
+            self.register(Arc::new(NlpRecognizer::new(EntityType::Nationality, "NationalityNlpRecognizer").with_language(&lang)));
+            self.register(Arc::new(NlpRecognizer::new(EntityType::Religion, "ReligionNlpRecognizer").with_language(&lang)));
+            self.register(Arc::new(NlpRecognizer::new(EntityType::MedicalTerm, "MedicalTermNlpRecognizer").with_language(&lang)));
+            self.register(Arc::new(NlpRecognizer::new(EntityType::Occupation, "OccupationNlpRecognizer").with_language(&lang)));
+            self.register(Arc::new(NlpRecognizer::new(EntityType::Education, "EducationNlpRecognizer").with_language(&lang)));
         }
         #[cfg(not(feature = "nlp"))]
         {
-            // No-op: NLP feature is disabled
+            let _ = language;
         }
         self
     }
