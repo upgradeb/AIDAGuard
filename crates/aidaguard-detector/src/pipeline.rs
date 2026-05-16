@@ -3,6 +3,8 @@ use std::path::Path;
 use aidaguard_core::config::Config;
 use aidaguard_core::detector::{Detector, Match, Mode, Strategy};
 use aidaguard_core::DetectionEngine;
+use aidaguard_core::entity::EntityType;
+use aidaguard_core::error::DetectionError;
 
 use crate::core::confidence::ConfidenceScorer;
 use crate::core::recognizer_registry::RecognizerRegistry;
@@ -124,6 +126,21 @@ impl DetectionEngine for AnalyzerEngine {
         self.scan_as_matches(text)
     }
 
+    fn detect_parallel(&self, text: &str) -> Vec<Match> {
+        self.registry.analyze_all_parallel(text)
+            .into_iter()
+            .map(|r| Match {
+                rule_id: r.entity_type.as_str().to_lowercase(),
+                start: r.start,
+                end: r.end,
+                text: r.text,
+                priority: 100,
+                strategy: Strategy::Placeholder,
+                mode: Mode::Filter,
+            })
+            .collect()
+    }
+
     fn rule_count(&self) -> usize {
         let legacy_count = self
             .legacy_detector
@@ -140,21 +157,40 @@ impl DetectionEngine for AnalyzerEngine {
             .or_else(|| self.registry.entity_name(id))
     }
 
-    fn reload(&mut self, dir: &Path) -> Result<usize, anyhow::Error> {
+    fn rule_ids(&self) -> Vec<String> {
+        let mut ids: Vec<String> = self.legacy_detector
+            .as_ref()
+            .map(|d| d.rule_ids())
+            .unwrap_or_default();
+        ids.extend(self.registry.recognizer_ids());
+        ids
+    }
+
+    fn reload(&mut self, dir: &Path) -> Result<usize, DetectionError> {
         if let Some(ref mut legacy) = self.legacy_detector {
             legacy.load_from_dir(dir)
+                .map_err(|e| DetectionError::RuleCompilation(e.to_string()))
         } else {
             Ok(0)
         }
     }
 
-    fn reload_presets(&mut self, base_dir: &Path, presets: &[String]) -> Result<usize, anyhow::Error> {
+    fn reload_presets(&mut self, base_dir: &Path, presets: &[String]) -> Result<usize, DetectionError> {
         if let Some(ref mut legacy) = self.legacy_detector {
             let presets_str: Vec<&str> = presets.iter().map(|s| s.as_str()).collect();
             legacy.load_from_presets(base_dir, &presets_str)
+                .map_err(|e| DetectionError::RuleCompilation(e.to_string()))
         } else {
             Ok(0)
         }
+    }
+
+    fn supported_entities(&self) -> Vec<EntityType> {
+        self.registry.get_supported_entities()
+    }
+
+    fn name(&self) -> &str {
+        "AnalyzerEngine"
     }
 }
 

@@ -269,6 +269,11 @@ impl Detector {
         self.rules.iter().find(|r| r.def.id == id).map(|r| r.def.name.as_str())
     }
 
+    /// 获取所有规则 ID
+    pub fn rule_ids(&self) -> Vec<String> {
+        self.rules.iter().map(|r| r.def.id.clone()).collect()
+    }
+
     /// 在文本中检测敏感数据，返回去重且无重叠的命中列表
     pub fn detect(&self, text: &str) -> Vec<Match> {
         if self.rules.is_empty() {
@@ -338,20 +343,41 @@ impl crate::engine::DetectionEngine for Detector {
     }
 
     fn rule_count(&self) -> usize {
-        self.rule_count()
+        self.rules.len()
     }
 
     fn rule_name(&self, id: &str) -> Option<&str> {
-        self.rule_name(id)
+        self.rules.iter()
+            .find(|r| r.def.id == id)
+            .map(|r| r.def.name.as_str())
     }
 
-    fn reload(&mut self, dir: &Path) -> Result<usize, anyhow::Error> {
+    fn rule_ids(&self) -> Vec<String> {
+        self.rules.iter()
+            .map(|r| r.def.id.clone())
+            .collect()
+    }
+
+    fn reload(&mut self, dir: &Path) -> Result<usize, crate::error::DetectionError> {
         self.load_from_dir(dir)
+            .map_err(|e| crate::error::DetectionError::RuleCompilation(e.to_string()))
     }
 
-    fn reload_presets(&mut self, base_dir: &Path, presets: &[String]) -> Result<usize, anyhow::Error> {
+    fn reload_presets(&mut self, base_dir: &Path, presets: &[String]) -> Result<usize, crate::error::DetectionError> {
         let presets_str: Vec<&str> = presets.iter().map(|s| s.as_str()).collect();
         self.load_from_presets(base_dir, &presets_str)
+            .map_err(|e| crate::error::DetectionError::RuleCompilation(e.to_string()))
+    }
+
+    fn supported_entities(&self) -> Vec<crate::entity::EntityType> {
+        use std::str::FromStr;
+        self.rules.iter()
+            .filter_map(|r| crate::entity::EntityType::from_str(&r.def.id).ok())
+            .collect()
+    }
+
+    fn name(&self) -> &str {
+        "Detector"
     }
 }
 

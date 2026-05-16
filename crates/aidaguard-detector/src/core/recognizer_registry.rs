@@ -109,6 +109,20 @@ impl RecognizerRegistry {
         self.recognizers.len()
     }
 
+    /// Get all recognizer entity type IDs.
+    pub fn recognizer_ids(&self) -> Vec<String> {
+        self.recognizers.iter()
+            .map(|r| r.entity_type().as_str().to_lowercase())
+            .collect()
+    }
+
+    /// Get all supported entity types.
+    pub fn get_supported_entities(&self) -> Vec<aidaguard_core::EntityType> {
+        self.recognizers.iter()
+            .map(|r| r.entity_type())
+            .collect()
+    }
+
     /// Look up the display name for an entity type id (e.g. "CREDIT_CARD" → "CreditCardRecognizer").
     pub fn entity_name(&self, id: &str) -> Option<&str> {
         self.entity_names.get(id).map(|s| s.as_str())

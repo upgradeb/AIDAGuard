@@ -7,7 +7,7 @@ pub mod replacer;
 pub mod storage_types;
 pub mod storage_trait;
 
-pub use engine::DetectionEngine;
+pub use engine::{DetectionEngine, EngineStats};
 pub use entity::{EntityCategory, EntityType};
 pub use error::{DetectionError, ProxyError, StorageError};
 pub use storage_types::{AuditFilter, AuditGroup, AuditStats, DetectionRecord, RuleCount};
