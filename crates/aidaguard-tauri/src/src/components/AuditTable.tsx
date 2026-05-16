@@ -159,6 +159,7 @@ export default function AuditTable({
 
   return (
     <Table
+      className="audit-table"
       columns={groupColumns}
       dataSource={groups}
       rowKey={groupKey}

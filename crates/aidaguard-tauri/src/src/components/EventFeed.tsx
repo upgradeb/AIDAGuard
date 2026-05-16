@@ -51,6 +51,7 @@ export default function EventFeed({ records, onClickRecord }: EventFeedProps) {
         const strat = useStrategyLabel(item.strategy);
         return (
           <List.Item
+            className="event-item"
             style={{
               padding: "10px 0",
               borderBottom: `1px solid ${token.colorBorderSecondary}`,

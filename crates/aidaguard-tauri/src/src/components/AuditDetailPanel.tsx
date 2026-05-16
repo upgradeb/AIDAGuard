@@ -11,7 +11,7 @@ export default function AuditDetailPanel({ record }: AuditDetailPanelProps) {
   const { t } = useTranslation();
 
   return (
-    <div style={{ padding: "0 24px 16px" }}>
+    <div className="detail-panel" style={{ padding: "0 24px 16px" }}>
       <Descriptions
         bordered
         size="small"
