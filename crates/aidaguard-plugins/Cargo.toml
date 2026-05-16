@@ -9,3 +9,5 @@ description = "Aidaguard AI tool plugin system with declarative manifests and en
 [dependencies]
 serde.workspace = true
 serde_json.workspace = true
+libloading = "0.8"
+thiserror.workspace = true

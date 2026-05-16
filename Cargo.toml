@@ -57,6 +57,7 @@ uuid = { version = "1", features = ["v4"] }
 
 # 错误处理
 anyhow = "1"
+thiserror = "1"
 
 # 加密哈希
 sha2 = "0.10"

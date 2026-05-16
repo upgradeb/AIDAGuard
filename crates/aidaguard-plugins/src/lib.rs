@@ -13,11 +13,15 @@ pub fn home_dir() -> Option<PathBuf> {
     }
 }
 
+pub mod abi;
 pub mod adapters;
 pub mod backup;
+pub mod loader;
 pub mod registry;
 
 pub use registry::{Plugin, PluginManifest, PluginRegistry};
+pub use loader::{DynamicPlugin, DynamicManifest, PluginLoader, PluginError};
+pub use abi::{PluginMeta, PluginVTable, ABI_VERSION};
 
 /// Tool configuration info (shared between frontend and backend)
 #[derive(Debug, Clone, Serialize, Deserialize)]
