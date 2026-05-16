@@ -2,11 +2,13 @@ pub mod config;
 pub mod detector;
 pub mod engine;
 pub mod entity;
+pub mod error;
 pub mod replacer;
 pub mod storage;
 
 pub use engine::DetectionEngine;
 pub use entity::{EntityCategory, EntityType};
+pub use error::{DetectionError, ProxyError, StorageError};
 pub use storage::{AuditGroup, AuditStats, DetectionRecord, RuleCount};
 
 use serde::{Deserialize, Serialize};

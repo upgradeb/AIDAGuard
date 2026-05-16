@@ -1,3 +1,7 @@
+//! Detector module with rule loading, compilation, and version management.
+
+mod versioned;
+
 use anyhow::{Context, Result};
 use notify::{EventKind, RecursiveMode, Watcher};
 use regex::{Regex, RegexBuilder};
@@ -394,3 +398,6 @@ pub fn watch_rules<D: crate::engine::DetectionEngine + 'static>(
 
     Ok(watcher)
 }
+
+// Re-export versioned detector types
+pub use versioned::{RuleSnapshot, VersionedDetector, VersionError};
