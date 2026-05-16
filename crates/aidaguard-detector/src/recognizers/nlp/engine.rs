@@ -1,7 +1,13 @@
 use candle_core::{Module, Tensor};
+use rayon::prelude::*;
 use std::sync::Arc;
 
 use crate::recognizers::nlp::registry::NlpModel;
+
+/// BERT token limit - text longer than this requires chunking
+const MAX_SEQ_LEN: usize = 512;
+/// Overlap between chunks to avoid missing entities at boundaries
+const CHUNK_OVERLAP: usize = 50;
 
 #[derive(Debug, Clone)]
 pub struct RawNerSpan {
@@ -22,7 +28,28 @@ impl NlpEngine {
     }
 
     /// Run NER inference on `text` and return raw entity spans with labels.
+    ///
+    /// For texts longer than BERT's max sequence length, automatically splits
+    /// into overlapping chunks and merges results.
     pub fn run(&self, text: &str) -> Result<Vec<RawNerSpan>, anyhow::Error> {
+        if text.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        // Estimate token count (roughly 4 chars per token on average)
+        let estimated_tokens = text.len() / 4;
+
+        if estimated_tokens <= MAX_SEQ_LEN - CHUNK_OVERLAP {
+            // Short text: single inference
+            self.run_single(text)
+        } else {
+            // Long text: chunked parallel inference
+            self.run_chunked(text)
+        }
+    }
+
+    /// Single-pass inference for short texts.
+    fn run_single(&self, text: &str) -> Result<Vec<RawNerSpan>, anyhow::Error> {
         if text.is_empty() {
             return Ok(Vec::new());
         }
@@ -93,6 +120,97 @@ impl NlpEngine {
 
         let spans = decode_bio_spans(text, &labels, &probs_per_token, &offsets, seq_len);
         Ok(spans)
+    }
+
+    /// Chunked parallel inference for long texts.
+    ///
+    /// Splits text into overlapping chunks, runs inference in parallel,
+    /// then merges and deduplicates results.
+    fn run_chunked(&self, text: &str) -> Result<Vec<RawNerSpan>, anyhow::Error> {
+        let chunks = self.split_into_chunks(text);
+
+        // Parallel inference on each chunk
+        let chunk_results: Vec<Vec<RawNerSpan>> = chunks
+            .par_iter()
+            .filter_map(|(chunk, offset)| {
+                self.run_single(chunk).ok().map(|spans| {
+                    // Adjust offsets to original text position
+                    spans
+                        .into_iter()
+                        .map(|mut span| {
+                            span.start += offset;
+                            span.end += offset;
+                            span
+                        })
+                        .collect()
+                })
+            })
+            .collect();
+
+        // Merge and deduplicate
+        let mut all_spans: Vec<RawNerSpan> = chunk_results.into_iter().flatten().collect();
+
+        // Sort by start position
+        all_spans.sort_by(|a, b| a.start.cmp(&b.start));
+
+        // Deduplicate overlapping spans (keep higher score)
+        let mut deduped = Vec::new();
+        for span in all_spans {
+            let overlaps = deduped.iter().any(|existing| {
+                span.start < existing.end && span.end > existing.start
+            });
+
+            if overlaps {
+                // Find overlapping span and keep higher score
+                if let Some(existing) = deduped.iter_mut().find(|e| {
+                    span.start < e.end && span.end > e.start && span.score > e.score
+                }) {
+                    *existing = span;
+                }
+            } else {
+                deduped.push(span);
+            }
+        }
+
+        Ok(deduped)
+    }
+
+    /// Split text into overlapping chunks for processing.
+    /// Returns (chunk_text, offset_in_original) pairs.
+    fn split_into_chunks(&self, text: &str) -> Vec<(String, usize)> {
+        let mut chunks = Vec::new();
+        let chunk_chars = MAX_SEQ_LEN * 4; // Approximate chars per chunk
+        let overlap_chars = CHUNK_OVERLAP * 4;
+
+        let mut start = 0;
+        let text_len = text.len();
+
+        while start < text_len {
+            let end = (start + chunk_chars).min(text_len);
+
+            // Find a good break point (space or punctuation)
+            let break_point = if end < text_len {
+                text[start..end]
+                    .rfind(|c: char| c.is_whitespace() || c == '.' || c == ',' || c == '!')
+                    .map(|i| start + i + 1)
+                    .unwrap_or(end)
+            } else {
+                end
+            };
+
+            let chunk = text[start..break_point].to_string();
+            if !chunk.is_empty() {
+                chunks.push((chunk, start));
+            }
+
+            start = if break_point > overlap_chars {
+                break_point - overlap_chars
+            } else {
+                break_point
+            };
+        }
+
+        chunks
     }
 }
 
