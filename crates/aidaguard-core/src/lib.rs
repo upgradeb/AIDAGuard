@@ -9,7 +9,10 @@ pub mod storage_trait;
 
 pub use engine::{DetectionEngine, EngineStats};
 pub use entity::{EntityCategory, EntityType};
-pub use error::{DetectionError, ProxyError, StorageError};
+pub use error::{
+    AidaGuardError, ConfigError, DetectionError, ErrorResponse,
+    PluginError, ProxyError, StorageError,
+};
 pub use storage_types::{AuditFilter, AuditGroup, AuditStats, DetectionRecord, RuleCount};
 pub use storage_trait::AuditStorage;
 
