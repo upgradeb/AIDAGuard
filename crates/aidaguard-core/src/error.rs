@@ -45,8 +45,8 @@ impl DetectionError {
 /// Storage-related errors.
 #[derive(Debug, thiserror::Error)]
 pub enum StorageError {
-    #[error("Database connection failed: {0}")]
-    ConnectionFailed(String),
+    #[error("Database connection failed: {path} - {reason}")]
+    ConnectionFailed { path: String, reason: String },
 
     #[error("Encryption error: {0}")]
     EncryptionError(String),
@@ -62,17 +62,21 @@ pub enum StorageError {
 
     #[error("Database migration failed: {0}")]
     MigrationFailed(String),
+
+    #[error("Unknown storage type: {type_name}")]
+    UnknownType { type_name: String },
 }
 
 impl StorageError {
     /// Get a recovery hint for this error.
     pub fn recovery_hint(&self) -> &'static str {
         match self {
-            Self::ConnectionFailed(_) => "Check database path permissions and disk space",
+            Self::ConnectionFailed { .. } => "Check database path permissions and disk space",
             Self::EncryptionError(_) | Self::DecryptionError(_) => "Verify encryption key is correct",
             Self::InvalidKey => "Provide a non-empty encryption key",
             Self::NotFound(_) => "The requested record may have been deleted",
             Self::MigrationFailed(_) => "Backup database and check schema compatibility",
+            Self::UnknownType { .. } => "Use a supported storage type: sqlite, memory",
         }
     }
 }

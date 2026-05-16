@@ -15,6 +15,7 @@ use tracing::{debug, error, info, warn};
 
 use aidaguard_core::config::Config;
 use aidaguard_core::DetectionEngine;
+use aidaguard_core::AuditStorage;
 use aidaguard_core::replacer::{self, PlaceholderMap};
 use aidaguard_storage::Storage;
 use aidaguard_detector::AnalyzerEngine;

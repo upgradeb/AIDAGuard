@@ -9,6 +9,7 @@ fn default_api_key() -> String { String::new() }
 fn default_max_body_size_mb() -> usize { 10 }
 fn default_storage_enabled() -> bool { false }
 fn default_storage_db_path() -> String { "./data/aidaguard.db".to_string() }
+fn default_storage_type() -> String { "sqlite".to_string() }
 fn default_notification_enabled() -> bool { true }
 fn default_notification_rate_limit_secs() -> u64 { 60 }
 fn default_region() -> String { "global".to_string() }
@@ -20,6 +21,10 @@ pub struct StorageConfig {
     /// 是否启用审计记录
     #[serde(default = "default_storage_enabled")]
     pub enabled: bool,
+
+    /// 存储类型: "sqlite" | "memory"
+    #[serde(default = "default_storage_type")]
+    pub storage_type: String,
 
     /// 数据库文件路径
     #[serde(default = "default_storage_db_path")]
@@ -34,6 +39,7 @@ impl Default for StorageConfig {
     fn default() -> Self {
         Self {
             enabled: default_storage_enabled(),
+            storage_type: default_storage_type(),
             db_path: default_storage_db_path(),
             encryption_key: None,
         }

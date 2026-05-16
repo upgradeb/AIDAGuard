@@ -15,6 +15,13 @@ pub use aidaguard_core::storage_types::{
 pub use aidaguard_core::storage_trait::AuditStorage;
 pub use aidaguard_core::error::StorageError;
 
+// Module exports
+pub mod factory;
+pub mod memory;
+
+pub use factory::StorageFactory;
+pub use memory::MemoryStorage;
+
 const PBKDF2_ITERATIONS: u32 = 600_000;
 const SALT_LEN: usize = 16;
 
@@ -87,7 +94,7 @@ impl Storage {
     }
 
     /// 记录一条检测结果。`original` 和 `context` 写入前被加密。
-    pub fn record(
+    fn record_inner(
         &self,
         rule_id: &str,
         rule_name: &str,
@@ -122,7 +129,7 @@ impl Storage {
 
     /// 批量记录检测结果，减少数据库锁竞争。
     /// 适用于高频写入场景，可显著提升吞吐量。
-    pub fn batch_record(
+    fn batch_record_inner(
         &self,
         records: &[DetectionRecord],
     ) -> Result<usize, anyhow::Error> {
@@ -165,7 +172,7 @@ impl Storage {
     }
 
     /// 分页查询检测记录，按时间倒序，返回时解密 `original` 和 `context` 字段。
-    pub fn list(&self, limit: usize, offset: usize) -> Result<Vec<DetectionRecord>, anyhow::Error> {
+    fn list_inner(&self, limit: usize, offset: usize) -> Result<Vec<DetectionRecord>, anyhow::Error> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
             "SELECT id, timestamp_ms, rule_id, rule_name, strategy, placeholder, original_encrypted, context_encrypted, request_path, sanitized_body, response_status, tool_name
@@ -219,12 +226,12 @@ impl Storage {
     }
 
     /// 检测记录总数
-    pub fn count(&self) -> Result<usize, anyhow::Error> {
-        self.count_filtered(None, None, None, None, None)
+    fn count_inner(&self) -> Result<usize, anyhow::Error> {
+        self.count_filtered_inner(None, None, None, None, None)
     }
 
     /// 按过滤条件统计记录数，参数含义与 `list_filtered` 一致。
-    pub fn count_filtered(
+    fn count_filtered_inner(
         &self,
         rule_id_filter: Option<&str>,
         path_filter: Option<&str>,
@@ -264,7 +271,7 @@ impl Storage {
     }
 
     /// 按条件过滤的分页查询。未提供的过滤条件不做筛选。
-    pub fn list_filtered(
+    fn list_filtered_inner(
         &self,
         limit: usize,
         offset: usize,
@@ -350,7 +357,7 @@ impl Storage {
     }
 
     /// 按 (rule_id, strategy) 分组查询，返回每组最新时间与计数，按最新时间降序。
-    pub fn list_grouped(
+    fn list_grouped_inner(
         &self,
         limit: usize,
         offset: usize,
@@ -409,7 +416,7 @@ impl Storage {
     }
 
     /// 分组后的总组数（用于分页）
-    pub fn count_grouped(
+    fn count_grouped_inner(
         &self,
         rule_id_filter: Option<&str>,
         path_filter: Option<&str>,
@@ -448,7 +455,7 @@ impl Storage {
     }
 
     /// 按 ID 的单条查询。
-    pub fn get_by_id(&self, id: &str) -> Result<Option<DetectionRecord>, anyhow::Error> {
+    fn get_by_id_inner(&self, id: &str) -> Result<Option<DetectionRecord>, anyhow::Error> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
             "SELECT id, timestamp_ms, rule_id, rule_name, strategy, placeholder, original_encrypted, context_encrypted, request_path, sanitized_body, response_status, tool_name FROM detections WHERE id = ?1",
@@ -495,14 +502,14 @@ impl Storage {
     }
 
     /// 删除单条记录。
-    pub fn delete(&self, id: &str) -> Result<bool, anyhow::Error> {
+    fn delete_inner(&self, id: &str) -> Result<bool, anyhow::Error> {
         let conn = self.conn.lock().unwrap();
         let affected = conn.execute("DELETE FROM detections WHERE id = ?1", rusqlite::params![id])?;
         Ok(affected > 0)
     }
 
     /// 获取最近 N 条检测记录（供仪表盘事件列表使用）。
-    pub fn list_recent(&self, limit: usize) -> Result<Vec<DetectionRecord>, anyhow::Error> {
+    fn list_recent_inner(&self, limit: usize) -> Result<Vec<DetectionRecord>, anyhow::Error> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
             "SELECT id, timestamp_ms, rule_id, rule_name, strategy, placeholder, original_encrypted, context_encrypted, request_path, sanitized_body, response_status, tool_name FROM detections ORDER BY timestamp_ms DESC LIMIT ?1"
@@ -548,7 +555,7 @@ impl Storage {
     }
 
     /// 汇总统计数据。
-    pub fn stats(&self) -> Result<AuditStats, anyhow::Error> {
+    fn stats_inner(&self) -> Result<AuditStats, anyhow::Error> {
         let conn = self.conn.lock().unwrap();
 
         let total: i64 =
@@ -688,18 +695,18 @@ impl AuditStorage for Storage {
         response_status: u16,
         tool_name: &str,
     ) -> Result<(), StorageError> {
-        Storage::record(self, rule_id, rule_name, strategy, placeholder, original, context, request_path, sanitized_body, response_status, tool_name)
-            .map_err(|e| StorageError::ConnectionFailed(e.to_string()))
+        self.record_inner(rule_id, rule_name, strategy, placeholder, original, context, request_path, sanitized_body, response_status, tool_name)
+            .map_err(|e| StorageError::ConnectionFailed { path: String::new(), reason: e.to_string() })
     }
 
     fn batch_record(&self, records: &[DetectionRecord]) -> Result<usize, StorageError> {
-        Storage::batch_record(self, records)
-            .map_err(|e| StorageError::ConnectionFailed(e.to_string()))
+        self.batch_record_inner(records)
+            .map_err(|e| StorageError::ConnectionFailed { path: String::new(), reason: e.to_string() })
     }
 
     fn list(&self, limit: usize, offset: usize) -> Result<Vec<DetectionRecord>, StorageError> {
-        Storage::list(self, limit, offset)
-            .map_err(|e| StorageError::ConnectionFailed(e.to_string()))
+        self.list_inner(limit, offset)
+            .map_err(|e| StorageError::ConnectionFailed { path: String::new(), reason: e.to_string() })
     }
 
     fn list_filtered(
@@ -708,8 +715,7 @@ impl AuditStorage for Storage {
         offset: usize,
         filter: AuditFilter,
     ) -> Result<Vec<DetectionRecord>, StorageError> {
-        Storage::list_filtered(
-            self,
+        self.list_filtered_inner(
             limit,
             offset,
             filter.rule_id.as_deref(),
@@ -718,17 +724,17 @@ impl AuditStorage for Storage {
             filter.date_to_ms,
             filter.strategy.as_deref(),
         )
-        .map_err(|e| StorageError::ConnectionFailed(e.to_string()))
+        .map_err(|e| StorageError::ConnectionFailed { path: String::new(), reason: e.to_string() })
     }
 
     fn get_by_id(&self, id: &str) -> Result<Option<DetectionRecord>, StorageError> {
-        Storage::get_by_id(self, id)
-            .map_err(|e| StorageError::ConnectionFailed(e.to_string()))
+        self.get_by_id_inner(id)
+            .map_err(|e| StorageError::ConnectionFailed { path: String::new(), reason: e.to_string() })
     }
 
     fn list_recent(&self, limit: usize) -> Result<Vec<DetectionRecord>, StorageError> {
-        Storage::list_recent(self, limit)
-            .map_err(|e| StorageError::ConnectionFailed(e.to_string()))
+        self.list_recent_inner(limit)
+            .map_err(|e| StorageError::ConnectionFailed { path: String::new(), reason: e.to_string() })
     }
 
     fn list_grouped(
@@ -737,8 +743,7 @@ impl AuditStorage for Storage {
         offset: usize,
         filter: AuditFilter,
     ) -> Result<Vec<AuditGroup>, StorageError> {
-        Storage::list_grouped(
-            self,
+        self.list_grouped_inner(
             limit,
             offset,
             filter.rule_id.as_deref(),
@@ -746,49 +751,54 @@ impl AuditStorage for Storage {
             filter.date_from_ms,
             filter.date_to_ms,
         )
-        .map_err(|e| StorageError::ConnectionFailed(e.to_string()))
+        .map_err(|e| StorageError::ConnectionFailed { path: String::new(), reason: e.to_string() })
     }
 
     fn count_grouped(&self, filter: AuditFilter) -> Result<usize, StorageError> {
-        Storage::count_grouped(
-            self,
+        self.count_grouped_inner(
             filter.rule_id.as_deref(),
             filter.path.as_deref(),
             filter.date_from_ms,
             filter.date_to_ms,
         )
-        .map_err(|e| StorageError::ConnectionFailed(e.to_string()))
+        .map_err(|e| StorageError::ConnectionFailed { path: String::new(), reason: e.to_string() })
     }
 
     fn count(&self) -> Result<usize, StorageError> {
-        Storage::count(self)
-            .map_err(|e| StorageError::ConnectionFailed(e.to_string()))
+        self.count_inner()
+            .map_err(|e| StorageError::ConnectionFailed { path: String::new(), reason: e.to_string() })
     }
 
     fn count_filtered(&self, filter: AuditFilter) -> Result<usize, StorageError> {
-        Storage::count_filtered(
-            self,
+        self.count_filtered_inner(
             filter.rule_id.as_deref(),
             filter.path.as_deref(),
             filter.date_from_ms,
             filter.date_to_ms,
             filter.strategy.as_deref(),
         )
-        .map_err(|e| StorageError::ConnectionFailed(e.to_string()))
+        .map_err(|e| StorageError::ConnectionFailed { path: String::new(), reason: e.to_string() })
     }
 
     fn stats(&self) -> Result<AuditStats, StorageError> {
-        Storage::stats(self)
-            .map_err(|e| StorageError::ConnectionFailed(e.to_string()))
+        self.stats_inner()
+            .map_err(|e| StorageError::ConnectionFailed { path: String::new(), reason: e.to_string() })
     }
 
     fn delete(&self, id: &str) -> Result<bool, StorageError> {
-        Storage::delete(self, id)
-            .map_err(|e| StorageError::ConnectionFailed(e.to_string()))
+        self.delete_inner(id)
+            .map_err(|e| StorageError::ConnectionFailed { path: String::new(), reason: e.to_string() })
     }
 
     fn purge_before(&self, timestamp_ms: i64) -> Result<usize, StorageError> {
-        Storage::purge_before(self, timestamp_ms)
-            .map_err(|e| StorageError::ConnectionFailed(e.to_string()))
+        // Storage 没有原始 purge_before 方法，直接实现
+        let conn = self.conn.lock().unwrap();
+        let before_count: i64 = conn.query_row("SELECT COUNT(*) FROM detections", [], |row| row.get(0))
+            .map_err(|e| StorageError::ConnectionFailed { path: String::new(), reason: e.to_string() })?;
+        conn.execute("DELETE FROM detections WHERE timestamp_ms < ?1", rusqlite::params![timestamp_ms])
+            .map_err(|e| StorageError::ConnectionFailed { path: String::new(), reason: e.to_string() })?;
+        let after_count: i64 = conn.query_row("SELECT COUNT(*) FROM detections", [], |row| row.get(0))
+            .map_err(|e| StorageError::ConnectionFailed { path: String::new(), reason: e.to_string() })?;
+        Ok((before_count - after_count) as usize)
     }
 }

@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-use aidaguard_storage::{AuditGroup, AuditStats, DetectionRecord};
+use aidaguard_storage::{AuditGroup, AuditStats, DetectionRecord, AuditStorage, AuditFilter};
 use crate::state::AppState;
 
 #[derive(Debug, Clone, Serialize)]
@@ -37,21 +37,27 @@ pub async fn list_audit(
         .list_filtered(
             limit,
             offset,
-            rule_id_filter.as_deref(),
-            path_filter.as_deref(),
-            date_from_ms,
-            date_to_ms,
-            strategy_filter.as_deref(),
+            AuditFilter {
+                rule_id: rule_id_filter.clone(),
+                path: path_filter.clone(),
+                date_from_ms,
+                date_to_ms,
+                strategy: strategy_filter.clone(),
+                tool_name: None,
+            },
         )
         .map_err(|e| format!("Failed to query audit records: {}", e))?;
 
     let total = storage
         .count_filtered(
-            rule_id_filter.as_deref(),
-            path_filter.as_deref(),
-            date_from_ms,
-            date_to_ms,
-            strategy_filter.as_deref(),
+            AuditFilter {
+                rule_id: rule_id_filter,
+                path: path_filter,
+                date_from_ms,
+                date_to_ms,
+                strategy: strategy_filter,
+                tool_name: None,
+            },
         )
         .map_err(|e| format!("Failed to query total count: {}", e))?;
 
@@ -77,19 +83,27 @@ pub async fn list_audit_groups(
         .list_grouped(
             limit,
             offset,
-            rule_id_filter.as_deref(),
-            path_filter.as_deref(),
-            date_from_ms,
-            date_to_ms,
+            AuditFilter {
+                rule_id: rule_id_filter.clone(),
+                path: path_filter.clone(),
+                date_from_ms,
+                date_to_ms,
+                strategy: None,
+                tool_name: None,
+            },
         )
         .map_err(|e| format!("Failed to query audit groups: {}", e))?;
 
     let total = storage
         .count_grouped(
-            rule_id_filter.as_deref(),
-            path_filter.as_deref(),
-            date_from_ms,
-            date_to_ms,
+            AuditFilter {
+                rule_id: rule_id_filter,
+                path: path_filter,
+                date_from_ms,
+                date_to_ms,
+                strategy: None,
+                tool_name: None,
+            },
         )
         .map_err(|e| format!("Failed to query group total: {}", e))?;
 
@@ -141,7 +155,14 @@ pub async fn export_audit(
 
     // Export at most 10,000 records
     let records = storage
-        .list_filtered(10000, 0, rule_id_filter.as_deref(), None, date_from_ms, date_to_ms, None)
+        .list_filtered(10000, 0, AuditFilter {
+            rule_id: rule_id_filter,
+            path: None,
+            date_from_ms,
+            date_to_ms,
+            strategy: None,
+            tool_name: None,
+        })
         .map_err(|e| format!("Export query failed: {}", e))?;
 
     if records.is_empty() {
