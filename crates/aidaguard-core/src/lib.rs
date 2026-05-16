@@ -4,12 +4,14 @@ pub mod engine;
 pub mod entity;
 pub mod error;
 pub mod replacer;
-pub mod storage;
+pub mod storage_types;
+pub mod storage_trait;
 
 pub use engine::DetectionEngine;
 pub use entity::{EntityCategory, EntityType};
 pub use error::{DetectionError, ProxyError, StorageError};
-pub use storage::{AuditGroup, AuditStats, DetectionRecord, RuleCount};
+pub use storage_types::{AuditFilter, AuditGroup, AuditStats, DetectionRecord, RuleCount};
+pub use storage_trait::AuditStorage;
 
 use serde::{Deserialize, Serialize};
 

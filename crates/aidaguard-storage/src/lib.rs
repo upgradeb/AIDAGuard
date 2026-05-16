@@ -2,64 +2,21 @@ use anyhow::{Context, Result};
 use aes_gcm::aead::{Aead, OsRng};
 use aes_gcm::{AeadCore, Aes256Gcm, KeyInit};
 use rusqlite::Connection;
-use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use std::path::Path;
 use std::sync::Mutex;
 use std::time::SystemTime;
 use uuid::Uuid;
 
+// Re-export types from core for backward compatibility
+pub use aidaguard_core::storage_types::{
+    AuditFilter, AuditGroup, AuditStats, DetectionRecord, RuleCount,
+};
+pub use aidaguard_core::storage_trait::AuditStorage;
+pub use aidaguard_core::error::StorageError;
+
 const PBKDF2_ITERATIONS: u32 = 600_000;
 const SALT_LEN: usize = 16;
-
-/// 一条检测审计记录
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct DetectionRecord {
-    pub id: String,
-    pub timestamp_ms: i64,
-    pub rule_id: String,
-    pub rule_name: String,
-    pub strategy: String,
-    pub placeholder: String,
-    pub original: String,
-    pub context: String,
-    pub request_path: String,
-    pub sanitized_body: String,
-    pub response_status: u16,
-    pub tool_name: String,
-}
-
-/// 规则命中统计
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct RuleCount {
-    pub rule_id: String,
-    pub rule_name: String,
-    pub count: usize,
-}
-
-/// 按 (rule_id, strategy) 分组的审计摘要
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AuditGroup {
-    pub rule_id: String,
-    pub rule_name: String,
-    pub strategy: String,
-    pub count: usize,
-    pub latest_timestamp_ms: i64,
-}
-
-/// 审计汇总统计数据
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AuditStats {
-    pub total_count: usize,
-    pub today_count: usize,
-    pub week_count: usize,
-    pub rule_distribution: Vec<RuleCount>,
-    pub db_size_bytes: u64,
-}
 
 /// 加密持久化存储
 ///
@@ -713,4 +670,125 @@ fn derive_cipher(db_path: &Path, encryption_key: &str) -> Result<Aes256Gcm, anyh
     );
     let key = aes_gcm::Key::<Aes256Gcm>::from_slice(&key_bytes);
     Ok(Aes256Gcm::new(key))
+}
+
+// ── AuditStorage Trait Implementation ──
+
+impl AuditStorage for Storage {
+    fn record(
+        &self,
+        rule_id: &str,
+        rule_name: &str,
+        strategy: &str,
+        placeholder: &str,
+        original: &str,
+        context: &str,
+        request_path: &str,
+        sanitized_body: &str,
+        response_status: u16,
+        tool_name: &str,
+    ) -> Result<(), StorageError> {
+        Storage::record(self, rule_id, rule_name, strategy, placeholder, original, context, request_path, sanitized_body, response_status, tool_name)
+            .map_err(|e| StorageError::ConnectionFailed(e.to_string()))
+    }
+
+    fn batch_record(&self, records: &[DetectionRecord]) -> Result<usize, StorageError> {
+        Storage::batch_record(self, records)
+            .map_err(|e| StorageError::ConnectionFailed(e.to_string()))
+    }
+
+    fn list(&self, limit: usize, offset: usize) -> Result<Vec<DetectionRecord>, StorageError> {
+        Storage::list(self, limit, offset)
+            .map_err(|e| StorageError::ConnectionFailed(e.to_string()))
+    }
+
+    fn list_filtered(
+        &self,
+        limit: usize,
+        offset: usize,
+        filter: AuditFilter,
+    ) -> Result<Vec<DetectionRecord>, StorageError> {
+        Storage::list_filtered(
+            self,
+            limit,
+            offset,
+            filter.rule_id.as_deref(),
+            filter.path.as_deref(),
+            filter.date_from_ms,
+            filter.date_to_ms,
+            filter.strategy.as_deref(),
+        )
+        .map_err(|e| StorageError::ConnectionFailed(e.to_string()))
+    }
+
+    fn get_by_id(&self, id: &str) -> Result<Option<DetectionRecord>, StorageError> {
+        Storage::get_by_id(self, id)
+            .map_err(|e| StorageError::ConnectionFailed(e.to_string()))
+    }
+
+    fn list_recent(&self, limit: usize) -> Result<Vec<DetectionRecord>, StorageError> {
+        Storage::list_recent(self, limit)
+            .map_err(|e| StorageError::ConnectionFailed(e.to_string()))
+    }
+
+    fn list_grouped(
+        &self,
+        limit: usize,
+        offset: usize,
+        filter: AuditFilter,
+    ) -> Result<Vec<AuditGroup>, StorageError> {
+        Storage::list_grouped(
+            self,
+            limit,
+            offset,
+            filter.rule_id.as_deref(),
+            filter.path.as_deref(),
+            filter.date_from_ms,
+            filter.date_to_ms,
+        )
+        .map_err(|e| StorageError::ConnectionFailed(e.to_string()))
+    }
+
+    fn count_grouped(&self, filter: AuditFilter) -> Result<usize, StorageError> {
+        Storage::count_grouped(
+            self,
+            filter.rule_id.as_deref(),
+            filter.path.as_deref(),
+            filter.date_from_ms,
+            filter.date_to_ms,
+        )
+        .map_err(|e| StorageError::ConnectionFailed(e.to_string()))
+    }
+
+    fn count(&self) -> Result<usize, StorageError> {
+        Storage::count(self)
+            .map_err(|e| StorageError::ConnectionFailed(e.to_string()))
+    }
+
+    fn count_filtered(&self, filter: AuditFilter) -> Result<usize, StorageError> {
+        Storage::count_filtered(
+            self,
+            filter.rule_id.as_deref(),
+            filter.path.as_deref(),
+            filter.date_from_ms,
+            filter.date_to_ms,
+            filter.strategy.as_deref(),
+        )
+        .map_err(|e| StorageError::ConnectionFailed(e.to_string()))
+    }
+
+    fn stats(&self) -> Result<AuditStats, StorageError> {
+        Storage::stats(self)
+            .map_err(|e| StorageError::ConnectionFailed(e.to_string()))
+    }
+
+    fn delete(&self, id: &str) -> Result<bool, StorageError> {
+        Storage::delete(self, id)
+            .map_err(|e| StorageError::ConnectionFailed(e.to_string()))
+    }
+
+    fn purge_before(&self, timestamp_ms: i64) -> Result<usize, StorageError> {
+        Storage::purge_before(self, timestamp_ms)
+            .map_err(|e| StorageError::ConnectionFailed(e.to_string()))
+    }
 }

@@ -7,6 +7,7 @@ license.workspace = true
 description = "Aidaguard encrypted audit storage (SQLite + AES-256-GCM)"
 
 [dependencies]
+aidaguard-core = { path = "../aidaguard-core" }
 tracing.workspace = true
 anyhow.workspace = true
 aes-gcm.workspace = true
