@@ -15,11 +15,37 @@ pub struct AnalyzerEngine {
     registry: RecognizerRegistry,
     legacy_detector: Option<Detector>,
     min_confidence: f64,
+    nlp_enabled: bool,  // 是否启用 NLP
 }
+
+/// 智能跳过策略阈值
+const SMART_SKIP_TEXT_THRESHOLD: usize = 200;  // 小于此长度跳过 NLP
+const SMART_SKIP_MIN_PII_SIGNALS: usize = 2;   // 至少有 2 个 PII 信号才启用 NLP
 
 impl AnalyzerEngine {
     pub fn builder() -> AnalyzerEngineBuilder {
         AnalyzerEngineBuilder::default()
+    }
+
+    /// 智能判断是否需要 NLP 检测
+    /// 
+    /// 策略:
+    /// 1. NLP 未启用 → 跳过
+    /// 2. 文本过短 (< 200 字符) → 跳过
+    /// 3. 无 PII 信号特征 → 跳过
+    fn should_run_nlp(&self, text: &str) -> bool {
+        if !self.nlp_enabled {
+            return false;
+        }
+        
+        // 短文本跳过 NLP
+        if text.len() < SMART_SKIP_TEXT_THRESHOLD {
+            return false;
+        }
+        
+        // 检查 PII 信号特征
+        let pii_signals = count_pii_signals(text);
+        pii_signals >= SMART_SKIP_MIN_PII_SIGNALS
     }
 
     /// Run detection across the full pipeline (sequential):
@@ -138,6 +164,7 @@ pub struct AnalyzerEngineBuilder {
     rules_presets: Vec<String>,
     min_confidence: f64,
     load_predefined: bool,
+    nlp_enabled: bool,  // 控制 NLP 是否启用
     nlp_language: String,
 }
 
@@ -148,6 +175,7 @@ impl Default for AnalyzerEngineBuilder {
             rules_presets: Vec::new(),
             min_confidence: 0.0,
             load_predefined: false,
+            nlp_enabled: false,  // 默认关闭
             nlp_language: "en".to_string(),
         }
     }
@@ -199,9 +227,16 @@ impl AnalyzerEngineBuilder {
 
     /// Apply NLP settings from config (enabled flag + default language).
     pub fn with_nlp_config(mut self, nlp: &aidaguard_core::config::NlpConfig) -> Self {
+        self.nlp_enabled = nlp.enabled;
         if nlp.enabled {
             self.nlp_language = nlp.default_language.clone();
         }
+        self
+    }
+
+    /// Explicitly enable or disable NLP recognizers.
+    pub fn with_nlp_enabled(mut self, enabled: bool) -> Self {
+        self.nlp_enabled = enabled;
         self
     }
 
@@ -211,7 +246,10 @@ impl AnalyzerEngineBuilder {
 
         if self.load_predefined {
             registry.load_predefined();
-            registry.load_nlp_recognizers(&self.nlp_language);
+            // 仅在显式启用时加载 NLP recognizers
+            if self.nlp_enabled {
+                registry.load_nlp_recognizers(&self.nlp_language);
+            }
         }
 
         let legacy_detector = if let Some(base_dir) = self.rules_base_dir {
@@ -234,6 +272,45 @@ impl AnalyzerEngineBuilder {
             registry,
             legacy_detector,
             min_confidence: self.min_confidence,
+            nlp_enabled: self.nlp_enabled,
         })
     }
+}
+
+/// 统计文本中的 PII 信号特征数量
+/// 用于智能判断是否需要 NLP 检测
+fn count_pii_signals(text: &str) -> usize {
+    let mut signals = 0;
+    
+    // 信号 1: 包含人名特征词
+    let name_indicators = ["name", "名字", "姓名", "called", "is", "my name"];
+    if name_indicators.iter().any(|kw| text.to_lowercase().contains(kw)) {
+        signals += 1;
+    }
+    
+    // 信号 2: 包含地址特征词
+    let address_indicators = ["address", "地址", "street", "road", "live", "住在"];
+    if address_indicators.iter().any(|kw| text.to_lowercase().contains(kw)) {
+        signals += 1;
+    }
+    
+    // 信号 3: 包含组织/公司特征词
+    let org_indicators = ["company", "公司", "organization", "work at", "就职于"];
+    if org_indicators.iter().any(|kw| text.to_lowercase().contains(kw)) {
+        signals += 1;
+    }
+    
+    // 信号 4: 包含日期/生日特征词
+    let date_indicators = ["birthday", "出生", "born", "date of birth", "年龄"];
+    if date_indicators.iter().any(|kw| text.to_lowercase().contains(kw)) {
+        signals += 1;
+    }
+    
+    // 信号 5: 包含医疗/健康特征词
+    let medical_indicators = ["patient", "患者", "diagnosis", "诊断", "hospital", "医院"];
+    if medical_indicators.iter().any(|kw| text.to_lowercase().contains(kw)) {
+        signals += 1;
+    }
+    
+    signals
 }

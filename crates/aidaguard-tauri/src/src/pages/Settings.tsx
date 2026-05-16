@@ -157,18 +157,24 @@ export default function Settings() {
 
         {/* NLP 设置 */}
         <Card title={t("NLP Settings")} size="small" style={cardStyle}>
+          <Alert
+            type="info"
+            showIcon
+            message={t("NLP is disabled by default to reduce CPU usage. Enable only when you need to detect unstructured entities like names and addresses.")}
+            style={{ marginBottom: 16 }}
+          />
           <Form.Item
             name={["nlp", "enabled"]}
             label={t("NER Model")}
             valuePropName="checked"
-            extra={t("Enable NLP-based detection of unstructured entities (names, addresses, organizations)")}
+            extra={t("Enable NLP-based detection of unstructured entities (names, addresses, organizations). Increases CPU usage by ~40%.")}
           >
             <Switch />
           </Form.Item>
           <Form.Item
             name={["nlp", "default_language"]}
             label={t("Model Language")}
-            extra={t("Select the language for the NER model. The model will be downloaded on first use.")}
+            extra={t("Select the language for the NER model. The model will be downloaded on first use (~400MB).")}
           >
             <Select
               style={{ width: 180 }}

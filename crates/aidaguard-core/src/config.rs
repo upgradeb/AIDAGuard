@@ -120,13 +120,14 @@ impl Default for NotificationConfig {
     }
 }
 
-fn default_nlp_enabled() -> bool { true }
+fn default_nlp_enabled() -> bool { false }  // 默认关闭，降低客户端 CPU 占用
 fn default_nlp_language() -> String { "en".to_string() }
 
 /// NLP/NER 子配置
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct NlpConfig {
     /// 是否启用 NLP NER 检测（非结构化实体）
+    /// 默认关闭以降低客户端 CPU 占用，用户可按需开启
     #[serde(default = "default_nlp_enabled")]
     pub enabled: bool,
 
