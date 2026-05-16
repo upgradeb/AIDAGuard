@@ -75,8 +75,19 @@ impl Storage {
     ///
     /// `encryption_key` 为任意长度的密钥字符串，内部使用 PBKDF2-HMAC-SHA256
     /// (600,000 迭代) + 随机 salt 派生 32 字节 AES-256 密钥。
+    ///
+    /// 启用 WAL 模式以提升并发写入性能。
     pub fn open(db_path: &Path, encryption_key: &str) -> Result<Self, anyhow::Error> {
         let conn = Connection::open(db_path)?;
+
+        // 启用 WAL 模式和性能优化 PRAGMA
+        conn.execute_batch(
+            "PRAGMA journal_mode=WAL;
+             PRAGMA synchronous=NORMAL;
+             PRAGMA cache_size=-64000;  -- 64MB cache
+             PRAGMA busy_timeout=5000;
+             PRAGMA temp_store=MEMORY;",
+        )?;
 
         conn.execute_batch(
             "CREATE TABLE IF NOT EXISTS detections (
@@ -150,6 +161,50 @@ impl Storage {
 
         tracing::debug!("detection recorded: {} -> {}", rule_id, placeholder);
         Ok(())
+    }
+
+    /// 批量记录检测结果，减少数据库锁竞争。
+    /// 适用于高频写入场景，可显著提升吞吐量。
+    pub fn batch_record(
+        &self,
+        records: &[DetectionRecord],
+    ) -> Result<usize, anyhow::Error> {
+        if records.is_empty() {
+            return Ok(0);
+        }
+
+        let mut conn = self.conn.lock().unwrap();
+        let tx = conn.transaction()?;
+
+        let mut count = 0;
+        for record in records {
+            let encrypted_original = self.encrypt(record.original.as_bytes())?;
+            let encrypted_context = self.encrypt(record.context.as_bytes())?;
+
+            tx.execute(
+                "INSERT INTO detections (id, timestamp_ms, rule_id, rule_name, strategy, placeholder, original_encrypted, context_encrypted, request_path, sanitized_body, response_status, tool_name)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12",
+                rusqlite::params![
+                    &record.id,
+                    record.timestamp_ms,
+                    &record.rule_id,
+                    &record.rule_name,
+                    &record.strategy,
+                    &record.placeholder,
+                    encrypted_original,
+                    encrypted_context,
+                    &record.request_path,
+                    &record.sanitized_body,
+                    record.response_status as i64,
+                    &record.tool_name,
+                ],
+            )?;
+            count += 1;
+        }
+
+        tx.commit()?;
+        tracing::debug!("batch recorded {} detections", count);
+        Ok(count)
     }
 
     /// 分页查询检测记录，按时间倒序，返回时解密 `original` 和 `context` 字段。

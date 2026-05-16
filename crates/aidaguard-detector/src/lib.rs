@@ -6,3 +6,4 @@ pub mod pipeline;
 
 pub use aidaguard_core::DetectionEngine;
 pub use pipeline::{AnalyzerEngine, AnalyzerEngineBuilder};
+pub use rayon;

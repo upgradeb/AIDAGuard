@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use rayon::prelude::*;
+
 use crate::core::recognizer::Recognizer;
 use crate::core::result::RecognizerResult;
 
@@ -91,6 +93,15 @@ impl RecognizerRegistry {
             results.extend(recognizer.analyze(text));
         }
         results
+    }
+
+    /// Run all registered recognizers in parallel using rayon.
+    /// This is more efficient for large texts with many recognizers.
+    pub fn analyze_all_parallel(&self, text: &str) -> Vec<RecognizerResult> {
+        self.recognizers
+            .par_iter()
+            .flat_map(|recognizer| recognizer.analyze(text))
+            .collect()
     }
 
     /// Number of registered recognizers.

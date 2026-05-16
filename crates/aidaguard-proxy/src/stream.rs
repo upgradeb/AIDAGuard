@@ -8,6 +8,94 @@ use tracing::{debug, error};
 
 use aidaguard_core::replacer::{self, PlaceholderMap};
 
+/// Incremental placeholder restorer for non-streaming responses.
+/// Processes chunks incrementally, allowing immediate response forwarding.
+pub struct IncrementalRestorer {
+    map: PlaceholderMap,
+    buffer: String,
+}
+
+impl IncrementalRestorer {
+    /// Create a new incremental restorer with the given placeholder map.
+    pub fn new(map: PlaceholderMap) -> Self {
+        Self {
+            map,
+            buffer: String::new(),
+        }
+    }
+
+    /// Process a chunk of text, returning content ready to be sent immediately.
+    /// The restorer buffers incomplete placeholders until more data arrives.
+    pub fn process_chunk(&mut self, chunk: &str) -> String {
+        self.buffer.push_str(chunk);
+
+        let mut ready = String::new();
+
+        // Find all complete placeholders and restore them
+        loop {
+            // Look for placeholder start marker
+            let start_pos = match self.buffer.find("[[") {
+                Some(pos) => pos,
+                None => {
+                    // No incomplete placeholder, all content is safe
+                    ready.push_str(&self.buffer);
+                    self.buffer.clear();
+                    break;
+                }
+            };
+
+            // Look for placeholder end marker after the start
+            let end_pos = match self.buffer[start_pos..].find("]]") {
+                Some(rel_pos) => start_pos + rel_pos + 2, // Include ]]
+                None => {
+                    // Incomplete placeholder, send safe prefix
+                    if start_pos > 0 {
+                        ready.push_str(&self.buffer[..start_pos]);
+                        self.buffer = self.buffer[start_pos..].to_string();
+                    }
+                    break;
+                }
+            };
+
+            // Extract the placeholder
+            let placeholder = &self.buffer[start_pos..end_pos];
+
+            // Add content before the placeholder
+            ready.push_str(&self.buffer[..start_pos]);
+
+            // Restore the placeholder
+            if let Some(original) = self.map.get(placeholder) {
+                ready.push_str(original);
+            } else {
+                // Unknown placeholder, keep as-is
+                ready.push_str(placeholder);
+            }
+
+            // Update buffer
+            self.buffer = self.buffer[end_pos..].to_string();
+        }
+
+        ready
+    }
+
+    /// Process the final chunk and return any remaining buffered content.
+    pub fn finish(&mut self) -> String {
+        let mut remaining = std::mem::take(&mut self.buffer);
+
+        // Restore any remaining placeholders
+        if !remaining.is_empty() {
+            remaining = replacer::restore(&remaining, &self.map);
+        }
+
+        remaining
+    }
+
+    /// Restore a complete text (non-incremental, for comparison).
+    pub fn restore_complete(&self, text: &str) -> String {
+        replacer::restore(text, &self.map)
+    }
+}
+
 /// 纯透传，不做还原
 pub fn stream_response(upstream_resp: Response) -> (StatusCode, HeaderMap, Body) {
     let status = upstream_resp.status();
