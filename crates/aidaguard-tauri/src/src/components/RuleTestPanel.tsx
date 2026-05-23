@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Drawer, Input, Button, Space, Typography, Tag, Card, Divider } from "antd";
+import { Drawer, Input, Button, Space, Typography, Tag, Card, Divider, theme } from "antd";
 import { PlayCircleOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import type { TestRuleResult } from "../types";
@@ -22,6 +22,7 @@ export default function RuleTestPanel({
   const [pattern, setPattern] = useState("");
   const [text, setText] = useState("");
   const { t } = useTranslation();
+  const { token } = theme.useToken();
 
   return (
     <Drawer
@@ -98,7 +99,8 @@ export default function RuleTestPanel({
             <Card size="small" title={t("Sanitized Text")}>
               <pre
                 style={{
-                  background: "#f5f5f5",
+                  background: token.colorFillAlter,
+                  color: token.colorText,
                   padding: 12,
                   borderRadius: 6,
                   fontSize: 13,

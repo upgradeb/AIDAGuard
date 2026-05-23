@@ -95,8 +95,8 @@ export default function EventFeed({ records, onClickRecord }: EventFeedProps) {
                   style={{
                     flex: 1,
                     fontSize: 13,
-                    color: "#ef4444",
-                    background: "#fef2f2",
+                    color: token.colorError,
+                    background: token.colorErrorBg,
                     padding: "2px 8px",
                     borderRadius: 4,
                     wordBreak: "break-all",

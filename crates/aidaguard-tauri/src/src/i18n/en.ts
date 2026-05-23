@@ -272,7 +272,9 @@ const en = {
   "Pre-download the NLP model now to avoid first-use delay (~400 MB)": "Pre-download the NLP model now to avoid first-use delay (~400 MB)",
   "Downloading NLP model...": "Downloading NLP model...",
   "NLP model downloaded successfully": "NLP model downloaded successfully",
-  "NLP model download failed": "NLP model download failed"
+  "NLP model download failed": "NLP model download failed",
+  "Collapse": "Collapse",
+  "Show Full Body": "Show Full Body"
 };
 
 export default en;

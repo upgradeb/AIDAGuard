@@ -12,6 +12,7 @@ import {
   Alert,
   Spin,
 } from "antd";
+import { theme } from "antd";
 import {
   RobotOutlined,
   ThunderboltOutlined,
@@ -36,6 +37,7 @@ export default function GenerateRuleModal({
   onClose,
 }: GenerateRuleModalProps) {
   const { t } = useTranslation();
+  const { token } = theme.useToken();
   const [sampleText, setSampleText] = useState("");
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState<GeneratedRule | null>(null);
@@ -137,13 +139,13 @@ export default function GenerateRuleModal({
           marginBottom: 12,
           padding: "6px 12px",
           borderRadius: 6,
-          background: "#f0f5ff",
-          border: "1px solid #d6e4ff",
+          background: token.colorPrimaryBg,
+          border: `1px solid ${token.colorPrimaryBorder}`,
           fontSize: 13,
         }}
       >
-        <ApiOutlined style={{ color: "#1677ff" }} />
-        <Typography.Text style={{ color: "#1677ff" }}>
+        <ApiOutlined style={{ color: token.colorPrimary }} />
+        <Typography.Text style={{ color: token.colorPrimary }}>
           {t("Model: ")}<strong>{modelLabel}</strong>
         </Typography.Text>
       </div>
@@ -196,8 +198,8 @@ export default function GenerateRuleModal({
             style={{
               marginTop: 16,
               padding: 16,
-              background: generating ? "#fffbe6" : "#f6ffed",
-              border: `1px solid ${generating ? "#ffe58f" : "#b7eb8f"}`,
+              background: generating ? token.colorWarningBg : token.colorSuccessBg,
+              border: `1px solid ${generating ? token.colorWarningBorder : token.colorSuccessBorder}`,
               borderRadius: 8,
               transition: "background 0.3s, border-color 0.3s",
             }}

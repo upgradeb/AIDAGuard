@@ -30,10 +30,13 @@ fn main() {
             let config_path = config_dir.join("config.toml");
 
             // Load configuration
-            let config = Config::load_from(&config_path).unwrap_or_default();
+            let mut config = Config::load_from(&config_path).unwrap_or_default();
 
-            // Read rules directory from config
+            // Resolve rules directory relative to config dir / executable location
             let rules_dir = resolve_rules_dir(&config.rules_dir, &config_dir);
+
+            // Patch config with resolved paths so the engine finds rules
+            config.rules_dir = rules_dir.clone();
 
             // Initialize storage (allows viewing audit records without proxy running)
             let storage: Option<Arc<Storage>> = if config.storage.enabled {

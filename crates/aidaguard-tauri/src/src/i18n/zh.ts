@@ -265,14 +265,16 @@ const zh = {
   "NLP Settings": "NLP 设置",
   "NLP is disabled by default to reduce CPU usage. Enable only when you need to detect unstructured entities like names and addresses.": "NLP 默认关闭以降低 CPU 占用。仅在需要检测人名、地址等非结构化实体时开启。",
   "NER Model": "NER 模型",
-  "Enable NLP-based detection of unstructured entities (names, addresses, organizations). Increases CPU usage by ~40%.": "启用基于 NLP 的非结构化实体检测（人名、地址、机构名）。CPU 占用增加约 40%。",",
+  "Enable NLP-based detection of unstructured entities (names, addresses, organizations). Increases CPU usage by ~40%.": "启用基于 NLP 的非结构化实体检测（人名、地址、机构名）。CPU 占用增加约 40%。",
   "Model Language": "模型语言",
   "Select the language for the NER model. The model will be downloaded on first use.": "选择 NER 模型语言。首次使用时将自动下载模型。",
   "Download NLP Model": "下载 NLP 模型",
   "Pre-download the NLP model now to avoid first-use delay (~400 MB)": "预下载 NLP 模型以避免首次使用时的等待（约 400 MB）",
   "Downloading NLP model...": "正在下载 NLP 模型...",
   "NLP model downloaded successfully": "NLP 模型下载成功",
-  "NLP model download failed": "NLP 模型下载失败"
+  "NLP model download failed": "NLP 模型下载失败",
+  "Collapse": "收起",
+  "Show Full Body": "展开完整内容"
 };
 
 export default zh;

@@ -1,4 +1,4 @@
-import { Table, Tag, Typography, Space, Button, Popconfirm, Badge } from "antd";
+import { Table, Tag, Typography, Space, Button, Popconfirm, Badge, theme } from "antd";
 import { EyeOutlined, DeleteOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import type { ColumnsType } from "antd/es/table";
@@ -35,6 +35,7 @@ export default function AuditTable({
   onDelete,
 }: AuditTableProps) {
   const { t } = useTranslation();
+  const { token } = theme.useToken();
 
   const groupColumns: ColumnsType<AuditGroup> = [
     {
@@ -180,7 +181,7 @@ export default function AuditTable({
               size="small"
               pagination={false}
               scroll={{ x: "max-content" }}
-              style={{ margin: "-8px 0", background: "#fafafa", borderRadius: 6 }}
+              style={{ margin: "-8px 0", background: token.colorFillAlter, borderRadius: 6 }}
             />
           );
         },

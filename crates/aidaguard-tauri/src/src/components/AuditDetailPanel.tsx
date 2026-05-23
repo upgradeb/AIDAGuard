@@ -1,4 +1,6 @@
-import { Descriptions, Typography, Tag } from "antd";
+import { useState } from "react";
+import { Descriptions, Typography, Tag, theme, Button } from "antd";
+import { DownOutlined, UpOutlined } from "@ant-design/icons";
 import { useTranslation } from "react-i18next";
 import type { DetectionRecord } from "../types";
 import dayjs from "dayjs";
@@ -7,8 +9,17 @@ interface AuditDetailPanelProps {
   record: DetectionRecord;
 }
 
+const PREVIEW_MAX = 300;
+
 export default function AuditDetailPanel({ record }: AuditDetailPanelProps) {
   const { t } = useTranslation();
+  const { token } = theme.useToken();
+  const [bodyExpanded, setBodyExpanded] = useState(false);
+
+  const body = record.sanitizedBody || "";
+  const bodyLen = body.length;
+  const truncated = !bodyExpanded && bodyLen > PREVIEW_MAX;
+  const displayBody = truncated ? body.slice(0, PREVIEW_MAX) + "…" : body;
 
   return (
     <div className="detail-panel" style={{ padding: "0 24px 16px" }}>
@@ -69,23 +80,47 @@ export default function AuditDetailPanel({ record }: AuditDetailPanelProps) {
         </Descriptions.Item>
       </Descriptions>
 
-      <Typography.Text strong style={{ display: "block", marginBottom: 8 }}>
-        {t("Sanitized Request Body")}
-      </Typography.Text>
-      <pre
-        style={{
-          background: "#f5f5f5",
-          padding: 12,
-          borderRadius: 6,
-          fontSize: 12,
-          maxHeight: 300,
-          overflow: "auto",
-          whiteSpace: "pre-wrap",
-          wordBreak: "break-all",
-        }}
-      >
-        {record.sanitizedBody || "—"}
-      </pre>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+        <Typography.Text strong>
+          {t("Sanitized Request Body")}
+        </Typography.Text>
+        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          ({bodyLen.toLocaleString()} chars)
+        </Typography.Text>
+      </div>
+      {body ? (
+        <>
+          <pre
+            style={{
+              background: token.colorFillAlter,
+              color: token.colorText,
+              padding: 12,
+              borderRadius: 6,
+              fontSize: 12,
+              maxHeight: truncated ? 120 : 320,
+              overflow: "auto",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-all",
+              margin: 0,
+            }}
+          >
+            {displayBody}
+          </pre>
+          {bodyLen > PREVIEW_MAX && (
+            <Button
+              type="link"
+              size="small"
+              icon={bodyExpanded ? <UpOutlined /> : <DownOutlined />}
+              onClick={() => setBodyExpanded(!bodyExpanded)}
+              style={{ padding: "4px 0" }}
+            >
+              {bodyExpanded ? t("Collapse") : t("Show Full Body")}
+            </Button>
+          )}
+        </>
+      ) : (
+        <Typography.Text type="secondary">—</Typography.Text>
+      )}
     </div>
   );
 }
