@@ -12,6 +12,14 @@ mod codex;
 mod gemini;
 mod opencode;
 
+// Phase 4: New tool adapters
+mod copilot;
+mod codeium;
+mod cody;
+mod tabnine;
+mod codewhisperer;
+mod jetbrains_ai;
+
 pub use roo_code::RooCode;
 pub use cline::Cline;
 pub use continue_dev::ContinueDev;
@@ -25,6 +33,14 @@ pub use hermes_agent::HermesAgent;
 pub use codex::Codex;
 pub use gemini::GeminiCli;
 pub use opencode::OpenCode;
+
+// Phase 4: New tool adapters
+pub use copilot::Copilot;
+pub use codeium::Codeium;
+pub use cody::Cody;
+pub use tabnine::Tabnine;
+pub use codewhisperer::CodeWhisperer;
+pub use jetbrains_ai::JetBrainsAI;
 
 use crate::registry::PluginRegistry;
 
@@ -43,4 +59,12 @@ pub fn register_all(registry: &mut PluginRegistry) {
     registry.register(Box::new(Codex::new()));
     registry.register(Box::new(GeminiCli::new()));
     registry.register(Box::new(OpenCode::new()));
+
+    // Phase 4: New tool adapters
+    registry.register(Box::new(Copilot::new()));
+    registry.register(Box::new(Codeium::new()));
+    registry.register(Box::new(Cody::new()));
+    registry.register(Box::new(Tabnine::new()));
+    registry.register(Box::new(CodeWhisperer::new()));
+    registry.register(Box::new(JetBrainsAI::new()));
 }

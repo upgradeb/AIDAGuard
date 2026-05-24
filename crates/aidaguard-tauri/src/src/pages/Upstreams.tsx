@@ -112,7 +112,7 @@ export default function Upstreams() {
       title: t("Default"),
       dataIndex: "default",
       key: "default",
-      width: 60,
+      width: 70,
       render: (val: boolean) =>
         val ? <Tag color="blue">{t("Default")}</Tag> : null,
     },
@@ -132,13 +132,13 @@ export default function Upstreams() {
       title: t("Timeout(s)"),
       dataIndex: "timeout_secs",
       key: "timeout_secs",
-      width: 80,
+      width: 90,
     },
     {
       title: t("QPS"),
       dataIndex: "rate_limit_qps",
       key: "rate_limit_qps",
-      width: 70,
+      width: 90,
       render: (v: number) => (v > 0 ? v : t("Unlimited")),
     },
     {
@@ -155,7 +155,7 @@ export default function Upstreams() {
       title: t("Protocol"),
       dataIndex: "protocol",
       key: "protocol",
-      width: 100,
+      width: 110,
       render: (val: string) =>
         val === "anthropic" ? <Tag color="orange">Anthropic</Tag> : <Tag color="blue">OpenAI</Tag>,
     },

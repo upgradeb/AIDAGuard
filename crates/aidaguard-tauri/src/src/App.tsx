@@ -82,7 +82,7 @@ export default function App() {
   return (
     <Layout style={{ minHeight: "100vh" }}>
       <Sider
-        width={220}
+        width={230}
         style={{
           background: token.colorBgContainer,
           borderRight: `1px solid ${token.colorBorderSecondary}`,
@@ -133,7 +133,7 @@ export default function App() {
                 }}
               >
                 {item.icon}
-                {item.label}
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.label}</span>
               </div>
             );
           })}
@@ -166,16 +166,17 @@ export default function App() {
                 borderRadius: "50%",
                 background: statusColor,
                 display: "inline-block",
+                flexShrink: 0,
               }}
             />
-            <span style={{ fontSize: 13, color: token.colorTextSecondary }}>
+            <span style={{ fontSize: 13, color: token.colorTextSecondary, minWidth: 100, whiteSpace: "nowrap" }}>
               {status?.status === "running" ? t("Proxy Running") : t("Proxy Stopped")}
             </span>
             <Button
               type="text"
               size="small"
               onClick={switchLang}
-              style={{ fontSize: 12, color: token.colorTextSecondary }}
+              style={{ fontSize: 12, color: token.colorTextSecondary, minWidth: 44, textAlign: "center" }}
             >
               {i18n.language === "zh" ? "EN" : "中文"}
             </Button>

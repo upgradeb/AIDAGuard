@@ -240,7 +240,7 @@ export default function Rules() {
       title: t("Rule Name"),
       dataIndex: "name",
       key: "name",
-      width: 140,
+      width: 150,
     },
     {
       title: t("ID"),
@@ -260,7 +260,7 @@ export default function Rules() {
       title: t("Strategy"),
       dataIndex: "strategy",
       key: "strategy",
-      width: 100,
+      width: 110,
       render: (v: string) => (
         <Tag color={v === "placeholder" ? "blue" : "purple"}>{v}</Tag>
       ),
@@ -269,7 +269,7 @@ export default function Rules() {
       title: t("Priority"),
       dataIndex: "priority",
       key: "priority",
-      width: 70,
+      width: 80,
     },
     {
       title: t("Actions"),
@@ -380,14 +380,14 @@ export default function Rules() {
             <Select
               placeholder={t("Filter by Category")}
               allowClear
-              style={{ width: 140 }}
+              style={{ width: 170 }}
               value={filterCat || undefined}
               onChange={(v) => setFilterCat(v || "")}
               options={ruleFiles.map((f) => ({ value: f, label: f }))}
             />
             <Input.Search
               placeholder={t("Search Rule Name / ID")}
-              style={{ width: 220 }}
+              style={{ width: 260 }}
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
               allowClear

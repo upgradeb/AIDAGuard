@@ -49,7 +49,7 @@ export default function AuditTable({
       title: t("Audit Strategy"),
       dataIndex: "strategy",
       key: "strategy",
-      width: 100,
+      width: 120,
       render: (val: string) => {
         if (val === "detect") return <Tag color="orange">{t("Detect Only")}</Tag>;
         if (val === "mask") return <Tag color="purple">{t("Partial Mask")}</Tag>;
@@ -92,7 +92,7 @@ export default function AuditTable({
       title: t("Original Data"),
       dataIndex: "original",
       key: "original",
-      width: 140,
+      width: 150,
       ellipsis: true,
       render: (val: string) => (
         <Typography.Text style={{ color: "#ef4444", fontSize: 13 }} ellipsis copyable>
@@ -136,7 +136,7 @@ export default function AuditTable({
     {
       title: t("Actions"),
       key: "actions",
-      width: 90,
+      width: 100,
       render: (_, record) => (
         <Space size={4}>
           <Button

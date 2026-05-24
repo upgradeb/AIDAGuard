@@ -1,5 +1,7 @@
 // T-STO-01~15: Storage — CRUD, filtering, stats, migration
 use aidaguard_storage::Storage;
+use aidaguard_storage::AuditStorage;
+use aidaguard_core::storage_types::AuditFilter;
 use uuid::Uuid;
 
 fn temp_db() -> (Storage, String) {
@@ -72,7 +74,8 @@ fn temp_db() -> (Storage, String) {
     let (storage, path) = temp_db();
     storage.record("rule_a", "Rule A", "filter", "", "val1", "ctx", "/api", "body", 200, "").unwrap();
     storage.record("rule_b", "Rule B", "filter", "", "val2", "ctx", "/api", "body", 200, "").unwrap();
-    let results = storage.list_filtered(10, 0, Some("rule_a"), None, None, None, None).unwrap();
+    let filter = AuditFilter::by_rule("rule_a");
+    let results = storage.list_filtered(10, 0, filter).unwrap();
     assert_eq!(results.len(), 1);
     assert_eq!(results[0].rule_id, "rule_a");
     let _ = std::fs::remove_file(path);
@@ -81,7 +84,8 @@ fn temp_db() -> (Storage, String) {
     let (storage, path) = temp_db();
     storage.record("r1", "R1", "filter", "", "v1", "ctx", "/chat/completions", "body", 200, "").unwrap();
     storage.record("r2", "R2", "filter", "", "v2", "ctx", "/embeddings", "body", 200, "").unwrap();
-    let results = storage.list_filtered(10, 0, None, Some("/chat"), None, None, None).unwrap();
+    let filter = AuditFilter::new().with_path("/chat");
+    let results = storage.list_filtered(10, 0, filter).unwrap();
     assert_eq!(results.len(), 1);
     assert_eq!(results[0].request_path, "/chat/completions");
     let _ = std::fs::remove_file(path);
@@ -91,10 +95,12 @@ fn temp_db() -> (Storage, String) {
     let now_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;
     storage.record("r1", "R1", "filter", "", "v1", "ctx", "/api", "body", 200, "").unwrap();
     // Query with wide date range should include the record
-    let results = storage.list_filtered(10, 0, None, None, Some(0), Some(now_ms + 10000), None).unwrap();
+    let filter = AuditFilter::by_date_range(0, now_ms + 10000);
+    let results = storage.list_filtered(10, 0, filter).unwrap();
     assert!(!results.is_empty());
     // Query with future-only range should be empty
-    let results = storage.list_filtered(10, 0, None, None, Some(now_ms + 100000), None, None).unwrap();
+    let filter = AuditFilter::by_date_range(now_ms + 100000, now_ms + 200000);
+    let results = storage.list_filtered(10, 0, filter).unwrap();
     assert!(results.is_empty());
     let _ = std::fs::remove_file(path);
 }
@@ -102,9 +108,9 @@ fn temp_db() -> (Storage, String) {
     let (storage, path) = temp_db();
     storage.record("r1", "R1", "placeholder", "", "v1", "ctx", "/api", "body", 200, "").unwrap();
     storage.record("r2", "R2", "detect", "", "v2", "ctx", "/api", "body", 200, "").unwrap();
-    let total = storage.count_filtered(None, None, None, None, None).unwrap();
+    let total = storage.count_filtered(AuditFilter::new()).unwrap();
     assert_eq!(total, 2);
-    let filtered = storage.count_filtered(Some("r1"), None, None, None, None).unwrap();
+    let filtered = storage.count_filtered(AuditFilter::by_rule("r1")).unwrap();
     assert_eq!(filtered, 1);
     let _ = std::fs::remove_file(path);
 }

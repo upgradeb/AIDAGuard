@@ -118,7 +118,7 @@ export default function AuditLog() {
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
               onPressEnter={handleSearch}
-              style={{ width: 280 }}
+              style={{ width: 320 }}
               allowClear
             />
             <RangePicker

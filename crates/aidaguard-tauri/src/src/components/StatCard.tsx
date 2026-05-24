@@ -75,7 +75,7 @@ export default function StatCard({ title, value, icon, color, gradient }: StatCa
         <div>
           <Typography.Text
             type={gradient ? undefined : "secondary"}
-            style={{ fontSize: 13, display: "block", color: gradient ? "rgba(255,255,255,0.85)" : undefined }}
+            style={{ fontSize: 13, display: "block", color: gradient ? "rgba(255,255,255,0.85)" : undefined, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minHeight: 20 }}
           >
             {title}
           </Typography.Text>
