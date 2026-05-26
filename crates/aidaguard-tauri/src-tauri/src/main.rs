@@ -12,6 +12,67 @@ use aidaguard_tauri::state::AppState;
 use aidaguard_plugins::{adapters, PluginRegistry};
 use aidaguard_tauri::{commands, resolve_rules_dir, resolve_storage_path, tray};
 
+/// Seed default rules into the config directory if no rules exist there yet.
+/// This integrates the rules into the app data directory instead of relying on
+/// the project directory or CWD.
+fn seed_default_rules(config_dir: &std::path::Path) -> std::path::PathBuf {
+    let dest = config_dir.join("rules");
+    if dest.exists() {
+        return dest;
+    }
+
+    // Search for default rules in exe-relative or CWD locations
+    let mut source: Option<std::path::PathBuf> = None;
+
+    // Try CWD first (cargo tauri dev)
+    let cwd_rules = std::env::current_dir().unwrap_or_default().join("rules");
+    if cwd_rules.exists() {
+        source = Some(cwd_rules);
+    }
+
+    // Try searching upward from executable
+    if source.is_none() {
+        if let Ok(exe) = std::env::current_exe() {
+            let mut exe_dir = exe.parent().map(|p| p.to_path_buf()).unwrap_or_default();
+            loop {
+                let candidate = exe_dir.join("rules");
+                if candidate.exists() {
+                    source = Some(candidate);
+                    break;
+                }
+                if !exe_dir.pop() {
+                    break;
+                }
+            }
+        }
+    }
+
+    // Copy rules to config directory
+    if let Some(src) = source {
+        if let Err(e) = copy_dir_recursive(&src, &dest) {
+            tracing::warn!("Failed to seed default rules to {}: {}", dest.display(), e);
+        } else {
+            tracing::info!("Default rules seeded to {}", dest.display());
+        }
+    }
+
+    dest
+}
+
+fn copy_dir_recursive(src: &std::path::Path, dest: &std::path::Path) -> Result<(), std::io::Error> {
+    std::fs::create_dir_all(dest)?;
+    for entry in std::fs::read_dir(src)? {
+        let entry = entry?;
+        let dest_path = dest.join(entry.file_name());
+        if entry.file_type()?.is_dir() {
+            copy_dir_recursive(&entry.path(), &dest_path)?;
+        } else {
+            std::fs::copy(entry.path(), &dest_path)?;
+        }
+    }
+    Ok(())
+}
+
 fn main() {
     // Initialize logging
     tracing_subscriber::fmt()
@@ -32,11 +93,21 @@ fn main() {
             // Load configuration
             let mut config = Config::load_from(&config_path).unwrap_or_default();
 
+            // Seed default rules into config directory (integrates rules with app data)
+            let default_rules_dir = seed_default_rules(&config_dir);
+
             // Resolve rules directory relative to config dir / executable location
             let rules_dir = resolve_rules_dir(&config.rules_dir, &config_dir);
 
             // Patch config with resolved paths so the engine finds rules
-            config.rules_dir = rules_dir.clone();
+            // If the resolved path points to a transient location (CWD/exe dir),
+            // redirect to the seeded copy in config dir for persistence
+            let final_rules_dir = if rules_dir != default_rules_dir.to_string_lossy() && default_rules_dir.exists() {
+                default_rules_dir.to_string_lossy().to_string()
+            } else {
+                rules_dir
+            };
+            config.rules_dir = final_rules_dir.clone();
 
             // Initialize storage (allows viewing audit records without proxy running)
             let storage: Option<Arc<Storage>> = if config.storage.enabled {
@@ -91,7 +162,7 @@ fn main() {
                 proxy_shutdown: Arc::new(Mutex::new(None)),
                 proxy_start_time: Arc::new(Mutex::new(None)),
                 proxy_port: Arc::new(Mutex::new(port)),
-                rules_dir: Arc::new(RwLock::new(rules_dir)),
+                rules_dir: Arc::new(RwLock::new(final_rules_dir)),
                 rules_watcher: Arc::new(Mutex::new(None)),
                 plugin_registry: Arc::new(RwLock::new(registry)),
             };
@@ -137,6 +208,7 @@ fn main() {
             commands::rules::generate_rule,
             commands::config::get_config,
             commands::config::save_config,
+            commands::config::get_app_version,
             commands::upstream::get_upstreams,
             commands::upstream::add_upstream,
             commands::upstream::update_upstream,

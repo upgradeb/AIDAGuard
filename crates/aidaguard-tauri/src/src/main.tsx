@@ -14,6 +14,7 @@ const antdLocales: Record<string, typeof zhCN> = { zh: zhCN, en: enUS };
 
 function Root() {
   const resolved = useThemeStore((s) => s.resolved);
+  const presetColors = useThemeStore((s) => s.presetColors);
   const { i18n: i18nInst } = useTranslation();
   const locale = antdLocales[i18nInst.language] || zhCN;
 
@@ -24,8 +25,8 @@ function Root() {
         algorithm:
           resolved === "dark" ? antTheme.darkAlgorithm : antTheme.defaultAlgorithm,
         token: {
-          colorPrimary: "#3b82f6",
-          borderRadius: 6,
+          colorPrimary: presetColors.colorPrimary,
+          borderRadius: presetColors.borderRadius,
         },
       }}
     >

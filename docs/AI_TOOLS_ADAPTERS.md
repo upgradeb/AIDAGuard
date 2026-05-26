@@ -104,29 +104,91 @@
 
 ### 2.3 Cline (VS Code 扩展)
 
+**扩展 ID：** `saoudrizwan.claude-dev`
+
 **配置文件路径：**
 - VS Code 全局设置: `~/Library/Application Support/Code/User/settings.json`
-- Cline 工作区设置: `.vscode/settings.json`
+- Cline 全局存储: `~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/`
+- MCP 设置: `~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`
 
-**API 配置方式：**
+**设置键（在 VS Code settings.json 中）：**
 ```json
 {
-  "cline.apiProvider": "openai",
-  "cline.openaiApiKey": "sk-xxx",
-  "cline.openaiBaseUrl": "https://api.openai.com/v1",
-  "cline.model": "gpt-4o"
+  "roo-cline.debug": false,
+  "roo-cline.allowedCommands": [
+    "git log",
+    "git diff",
+    "git show"
+  ],
+  "roo-cline.deniedCommands": []
 }
 ```
 
-**代理配置：**
+**缓存文件：**
+| 文件 | 大小 | 说明 |
+|------|------|------|
+| `cache/mcp_marketplace_catalog.json` | ~2.4MB | MCP 市场目录 |
+| `cache/openrouter_models.json` | ~167KB | OpenRouter 模型列表 |
+| `cache/hicap_models.json` | ~9KB | HiCap 模型列表 |
+| `cache/vercel_ai_gateway_models.json` | ~120KB | Vercel AI Gateway 模型列表 |
+
+**代理配置方式：**
+Cline 使用 VS Code 的 `http.proxy` 设置来路由 API 请求。AIDAGuard 通过修改 `settings.json` 添加代理：
 ```json
 {
-  "http.proxy": "http://127.0.0.1:19000"
+  "http.proxy": "http://127.0.0.1:19000",
+  "http.proxyStrictSSL": false
 }
 ```
 
 **检测方式：**
-- 检查 VS Code 扩展目录: `~/.vscode/extensions/saoudrizwan.claude-dev-*`
+- 检查全局存储目录: `~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/`
+
+**备份策略：**
+- 备份 `settings.json` 完整文件
+- 备份 `cline_mcp_settings.json`
+- 备份 `cache/` 目录下模型列表
+
+---
+
+### 2.3.1 Roo Code / Roo Cline (VS Code 扩展)
+
+**扩展 ID：** `rooveterinaryinc.roo-cline`
+
+Roo Code 是 Cline 的增强分支，完全兼容 Cline API。它使用与 Cline 相同的 VS Code `settings.json` 配置键（`roo-cline.*`）。
+
+**配置文件路径：**
+- VS Code 全局设置: `~/Library/Application Support/Code/User/settings.json`（与 Cline 共享）
+- 全局存储: `~/Library/Application Support/Code/User/globalStorage/rooveterinaryinc.roo-cline/`
+- 扩展缓存: `~/Library/Application Support/Code/CachedExtensionVSIXs/rooveterinaryinc.roo-cline-*`
+
+**设置键（与 Cline 共享 `roo-cline.*` 命名空间）：**
+```json
+{
+  "roo-cline.debug": false,
+  "roo-cline.allowedCommands": ["git log", "git diff", "git show"],
+  "roo-cline.deniedCommands": [],
+  "roo-cline.model": "claude-sonnet-4-6",
+  "roo-cline.apiProvider": "anthropic"
+}
+```
+
+**代理配置方式：**
+与 Cline 相同，通过 VS Code `settings.json` 中的 `http.proxy` 设置：
+```json
+{
+  "http.proxy": "http://127.0.0.1:19000",
+  "http.proxyStrictSSL": false
+}
+```
+
+**检测方式：**
+- 检查扩展缓存目录: `~/Library/Application Support/Code/CachedExtensionVSIXs/` 中是否存在 `roo-cline` 包
+- 或检查全局存储目录: `rooveterinaryinc.roo-cline`
+
+**注意事项：**
+- Roo Code 与 Cline 共享 `settings.json`，备份和恢复操作会影响两个扩展
+- 两者使用相同的 `roo-cline.*` 设置键命名空间
 
 ---
 
@@ -528,7 +590,8 @@ impl ToolAdapter for CliToolAdapter {
 |------|----------|----------|
 | Cursor | JSON | `cursor.aiProvider`, `cursor.openaiApiKey`, `cursor.openaiBaseUrl` |
 | Windsurf | JSON | `windsurf.apiProvider`, `windsurf.apiKey`, `windsurf.baseUrl` |
-| VS Code 扩展 | JSON | `extension.apiProvider`, `extension.apiKey`, `extension.baseUrl` |
+| Cline | JSON (VS Code settings.json) | `roo-cline.*` 键 + `http.proxy` 代理 |
+| Roo Code | JSON (VS Code settings.json) | `roo-cline.*` 键（与 Cline 共享）+ `http.proxy` 代理 |
 | Claude Code | 环境变量 | `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL` |
 | Aider | YAML/环境变量 | `api-key`, `api-base`, `model` |
 | Continue.dev | JSON | `models[].provider`, `models[].apiKey`, `models[].apiBase` |

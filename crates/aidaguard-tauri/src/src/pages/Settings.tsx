@@ -13,11 +13,13 @@ import {
   message,
   theme,
   Alert,
+  Typography,
 } from "antd";
 import { SaveOutlined } from "@ant-design/icons";
 import { useConfigStore } from "../store/useConfigStore";
 import { getAppVersion } from "../api/config";
 import ThemeSwitcher from "../components/ThemeSwitcher";
+import PresetSwitcher from "../components/PresetSwitcher";
 import type { Config } from "../types";
 
 const REGION_OPTIONS = [
@@ -62,8 +64,10 @@ export default function Settings() {
 
   const handleSave = async () => {
     const values = await form.validateFields();
+    // Merge with existing config to preserve fields not in the form (e.g., upstreams)
+    const merged = { ...config, ...values };
     try {
-      await save(values);
+      await save(merged);
       message.success(t("Configuration Saved"));
     } catch (e) {
       message.error(String(e));
@@ -248,7 +252,16 @@ export default function Settings() {
 
         {/* 外观 */}
         <Card title={t("Appearance")} size="small" style={cardStyle}>
-          <div style={{ marginBottom: 8 }}>
+          <div style={{ marginBottom: 16 }}>
+            <Typography.Text type="secondary" style={{ fontSize: 12, display: "block", marginBottom: 8 }}>
+              {t("Theme Preset")}
+            </Typography.Text>
+            <PresetSwitcher />
+          </div>
+          <div>
+            <Typography.Text type="secondary" style={{ fontSize: 12, display: "block", marginBottom: 8 }}>
+              {t("Theme Mode")}
+            </Typography.Text>
             <ThemeSwitcher />
           </div>
         </Card>

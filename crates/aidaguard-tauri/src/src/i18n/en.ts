@@ -274,7 +274,11 @@ const en = {
   "NLP model downloaded successfully": "NLP model downloaded successfully",
   "NLP model download failed": "NLP model download failed",
   "Collapse": "Collapse",
-  "Show Full Body": "Show Full Body"
+  "Show Full Body": "Show Full Body",
+  "Emerald Green": "Emerald Green",
+  "Indigo Purple": "Indigo Purple",
+  "Theme Preset": "Theme Preset",
+  "Theme Mode": "Theme Mode"
 };
 
 export default en;

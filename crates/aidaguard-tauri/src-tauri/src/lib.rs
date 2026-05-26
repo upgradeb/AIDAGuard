@@ -26,7 +26,8 @@ pub fn resolve_storage_path(db_path: &str, config_dir: &std::path::Path) -> Stri
         .to_string()
 }
 
-/// Resolve rules directory: absolute paths used directly, relative paths try CWD → executable ancestor → config directory
+/// Resolve rules directory: absolute paths used directly, relative paths resolve to config directory first,
+/// then CWD → executable ancestor for dev mode compatibility.
 pub fn resolve_rules_dir(rules_dir: &str, config_dir: &std::path::Path) -> String {
     use std::path::Path;
 
@@ -34,7 +35,13 @@ pub fn resolve_rules_dir(rules_dir: &str, config_dir: &std::path::Path) -> Strin
         return rules_dir.to_string();
     }
 
-    // 1) Try current working directory
+    // 1) Try config directory (primary location — integrates rules with app data)
+    let config_path = config_dir.join(rules_dir);
+    if config_path.exists() {
+        return config_path.to_string_lossy().to_string();
+    }
+
+    // 2) Try current working directory (cargo tauri dev scenario)
     let cwd_path = std::env::current_dir()
         .unwrap_or_default()
         .join(rules_dir);
@@ -42,7 +49,7 @@ pub fn resolve_rules_dir(rules_dir: &str, config_dir: &std::path::Path) -> Strin
         return cwd_path.to_string_lossy().to_string();
     }
 
-    // 2) Search upward from executable location (covers cargo tauri dev scenario)
+    // 3) Search upward from executable location
     if let Ok(exe) = std::env::current_exe() {
         let mut exe_dir = exe.parent().map(|p| p.to_path_buf()).unwrap_or_default();
         loop {
@@ -56,9 +63,6 @@ pub fn resolve_rules_dir(rules_dir: &str, config_dir: &std::path::Path) -> Strin
         }
     }
 
-    // 3) Fall back to config directory
-    config_dir
-        .join(rules_dir)
-        .to_string_lossy()
-        .to_string()
+    // 4) Return config directory path (will be created on first use)
+    config_path.to_string_lossy().to_string()
 }

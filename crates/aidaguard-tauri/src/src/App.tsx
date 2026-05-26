@@ -18,6 +18,7 @@ import Rules from "./pages/Rules";
 import Settings from "./pages/Settings";
 import Upstreams from "./pages/Upstreams";
 import ToolsConfig from "./pages/ToolsConfig";
+import Logo from "./components/Logo";
 import { useProxyStore } from "./store/useProxyStore";
 import { useNotification } from "./hooks/useNotification";
 
@@ -99,10 +100,7 @@ export default function App() {
             borderBottom: `1px solid ${token.colorBorderSecondary}`,
           }}
         >
-          <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>
-            <span style={{ color: token.colorPrimary }}>Aida</span>
-            <span>guard</span>
-          </h1>
+          <Logo size={30} />
         </div>
 
         {/* Navigation */}

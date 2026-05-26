@@ -1,0 +1,10 @@
+{
+  "roo-cline.debug": false,
+  "roo-cline.allowedCommands": [
+    "git log",
+    "git diff",
+    "git show"
+  ],
+  "roo-cline.deniedCommands": [],
+  "claudeCode.preferredLocation": "panel"
+}

@@ -274,7 +274,11 @@ const zh = {
   "NLP model downloaded successfully": "NLP 模型下载成功",
   "NLP model download failed": "NLP 模型下载失败",
   "Collapse": "收起",
-  "Show Full Body": "展开完整内容"
+  "Show Full Body": "展开完整内容",
+  "Emerald Green": "安全绿",
+  "Indigo Purple": "深蓝紫",
+  "Theme Preset": "主题预设",
+  "Theme Mode": "主题模式"
 };
 
 export default zh;
