@@ -1,0 +1,30 @@
+{
+  "id": "cline",
+  "name": "Cline",
+  "version": "1.0.0",
+  "description": "Autonomous coding agent (cline/cline)",
+  "author": "Cline",
+  "categories": ["cli-tool", "vscode-extension", "openai-compatible"],
+  "detect": { "type": "dir_exists", "path": "~/.cline" },
+  "config": {
+    "path": "~/.cline/data/globalState.json",
+    "format": "json",
+    "endpoint": {
+      "read": ["openAiBaseUrl", "anthropicBaseUrl"],
+      "write": { "openAiBaseUrl": "proxyUrl", "anthropicBaseUrl": "proxyUrl" }
+    },
+    "model": { "read": ["actModeApiModelId", "planModeApiModelId"] }
+  },
+  "secondaryConfigs": [
+    {
+      "path": "~/Library/Application Support/Code/User/settings.json",
+      "format": "json",
+      "endpoint": {
+        "read": ["cline.openAiBaseUrl", "cline.anthropicBaseUrl"],
+        "write": { "cline.openAiBaseUrl": "proxyUrl", "cline.anthropicBaseUrl": "proxyUrl" }
+      },
+      "restoreMode": "remove_keys"
+    }
+  ],
+  "custom": false
+}

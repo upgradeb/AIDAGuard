@@ -1,0 +1,19 @@
+{
+  "id": "opencode",
+  "name": "OpenCode",
+  "version": "1.0.0",
+  "description": "Open-source AI coding agent",
+  "author": "OpenCode Community",
+  "categories": ["cli-tool", "openai-compatible"],
+  "detect": { "type": "file_exists", "path": "~/.config/opencode/opencode.json" },
+  "config": {
+    "path": "~/.config/opencode/opencode.json",
+    "format": "json",
+    "endpoint": {
+      "read": ["provider.*.options.baseURL"],
+      "write": { "provider.*.options.baseURL": "proxyUrl" }
+    },
+    "model": { "read": ["provider.*.models"] }
+  },
+  "custom": false
+}

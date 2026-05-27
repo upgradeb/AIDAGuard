@@ -1,0 +1,19 @@
+{
+  "id": "codexdesktop",
+  "name": "Codex Desktop",
+  "version": "1.0.0",
+  "description": "Codex desktop application by OpenAI",
+  "author": "OpenAI",
+  "categories": ["desktop", "openai-compatible"],
+  "detect": { "type": "file_exists", "path": "/Applications/Codex.app/Contents/MacOS/Codex" },
+  "config": {
+    "path": "~/.codex/config.toml",
+    "format": "json",
+    "endpoint": {
+      "read": ["baseUrl", "base_url"],
+      "write": { "baseUrl": "proxyUrl" }
+    },
+    "model": { "read": ["model"] }
+  },
+  "custom": false
+}

@@ -1,0 +1,19 @@
+{
+  "id": "claudedesktop",
+  "name": "Claude Desktop",
+  "version": "1.0.0",
+  "description": "Claude desktop application by Anthropic",
+  "author": "Anthropic",
+  "categories": ["desktop", "anthropic-compatible"],
+  "detect": { "type": "file_exists", "path": "/Applications/Claude.app/Contents/MacOS/Claude" },
+  "config": {
+    "path": "~/.claude/settings.json",
+    "format": "json",
+    "endpoint": {
+      "read": ["env.ANTHROPIC_BASE_URL"],
+      "write": { "env.ANTHROPIC_BASE_URL": "proxyUrl" }
+    },
+    "model": { "read": ["env.ANTHROPIC_MODEL"] }
+  },
+  "custom": false
+}

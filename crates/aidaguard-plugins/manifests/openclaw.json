@@ -1,0 +1,19 @@
+{
+  "id": "openclaw",
+  "name": "OpenClaw",
+  "version": "1.0.0",
+  "description": "Open-source AI agent framework",
+  "author": "OpenClaw",
+  "categories": ["cli-tool", "openai-compatible"],
+  "detect": { "type": "file_exists", "path": "~/.openclaw/openclaw.json" },
+  "config": {
+    "path": "~/.openclaw/openclaw.json",
+    "format": "json",
+    "endpoint": {
+      "read": ["models.providers.*.baseUrl", "models.providers.*.baseURL"],
+      "write": { "models.providers.*.baseUrl": "proxyUrl" }
+    },
+    "model": { "read": ["agents.defaults.model.primary"] }
+  },
+  "custom": false
+}

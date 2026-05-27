@@ -1,0 +1,18 @@
+{
+  "id": "vscode",
+  "name": "VS Code",
+  "version": "1.0.0",
+  "description": "Visual Studio Code editor",
+  "author": "Microsoft",
+  "categories": ["editor"],
+  "detect": { "type": "file_exists", "path": "/Applications/Visual Studio Code.app/Contents/MacOS/Electron" },
+  "config": {
+    "path": "~/Library/Application Support/Code/User/settings.json",
+    "format": "json",
+    "endpoint": {
+      "read": ["http.proxy"],
+      "write": { "http.proxy": "proxyUrl", "http.proxyStrictSSL": "false" }
+    }
+  },
+  "custom": false
+}

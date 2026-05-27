@@ -1,0 +1,29 @@
+{
+  "id": "tabnine",
+  "name": "Tabnine",
+  "version": "1.0.0",
+  "description": "AI code completion tool",
+  "author": "Tabnine",
+  "categories": ["vscode-extension", "code-completion"],
+  "detect": { "type": "any_file_exists", "paths": ["~/.tabnine/config.json"] },
+  "config": {
+    "path": "~/.tabnine/config.json",
+    "format": "json",
+    "endpoint": {
+      "read": ["apiEndpoint"],
+      "write": { "apiEndpoint": "proxyUrl" }
+    }
+  },
+  "secondaryConfigs": [
+    {
+      "path": "~/Library/Application Support/Code/User/settings.json",
+      "format": "json",
+      "endpoint": {
+        "read": ["tabnine.apiEndpoint"],
+        "write": { "tabnine.apiEndpoint": "proxyUrl" }
+      },
+      "restoreMode": "remove_keys"
+    }
+  ],
+  "custom": false
+}

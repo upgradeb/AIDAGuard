@@ -234,7 +234,9 @@ pipeline.rs             → AnalyzerEngine + AnalyzerEngineBuilder
 | 文件 | 说明 |
 |------|------|
 | [registry.rs](../crates/aidaguard-plugins/src/registry.rs) | `PluginRegistry` — 启用/禁用生命周期，持久化到 `plugins.json`；`Plugin` trait 继承 `ToolAdapter` + `PluginManifest` |
-| [adapters/](../crates/aidaguard-plugins/src/adapters/) | 13 个工具适配器：`cursor`、`cline`、`claude_code`、`codex`、`continue_dev`、`windsurf`、`gemini`、`zed`、`aider`、`roo_code`、`opencode`、`openclaw`、`hermes_agent` |
+| [adapters/](../crates/aidaguard-plugins/src/adapters/) | 31 个工具适配器：25 个声明式适配器（从 `manifests/*.json` 编译时嵌入）+ 6 个复杂适配器（`aider`、`codex`、`hermes_agent`、`gemini`、`codewhisperer`、`jetbrains_ai`） |
+| [declarative/](../crates/aidaguard-plugins/src/declarative/) | 声明式适配器引擎：`manifest.rs`（数据结构）、`json_path.rs`（JSON 路径）、`engine.rs`（通用实现）、`loader.rs`（编译时加载） |
+| [manifests/](../crates/aidaguard-plugins/manifests/) | 25 个 JSON 清单，定义每种工具的检测、读写和恢复策略 |
 | [backup.rs](../crates/aidaguard-plugins/src/backup.rs) | 工具适配器的配置备份/还原 |
 
 **`ToolAdapter` trait 方法：** `id()`、`name()`、`config_path()`、`detect()`、`current_endpoint()`、`current_model()`、`backup()`、`configure()`、`restore()`、`is_configured()`

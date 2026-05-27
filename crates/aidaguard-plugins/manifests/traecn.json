@@ -1,0 +1,18 @@
+{
+  "id": "traecn",
+  "name": "Trae CN",
+  "version": "1.0.0",
+  "description": "Trae IDE China edition by ByteDance",
+  "author": "ByteDance",
+  "categories": ["editor", "openai-compatible"],
+  "detect": { "type": "dir_exists", "path": "~/.trae-cn" },
+  "config": {
+    "path": "~/.trae-cn/settings.json",
+    "format": "json",
+    "endpoint": {
+      "read": ["apiBase", "baseUrl", "endpoint"],
+      "write": { "http.proxy": "proxyUrl", "http.proxyStrictSSL": "false" }
+    }
+  },
+  "custom": false
+}

@@ -1,0 +1,19 @@
+{
+  "id": "openfang",
+  "name": "Open Fang",
+  "version": "1.0.0",
+  "description": "Open Fang AI agent",
+  "author": "Open Fang Community",
+  "categories": ["cli-tool", "openai-compatible"],
+  "detect": { "type": "file_exists", "path": "~/.openfang/config.toml" },
+  "config": {
+    "path": "~/.openfang/config.toml",
+    "format": "json",
+    "endpoint": {
+      "read": ["baseUrl", "base_url", "apiBase"],
+      "write": { "baseUrl": "proxyUrl" }
+    },
+    "model": { "read": ["model"] }
+  },
+  "custom": false
+}

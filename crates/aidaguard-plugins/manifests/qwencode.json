@@ -1,0 +1,19 @@
+{
+  "id": "qwencode",
+  "name": "Qwen Code",
+  "version": "1.0.0",
+  "description": "Qwen Code CLI coding agent",
+  "author": "Alibaba / Qwen",
+  "categories": ["cli-tool", "openai-compatible"],
+  "detect": { "type": "dir_exists", "path": "~/.qwen" },
+  "config": {
+    "path": "~/.qwen/settings.json",
+    "format": "json",
+    "endpoint": {
+      "read": ["baseUrl", "base_url", "apiBase"],
+      "write": { "baseUrl": "proxyUrl" }
+    },
+    "model": { "read": ["model"] }
+  },
+  "custom": false
+}

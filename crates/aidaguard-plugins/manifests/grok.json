@@ -1,0 +1,19 @@
+{
+  "id": "grok",
+  "name": "Grok",
+  "version": "1.0.0",
+  "description": "Grok CLI agent by xAI",
+  "author": "xAI",
+  "categories": ["cli-tool", "openai-compatible"],
+  "detect": { "type": "dir_exists", "path": "~/.grok" },
+  "config": {
+    "path": "~/.grok/config.toml",
+    "format": "json",
+    "endpoint": {
+      "read": ["baseUrl", "apiBase", "endpoint"],
+      "write": { "baseUrl": "proxyUrl" }
+    },
+    "model": { "read": ["model"] }
+  },
+  "custom": false
+}

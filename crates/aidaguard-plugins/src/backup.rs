@@ -28,6 +28,7 @@ pub fn backup_config(config_path: &Path, backup_dir: &Path) -> Result<(), String
 }
 
 /// Restore config from backup directory to original path.
+/// If no backup exists, the config was created by configure() — delete it to restore.
 pub fn restore_config(config_path: &Path, backup_dir: &Path) -> Result<(), String> {
     let file_name = config_path
         .file_name()
@@ -36,7 +37,13 @@ pub fn restore_config(config_path: &Path, backup_dir: &Path) -> Result<(), Strin
 
     let backup_file = backup_dir.join(file_name);
     if !backup_file.exists() {
-        return Err(format!("Backup file does not exist: {}", backup_file.display()));
+        // No backup means the config didn't exist before configure.
+        // Delete the current config file to return to pre-configure state.
+        if config_path.exists() {
+            fs::remove_file(config_path)
+                .map_err(|e| format!("Failed to remove config file (no backup to restore): {}", e))?;
+        }
+        return Ok(());
     }
 
     // Ensure target directory exists

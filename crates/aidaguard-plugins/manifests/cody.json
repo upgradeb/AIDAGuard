@@ -1,0 +1,29 @@
+{
+  "id": "cody",
+  "name": "Sourcegraph Cody",
+  "version": "1.0.0",
+  "description": "AI coding assistant by Sourcegraph",
+  "author": "Sourcegraph",
+  "categories": ["vscode-extension", "code-assistant"],
+  "detect": { "type": "any_file_exists", "paths": ["~/.cody/config.json"] },
+  "config": {
+    "path": "~/.cody/config.json",
+    "format": "json",
+    "endpoint": {
+      "read": ["endpoint"],
+      "write": { "endpoint": "proxyUrl" }
+    }
+  },
+  "secondaryConfigs": [
+    {
+      "path": "~/Library/Application Support/Code/User/settings.json",
+      "format": "json",
+      "endpoint": {
+        "read": ["cody.endpoint"],
+        "write": { "cody.endpoint": "proxyUrl" }
+      },
+      "restoreMode": "remove_keys"
+    }
+  ],
+  "custom": false
+}

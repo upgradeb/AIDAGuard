@@ -1,0 +1,19 @@
+{
+  "id": "cursor",
+  "name": "Cursor",
+  "version": "1.0.0",
+  "description": "AI-first code editor",
+  "author": "Cursor / Anysphere",
+  "categories": ["editor", "openai-compatible"],
+  "detect": { "type": "file_exists", "path": "~/Library/Application Support/Cursor/User/settings.json" },
+  "config": {
+    "path": "~/Library/Application Support/Cursor/User/settings.json",
+    "format": "json",
+    "endpoint": {
+      "read": ["cursor.apiBase", "openai.baseUrl"],
+      "write": { "cursor.apiBase": "proxyUrl", "openai.baseUrl": "proxyUrl" }
+    },
+    "model": { "read": ["cursor.model", "openai.model"] }
+  },
+  "custom": false
+}

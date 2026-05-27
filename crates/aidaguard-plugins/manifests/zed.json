@@ -1,0 +1,19 @@
+{
+  "id": "zed",
+  "name": "Zed",
+  "version": "1.0.0",
+  "description": "High-performance code editor",
+  "author": "Zed Industries",
+  "categories": ["editor", "openai-compatible"],
+  "detect": { "type": "file_exists", "path": "~/.config/zed/settings.json" },
+  "config": {
+    "path": "~/.config/zed/settings.json",
+    "format": "json",
+    "endpoint": {
+      "read": ["openai.api_url", "openai_api_url"],
+      "write": { "openai_api_url": "proxyUrl", "openai.api_url": "proxyUrl" }
+    },
+    "model": { "read": ["openai.model", "model"] }
+  },
+  "custom": false
+}

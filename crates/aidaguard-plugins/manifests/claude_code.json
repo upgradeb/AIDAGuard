@@ -1,0 +1,23 @@
+{
+  "id": "claude_code",
+  "name": "Claude Code",
+  "version": "1.0.0",
+  "description": "Anthropic's official CLI agent for Claude",
+  "author": "Anthropic",
+  "categories": ["cli-tool", "anthropic-compatible"],
+  "detect": { "type": "dir_exists", "path": "~/.claude" },
+  "config": {
+    "path": "~/.claude/settings.json",
+    "format": "json",
+    "endpoint": {
+      "read": ["env.ANTHROPIC_BASE_URL"],
+      "readEnvFallback": "ANTHROPIC_BASE_URL",
+      "write": { "env.ANTHROPIC_BASE_URL": "proxyUrl" }
+    },
+    "model": {
+      "read": ["env.ANTHROPIC_MODEL", "env.ANTHROPIC_DEFAULT_OPUS_MODEL", "env.ANTHROPIC_DEFAULT_SONNET_MODEL"],
+      "readEnvFallback": "ANTHROPIC_MODEL"
+    }
+  },
+  "custom": false
+}

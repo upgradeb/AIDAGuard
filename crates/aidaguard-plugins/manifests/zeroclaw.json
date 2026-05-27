@@ -1,0 +1,19 @@
+{
+  "id": "zeroclaw",
+  "name": "Zero Claw",
+  "version": "1.0.0",
+  "description": "Zero Claw agent",
+  "author": "Zero Claw Community",
+  "categories": ["cli-tool", "openai-compatible"],
+  "detect": { "type": "file_exists", "path": "~/.zeroclaw/config.toml" },
+  "config": {
+    "path": "~/.zeroclaw/config.toml",
+    "format": "json",
+    "endpoint": {
+      "read": ["baseUrl", "base_url", "apiBase"],
+      "write": { "baseUrl": "proxyUrl" }
+    },
+    "model": { "read": ["model"] }
+  },
+  "custom": false
+}

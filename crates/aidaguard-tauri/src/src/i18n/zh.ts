@@ -181,6 +181,7 @@ const zh = {
   "Rename Category: {{name}}": "重命名分类: {{name}}",
   "Renamed to {{newName}}": "已重命名为 {{newName}}",
   "Rescan": "重新检测",
+  "Rescan Complete": "重新检测完成",
   "Response Status": "响应状态",
   "Restart proxy after switching to apply": "切换后需重启代理生效",
   "Restore": "还原",

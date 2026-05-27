@@ -1,0 +1,18 @@
+{
+  "id": "trae",
+  "name": "Trae IDE",
+  "version": "1.0.0",
+  "description": "AI-powered IDE by ByteDance",
+  "author": "ByteDance",
+  "categories": ["editor", "openai-compatible"],
+  "detect": { "type": "dir_exists", "path": "~/.trae" },
+  "config": {
+    "path": "~/.trae/settings.json",
+    "format": "json",
+    "endpoint": {
+      "read": ["apiBase", "baseUrl", "endpoint"],
+      "write": { "http.proxy": "proxyUrl", "http.proxyStrictSSL": "false" }
+    }
+  },
+  "custom": false
+}

@@ -4,6 +4,10 @@
 **更新日期：** 2026-05-16  
 **用途：** AIDAGuard Phase 4.2 技术参考
 
+**相关文档：**
+- [适配器架构 V2 设计文档](./ADAPTER_ARCHITECTURE_V2.md) — 声明式适配器引擎设计方案（Phase 5）
+- [EchoBird 工具配置系统参考](./ECHOBIRD_TOOLS_REFERENCE.md) — EchoBird 的声明式工具配置方法
+
 ---
 
 ## 一、工具分类
@@ -16,14 +20,15 @@
 | Windsurf | 独立 IDE | AI-First Editor | ✅ |
 | Zed | 独立 IDE | 高性能编辑器 | ✅ |
 | VS Code + Cline | VS Code | 扩展 | ✅ |
-| VS Code + Roo Code | VS Code | 扩展 | ✅ |
 | VS Code + Continue.dev | VS Code | 扩展 | ✅ |
-| VS Code + GitHub Copilot | VS Code | 扩展 | ❌ 待开发 |
-| VS Code + Codeium | VS Code | 扩展 | ❌ 待开发 |
-| VS Code + Cody | VS Code | 扩展 | ❌ 待开发 |
-| VS Code + Tabnine | VS Code | 扩展 | ❌ 待开发 |
-| VS Code + CodeWhisperer | VS Code | 扩展 | ❌ 待开发 |
-| JetBrains AI | JetBrains IDE | 插件 | ❌ 待开发 |
+| VS Code + Codeium | VS Code | 扩展 | ✅ |
+| VS Code + Cody | VS Code | 扩展 | ✅ |
+| VS Code + Tabnine | VS Code | 扩展 | ✅ |
+| VS Code + CodeWhisperer | VS Code | 扩展 | ✅ |
+| JetBrains AI | JetBrains IDE | 插件 | ✅ |
+| VS Code (built-in) | VS Code | 内置 | ✅ |
+| Trae IDE | 独立 IDE | AI-First Editor | ✅ |
+| Trae CN | 独立 IDE | AI-First Editor | ✅ |
 
 ### 1.2 CLI 工具类
 
@@ -35,12 +40,28 @@
 | Gemini CLI | Google CLI | ✅ |
 | OpenClaw | 通用 CLI | ✅ |
 | OpenCode | 通用 CLI | ✅ |
+| Qwen Code | 通义千问 CLI | ✅ |
+| Coffee CLI | 通用 CLI | ✅ |
+| Grok | xAI CLI | ✅ |
+| Open Fang | 通用 CLI | ✅ |
+| Pi | Inflection CLI | ✅ |
+| Pico Claw | 通用 CLI | ✅ |
+| Nano Bot | 通用 CLI | ✅ |
+| Zero Claw | 通用 CLI | ✅ |
 
 ### 1.3 Agent 平台类
 
 | 工具 | 类型 | 当前支持 |
 |------|------|----------|
 | Hermes Agent | 自定义 Agent | ✅ |
+
+### 1.4 桌面应用类
+
+| 工具 | 类型 | 当前支持 |
+|------|------|----------|
+| Claude Desktop | Anthropic 桌面 | ✅ |
+| Codex Desktop | OpenAI 桌面 | ✅ |
+| Gemini Desktop | Google 桌面 | ✅ |
 
 ---
 
@@ -102,116 +123,108 @@
 
 ---
 
-### 2.3 Cline (VS Code 扩展)
+### 2.3 Cline
 
-**扩展 ID：** `saoudrizwan.claude-dev`
+**扩展 ID：** `saoudrizwan.claude-dev` (VS Code) / `cline/cline` (CLI)
+
+Cline 从**两个来源**读取 BaseURL 配置，**VS Code settings 优先级更高**：
+
+| 优先级 | 配置来源 | 字段 |
+|--------|----------|------|
+| 高 | VS Code `settings.json` | `cline.openAiBaseUrl`, `cline.anthropicBaseUrl` |
+| 低 | `~/.cline/data/globalState.json` | `openAiBaseUrl`, `anthropicBaseUrl` |
 
 **配置文件路径：**
-- VS Code 全局设置: `~/Library/Application Support/Code/User/settings.json`
-- Cline 全局存储: `~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/`
-- MCP 设置: `~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json`
+- 全局设置: `~/.cline/data/globalState.json` — 包含 API 提供商、模型选择、base URL 等配置
+- VS Code 设置: `<VS Code>/User/settings.json` — `cline.openAiBaseUrl`, `cline.anthropicBaseUrl`
+- MCP 设置: `~/.cline/data/settings/cline_mcp_settings.json`
+- 任务历史: `~/.cline/data/sessions/`
+- 工作区状态: `.cline/`（每个项目独立）
 
-**设置键（在 VS Code settings.json 中）：**
+**API 配置字段（在 globalState.json 中）：**
 ```json
 {
-  "roo-cline.debug": false,
-  "roo-cline.allowedCommands": [
-    "git log",
-    "git diff",
-    "git show"
-  ],
-  "roo-cline.deniedCommands": []
+  "apiProvider": "openai",
+  "actModeApiModelId": "gpt-4o",
+  "planModeApiModelId": "claude-sonnet-4-6",
+  "openAiBaseUrl": "https://api.openai.com/v1",
+  "anthropicBaseUrl": "https://api.anthropic.com"
 }
 ```
 
-**缓存文件：**
-| 文件 | 大小 | 说明 |
-|------|------|------|
-| `cache/mcp_marketplace_catalog.json` | ~2.4MB | MCP 市场目录 |
-| `cache/openrouter_models.json` | ~167KB | OpenRouter 模型列表 |
-| `cache/hicap_models.json` | ~9KB | HiCap 模型列表 |
-| `cache/vercel_ai_gateway_models.json` | ~120KB | Vercel AI Gateway 模型列表 |
-
-**代理配置方式：**
-Cline 使用 VS Code 的 `http.proxy` 设置来路由 API 请求。AIDAGuard 通过修改 `settings.json` 添加代理：
+**VS Code settings.json 中的配置：**
 ```json
 {
-  "http.proxy": "http://127.0.0.1:19000",
-  "http.proxyStrictSSL": false
+  "cline.openAiBaseUrl": "http://127.0.0.1:19000",
+  "cline.anthropicBaseUrl": "http://127.0.0.1:19000"
+}
+```
+
+**API Provider 支持：** `openai`, `anthropic`, `openrouter`, `ollama`, `gemini`, `litellm`, `bedrock`, `vertex` 等 45+ 个提供商。
+
+**代理配置方式：**
+AIDAGuard **同时修改两个配置源**，确保 Cline 无论从哪个来源读取都能生效：
+```json
+// globalState.json
+{
+  "openAiBaseUrl": "http://127.0.0.1:19000",
+  "anthropicBaseUrl": "http://127.0.0.1:19000"
+}
+
+// VS Code settings.json
+{
+  "cline.openAiBaseUrl": "http://127.0.0.1:19000",
+  "cline.anthropicBaseUrl": "http://127.0.0.1:19000"
 }
 ```
 
 **检测方式：**
-- 检查全局存储目录: `~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/`
+- 检查 `~/.cline/` 目录是否存在
 
 **备份策略：**
-- 备份 `settings.json` 完整文件
-- 备份 `cline_mcp_settings.json`
-- 备份 `cache/` 目录下模型列表
-
----
-
-### 2.3.1 Roo Code / Roo Cline (VS Code 扩展)
-
-**扩展 ID：** `rooveterinaryinc.roo-cline`
-
-Roo Code 是 Cline 的增强分支，完全兼容 Cline API。它使用与 Cline 相同的 VS Code `settings.json` 配置键（`roo-cline.*`）。
-
-**配置文件路径：**
-- VS Code 全局设置: `~/Library/Application Support/Code/User/settings.json`（与 Cline 共享）
-- 全局存储: `~/Library/Application Support/Code/User/globalStorage/rooveterinaryinc.roo-cline/`
-- 扩展缓存: `~/Library/Application Support/Code/CachedExtensionVSIXs/rooveterinaryinc.roo-cline-*`
-
-**设置键（与 Cline 共享 `roo-cline.*` 命名空间）：**
-```json
-{
-  "roo-cline.debug": false,
-  "roo-cline.allowedCommands": ["git log", "git diff", "git show"],
-  "roo-cline.deniedCommands": [],
-  "roo-cline.model": "claude-sonnet-4-6",
-  "roo-cline.apiProvider": "anthropic"
-}
-```
-
-**代理配置方式：**
-与 Cline 相同，通过 VS Code `settings.json` 中的 `http.proxy` 设置：
-```json
-{
-  "http.proxy": "http://127.0.0.1:19000",
-  "http.proxyStrictSSL": false
-}
-```
-
-**检测方式：**
-- 检查扩展缓存目录: `~/Library/Application Support/Code/CachedExtensionVSIXs/` 中是否存在 `roo-cline` 包
-- 或检查全局存储目录: `rooveterinaryinc.roo-cline`
-
-**注意事项：**
-- Roo Code 与 Cline 共享 `settings.json`，备份和恢复操作会影响两个扩展
-- 两者使用相同的 `roo-cline.*` 设置键命名空间
+- 备份 `~/.cline/data/globalState.json`
+- 备份 VS Code `settings.json`（因为 cline.* 字段也写入此文件）
 
 ---
 
 ### 2.4 Claude Code
 
 **配置文件路径：**
-- 无配置文件，使用环境变量
+- `~/.claude/settings.json` — Claude Code 全局设置文件
 
 **API 配置方式：**
-```bash
-export ANTHROPIC_API_KEY="sk-ant-xxx"
-export ANTHROPIC_BASE_URL="https://api.anthropic.com"  # 可选
+Claude Code 通过 `settings.json` 中的 `env` 对象设置环境变量：
+```json
+{
+  "env": {
+    "ANTHROPIC_AUTH_TOKEN": "sk-ant-xxx",
+    "ANTHROPIC_BASE_URL": "https://api.anthropic.com",
+    "ANTHROPIC_MODEL": "claude-sonnet-4-6"
+  }
+}
 ```
 
-**代理配置：**
+或使用 shell 环境变量：
 ```bash
-export HTTP_PROXY="http://127.0.0.1:19000"
-export HTTPS_PROXY="http://127.0.0.1:19000"
+export ANTHROPIC_API_KEY="sk-ant-xxx"
+export ANTHROPIC_BASE_URL="https://api.anthropic.com"
+```
+
+**代理配置方式：**
+AIDAGuard 修改 `settings.json` 中 `env.ANTHROPIC_BASE_URL`，将 API 请求路由到本地代理：
+```json
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://127.0.0.1:19000"
+  }
+}
 ```
 
 **检测方式：**
-- 检查 `claude` 命令是否在 PATH 中
-- `which claude`
+- 检查 `~/.claude/` 目录是否存在
+
+**备份策略：**
+- 备份 `~/.claude/settings.json`
 
 ---
 
@@ -304,38 +317,7 @@ export HTTP_PROXY="http://127.0.0.1:19000"
 
 ## 三、待开发工具详情
 
-### 3.1 GitHub Copilot
-
-**配置文件路径：**
-- VS Code 全局设置
-- Copilot 扩展数据: `~/.vscode/extensions/github.copilot-*`
-
-**认证方式：**
-- OAuth 设备码流程
-- GitHub 登录
-
-**API 端点：**
-- `https://api.githubcopilot.com`
-
-**代理配置：**
-```json
-// VS Code settings.json
-{
-  "http.proxy": "http://127.0.0.1:19000",
-  "http.proxyStrictSSL": false
-}
-```
-
-**检测方式：**
-- `~/.vscode/extensions/github.copilot-*`
-
-**特殊说明：**
-- Copilot 使用 GitHub OAuth，不能直接设置 API Key
-- 代理配置通过 VS Code 全局设置实现
-
----
-
-### 3.2 Codeium
+### 3.1 Codeium
 
 **配置文件路径：**
 - `~/.codeium/config.json`
@@ -362,7 +344,7 @@ export HTTP_PROXY="http://127.0.0.1:19000"
 
 ---
 
-### 3.3 Sourcegraph Cody
+### 3.2 Sourcegraph Cody
 
 **配置文件路径：**
 - `~/.cody/config.json`
@@ -386,7 +368,7 @@ export HTTP_PROXY="http://127.0.0.1:19000"
 
 ---
 
-### 3.4 Tabnine
+### 3.3 Tabnine
 
 **配置文件路径：**
 - `~/.tabnine/config.json`
@@ -408,7 +390,7 @@ export HTTP_PROXY="http://127.0.0.1:19000"
 
 ---
 
-### 3.5 Amazon CodeWhisperer
+### 3.4 Amazon CodeWhisperer
 
 **配置文件路径：**
 - AWS credentials: `~/.aws/credentials`
@@ -443,7 +425,7 @@ export HTTPS_PROXY="http://127.0.0.1:19000"
 
 ---
 
-### 3.6 JetBrains AI
+### 3.5 JetBrains AI
 
 **配置文件路径：**
 - `~/.config/JetBrains/*/settings.xml`
@@ -590,16 +572,23 @@ impl ToolAdapter for CliToolAdapter {
 |------|----------|----------|
 | Cursor | JSON | `cursor.aiProvider`, `cursor.openaiApiKey`, `cursor.openaiBaseUrl` |
 | Windsurf | JSON | `windsurf.apiProvider`, `windsurf.apiKey`, `windsurf.baseUrl` |
-| Cline | JSON (VS Code settings.json) | `roo-cline.*` 键 + `http.proxy` 代理 |
-| Roo Code | JSON (VS Code settings.json) | `roo-cline.*` 键（与 Cline 共享）+ `http.proxy` 代理 |
-| Claude Code | 环境变量 | `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL` |
+| Cline | JSON (`~/.cline/data/globalState.json` + VS Code `settings.json`) | `openAiBaseUrl`, `anthropicBaseUrl`, `cline.openAiBaseUrl`, `cline.anthropicBaseUrl` |
+| Claude Code | JSON (`~/.claude/settings.json`) | `env.ANTHROPIC_BASE_URL` |
 | Aider | YAML/环境变量 | `api-key`, `api-base`, `model` |
 | Continue.dev | JSON | `models[].provider`, `models[].apiKey`, `models[].apiBase` |
 | Zed | JSON | `language_models.openai.api_key`, `language_models.openai.base_url` |
 | Codeium | JSON | `apiKey`, `baseUrl` |
 | Cody | JSON | `provider`, `apiKey`, `baseUrl` |
 | Tabnine | JSON | `api_key`, `server_url` |
-| CodeWhisperer | INI | `aws_access_key_id`, `aws_secret_access_key` |
+| CodeWhisperer | INI (AWS) | `aws_access_key_id`, `aws_secret_access_key` |
+| OpenCode | JSON | 多 provider 配置 |
+| OpenClaw | JSON | `providers.*.baseURL` |
+| Claude Desktop | JSON | `env.ANTHROPIC_BASE_URL` |
+| VS Code | JSON | `http.proxy` |
+| JetBrains AI | XML | IDE options |
+| Gemini CLI | .env 文件 | `GOOGLE_GEMINI_BASE_URL` |
+
+> 完整清单详见 [EchoBird 工具配置系统参考](./ECHOBIRD_TOOLS_REFERENCE.md)。
 
 ---
 
@@ -634,16 +623,14 @@ export NO_PROXY="localhost,127.0.0.1"
 
 ---
 
-## 七、开发优先级
+## 七、开发状态
 
-| 优先级 | 工具 | 用户需求 | 开发复杂度 |
-|--------|------|----------|------------|
-| P1 | GitHub Copilot | 高 | 中（OAuth） |
-| P1 | Codeium | 高 | 低 |
-| P2 | Cody | 中 | 低 |
-| P2 | Tabnine | 中 | 低 |
-| P2 | CodeWhisperer | 中 | 中（AWS） |
-| P2 | JetBrains AI | 中 | 中 |
+所有 31 个工具适配器已实现：
+
+- **25 个声明式适配器**：通过 JSON 清单（`manifests/*.json`）编译时嵌入，由通用的 `DeclarativeAdapter` 引擎驱动。新工具的添加只需创建清单 JSON 文件，无需编写 Rust 代码。
+- **6 个复杂适配器**：Aider（YAML）、Codex（多格式 JSON/YAML/TOML）、Hermes Agent（YAML）、Gemini CLI（.env 文件）、CodeWhisperer（AWS 凭证）、JetBrains AI（XML 配置）。这些工具使用非 JSON 格式或需要特殊逻辑，故保留手写 Rust 实现。
+
+详见 [适配器架构 V2 设计文档](./ADAPTER_ARCHITECTURE_V2.md)。
 
 ---
 

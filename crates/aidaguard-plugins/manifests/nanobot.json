@@ -1,0 +1,19 @@
+{
+  "id": "nanobot",
+  "name": "Nano Bot",
+  "version": "1.0.0",
+  "description": "Nano Bot agent",
+  "author": "Nano Bot Community",
+  "categories": ["cli-tool", "openai-compatible"],
+  "detect": { "type": "file_exists", "path": "~/.nanobot/config.json" },
+  "config": {
+    "path": "~/.nanobot/config.json",
+    "format": "json",
+    "endpoint": {
+      "read": ["baseUrl", "apiBase", "endpoint"],
+      "write": { "baseUrl": "proxyUrl" }
+    },
+    "model": { "read": ["model"] }
+  },
+  "custom": false
+}

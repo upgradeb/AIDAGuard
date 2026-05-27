@@ -1,0 +1,19 @@
+{
+  "id": "pi",
+  "name": "Pi",
+  "version": "1.0.0",
+  "description": "Pi AI assistant CLI",
+  "author": "Pi",
+  "categories": ["cli-tool", "openai-compatible"],
+  "detect": { "type": "dir_exists", "path": "~/.pi" },
+  "config": {
+    "path": "~/.pi/agent/settings.json",
+    "format": "json",
+    "endpoint": {
+      "read": ["baseUrl", "apiBase", "endpoint"],
+      "write": { "baseUrl": "proxyUrl" }
+    },
+    "model": { "read": ["model"] }
+  },
+  "custom": false
+}

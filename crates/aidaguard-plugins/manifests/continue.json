@@ -1,0 +1,19 @@
+{
+  "id": "continue",
+  "name": "Continue",
+  "version": "1.0.0",
+  "description": "Open-source AI code assistant",
+  "author": "Continue Dev",
+  "categories": ["vscode-extension", "openai-compatible"],
+  "detect": { "type": "file_exists", "path": "~/.continue/config.json" },
+  "config": {
+    "path": "~/.continue/config.json",
+    "format": "json",
+    "endpoint": {
+      "read": ["models.0.apiBase"],
+      "write": { "models.*.apiBase": "proxyUrl" }
+    },
+    "model": { "read": ["models.0.model"] }
+  },
+  "custom": false
+}

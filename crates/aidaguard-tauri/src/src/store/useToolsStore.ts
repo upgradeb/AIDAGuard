@@ -35,12 +35,12 @@ export const useToolsStore = create<ToolsState>((set) => ({
     set({ applying: toolId, error: null });
     try {
       await applyToolConfig(toolId);
-      // Refresh after apply
+    } catch (e) {
+      set({ error: String(e) });
+      throw e;
+    } finally {
       const tools = await detectTools();
       set({ tools, applying: null });
-    } catch (e) {
-      set({ error: String(e), applying: null });
-      throw e;
     }
   },
 
@@ -48,11 +48,12 @@ export const useToolsStore = create<ToolsState>((set) => ({
     set({ applying: toolId, error: null });
     try {
       await restoreToolConfig(toolId);
+    } catch (e) {
+      set({ error: String(e) });
+      throw e;
+    } finally {
       const tools = await detectTools();
       set({ tools, applying: null });
-    } catch (e) {
-      set({ error: String(e), applying: null });
-      throw e;
     }
   },
 
@@ -60,11 +61,12 @@ export const useToolsStore = create<ToolsState>((set) => ({
     set({ loading: true, error: null });
     try {
       await restoreAllTools();
+    } catch (e) {
+      set({ error: String(e) });
+      throw e;
+    } finally {
       const tools = await detectTools();
       set({ tools, loading: false });
-    } catch (e) {
-      set({ error: String(e), loading: false });
-      throw e;
     }
   },
 
@@ -78,11 +80,12 @@ export const useToolsStore = create<ToolsState>((set) => ({
       } else {
         await enablePlugin(toolId);
       }
-      const tools = await detectTools();
-      set({ tools });
     } catch (e) {
       set({ error: String(e) });
       throw e;
+    } finally {
+      const tools = await detectTools();
+      set({ tools });
     }
   },
 }));

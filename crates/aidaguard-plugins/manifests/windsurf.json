@@ -1,0 +1,18 @@
+{
+  "id": "windsurf",
+  "name": "Windsurf",
+  "version": "1.0.0",
+  "description": "AI-powered IDE by Codeium",
+  "author": "Codeium",
+  "categories": ["editor", "openai-compatible"],
+  "detect": { "type": "file_exists", "path": "~/Library/Application Support/Windsurf/User/settings.json" },
+  "config": {
+    "path": "~/Library/Application Support/Windsurf/User/settings.json",
+    "format": "json",
+    "endpoint": {
+      "read": ["windsurf.apiBase", "apiBase", "baseUrl"],
+      "write": { "http.proxy": "proxyUrl", "http.proxyStrictSSL": "false" }
+    }
+  },
+  "custom": false
+}

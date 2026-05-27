@@ -234,6 +234,7 @@ export default function Upstreams() {
           loading={loading}
           size="small"
           pagination={false}
+          scroll={{ x: "max-content" }}
           locale={{ emptyText: t("No Upstreams Configured") }}
         />
       </Card>

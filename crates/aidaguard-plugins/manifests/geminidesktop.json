@@ -1,0 +1,19 @@
+{
+  "id": "geminidesktop",
+  "name": "Gemini Desktop",
+  "version": "1.0.0",
+  "description": "Gemini desktop application by Google",
+  "author": "Google",
+  "categories": ["desktop", "gemini-compatible"],
+  "detect": { "type": "dir_exists", "path": "~/.gemini" },
+  "config": {
+    "path": "~/.gemini/settings.json",
+    "format": "json",
+    "endpoint": {
+      "read": ["baseUrl", "apiEndpoint", "endpoint"],
+      "write": { "baseUrl": "proxyUrl" }
+    },
+    "model": { "read": ["model"] }
+  },
+  "custom": false
+}

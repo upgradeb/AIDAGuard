@@ -16,6 +16,7 @@ pub fn home_dir() -> Option<PathBuf> {
 pub mod abi;
 pub mod adapters;
 pub mod backup;
+pub mod declarative;
 pub mod loader;
 pub mod registry;
 

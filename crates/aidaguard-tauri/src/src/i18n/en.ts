@@ -181,6 +181,7 @@ const en = {
   "Rename Category: {{name}}": "Rename Category: {{name}}",
   "Renamed to {{newName}}": "Renamed to {{newName}}",
   "Rescan": "Rescan",
+  "Rescan Complete": "Rescan Complete",
   "Response Status": "Response Status",
   "Restart proxy after switching to apply": "Restart proxy after switching to apply",
   "Restore": "Restore",

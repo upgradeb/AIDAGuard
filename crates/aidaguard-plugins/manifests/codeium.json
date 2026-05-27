@@ -1,0 +1,30 @@
+{
+  "id": "codeium",
+  "name": "Codeium",
+  "version": "1.0.0",
+  "description": "Free AI coding assistant",
+  "author": "Codeium / Exafunction",
+  "categories": ["vscode-extension", "free-tier"],
+  "detect": { "type": "any_file_exists", "paths": ["~/.codeium/config.json"] },
+  "config": {
+    "path": "~/.codeium/config.json",
+    "format": "json",
+    "endpoint": {
+      "read": ["api_base_url"],
+      "write": { "api_base_url": "proxyUrl" }
+    },
+    "model": {}
+  },
+  "secondaryConfigs": [
+    {
+      "path": "~/Library/Application Support/Code/User/settings.json",
+      "format": "json",
+      "endpoint": {
+        "read": ["codeium.apiBaseUrl"],
+        "write": { "codeium.apiBaseUrl": "proxyUrl" }
+      },
+      "restoreMode": "remove_keys"
+    }
+  ],
+  "custom": false
+}

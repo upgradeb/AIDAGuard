@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import {
   Card,
   Button,
@@ -40,12 +40,32 @@ export default function ToolsConfig() {
   const togglePlugin = useToolsStore((s) => s.togglePlugin);
   const proxyStatus = useProxyStore((s) => s.status);
 
+  const sortedTools = useMemo(
+    () =>
+      [...tools].sort((a, b) => {
+        if (a.installed !== b.installed) return a.installed ? -1 : 1;
+        if (a.configured !== b.configured) return a.configured ? -1 : 1;
+        return a.toolName.localeCompare(b.toolName);
+      }),
+    [tools]
+  );
+
   useEffect(() => {
     fetchTools();
   }, []);
 
   const isRunning = proxyStatus?.status === "running";
   const proxyUrl = `http://127.0.0.1:${proxyStatus?.port || 19000}`;
+
+  const handleRescan = async () => {
+    await fetchTools();
+    const err = useToolsStore.getState().error;
+    if (err) {
+      message.error(err);
+    } else {
+      message.success(t("Rescan Complete"));
+    }
+  };
 
   const handleApply = async (toolId: string) => {
     try {
@@ -82,8 +102,8 @@ export default function ToolsConfig() {
     }
   };
 
-  const configuredCount = tools.filter((t) => t.configured).length;
-  const installedCount = tools.filter((t) => t.installed).length;
+  const configuredCount = sortedTools.filter((t) => t.configured).length;
+  const installedCount = sortedTools.filter((t) => t.installed).length;
 
   return (
     <div style={{ height: "100%", overflow: "auto" }}>
@@ -128,7 +148,7 @@ export default function ToolsConfig() {
         >
           <Space size={12}>
             <Typography.Text strong>
-              {t("{{installedCount}}/{{totalCount}} Tools Detected", { installedCount, totalCount: tools.length })}
+              {t("{{installedCount}}/{{totalCount}} Tools Detected", { installedCount, totalCount: sortedTools.length })}
             </Typography.Text>
             {configuredCount > 0 && (
               <Tag color="blue">{t("{{configuredCount}} Configured", { configuredCount })}</Tag>
@@ -138,7 +158,7 @@ export default function ToolsConfig() {
             </Tag>
           </Space>
           <Space>
-            <Button onClick={fetchTools} loading={loading}>
+            <Button onClick={handleRescan} loading={loading}>
               {t("Rescan")}
             </Button>
             <Popconfirm
@@ -165,7 +185,7 @@ export default function ToolsConfig() {
         styles={{ body: { padding: 0 } }}
       >
         <List
-          dataSource={tools}
+          dataSource={sortedTools}
           loading={loading}
           renderItem={(tool) => (
             <List.Item
@@ -256,12 +276,6 @@ export default function ToolsConfig() {
                   <div style={{ fontSize: 12 }}>
                     <div style={{ color: token.colorTextSecondary, marginBottom: 4 }}>
                       {t("Config File: ")}<code>{tool.configPath}</code>
-                    </div>
-                    <div style={{ color: token.colorTextTertiary, marginBottom: 4 }}>
-                      {tool.description}{"  "}
-                      <Typography.Text type="secondary" style={{ fontSize: 11 }}>
-                        v{tool.version} — {tool.author}
-                      </Typography.Text>
                     </div>
                     {!tool.enabled && (
                       <div style={{ color: token.colorWarning, fontWeight: 500, marginTop: 2 }}>
