@@ -13,6 +13,12 @@
 
 ## 技术参考
 
+### 规则优化计划
+
+| 文档 | 说明 |
+|------|------|
+| [RULES_OPTIMIZATION_PLAN.md](./RULES_OPTIMIZATION_PLAN.md) | 检测规则系统优化计划，含各国敏感数据类型、NLP性能需求 |
+
 ### LLM 提供商
 
 | 文档 | 说明 |
