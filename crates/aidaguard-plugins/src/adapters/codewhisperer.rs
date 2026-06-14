@@ -89,8 +89,8 @@ impl ToolAdapter for CodeWhisperer {
     }
 
     fn is_configured(&self) -> bool {
-        // CodeWhisperer doesn't use HTTP proxy in the same way
-        // Check if VS Code has proxy settings
+        // Check for CodeWhisperer-specific proxy key (aws.proxy), not generic http.proxy
+        // which could have been set by the VS Code adapter or other tools.
         let path = match vscode_settings_path() {
             Some(p) => p,
             None => return false,
@@ -106,7 +106,8 @@ impl ToolAdapter for CodeWhisperer {
             Ok(j) => j,
             Err(_) => return false,
         };
-        json.get("http.proxy").is_some()
+        let ep = json.get("aws.proxy").and_then(|v| v.as_str()).unwrap_or("");
+        ep.contains("127.0.0.1") || ep.contains("localhost")
     }
 
     fn backup(&self, backup_dir: &std::path::Path) -> Result<(), String> {
