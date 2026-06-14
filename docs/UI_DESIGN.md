@@ -1,5 +1,10 @@
 # Aidaguard 桌面客户端 UI 设计
 
+**版本：** 0.5.0
+**技术栈：** Tauri 2.x + React 18 + shadcn/ui + Tailwind CSS + Zustand
+
+---
+
 ## 功能关系图
 
 ```
@@ -13,10 +18,8 @@
                   ▼                  ▼                  ▼
     ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
     │    仪表盘        │  │   大模型接入      │  │     设置         │
-    │  只读统计视图     │  │  管理上游 LLM    │  │  全局参数配置     │
+    │  Dashboard.tsx   │  │  Upstreams.tsx   │  │  Settings.tsx    │
     └────────┬────────┘  └───────┬─────────┘  └────────┬────────┘
-             │                   │                     │
-             │ 统计数据来源       │ 提供上游配置给代理    │ 配置持久化
              │                   │                     │
              ▼                   ▼                     ▼
     ┌─────────────────────────────────────────────────────────┐
@@ -24,21 +27,74 @@
     │  detector · replacer · forwarder · stream · storage       │
     └────────┬──────────────┬──────────────────┬───────────────┘
              │              │                  │
-             │ 检测事件      │ 审计写入          │ 规则读写
              ▼              ▼                  ▼
     ┌───────────────┐ ┌───────────────┐ ┌───────────────┐
-    │    通知        │ │   审计记录      │ │   规则管理      │
-    │  桌面弹窗提醒   │ │ 查看·搜索·导出  │ │ 增删改查·测试   │
+    │   审计记录      │ │   规则管理      │ │   工具配置      │
+    │ AuditLog.tsx   │ │  Rules.tsx     │ │ ToolsConfig.tsx│
     └───────────────┘ └───────────────┘ └───────────────┘
-             ▲              │                  │
-             │              │                  │
-             └──────────────┴──────────────────┘
-                    审计记录可关联到具体规则
 ```
 
 ---
 
-## 模块详细分解
+## 页面结构
+
+| 页面 | 文件 | 功能 |
+|------|------|------|
+| 仪表盘 | `Dashboard.tsx` | 代理状态、统计卡片、规则命中图表、实时事件流 |
+| 大模型接入 | `Upstreams.tsx` | 上游 LLM 提供商管理 |
+| 审计记录 | `AuditLog.tsx` | 检测记录查询、详情、导出 |
+| 规则管理 | `Rules.tsx` | 规则 CRUD、测试、预设切换 |
+| 工具配置 | `ToolsConfig.tsx` | AI 工具适配器配置 |
+| 设置 | `Settings.tsx` | 代理、存储、外观、通知设置 |
+
+---
+
+## 组件清单
+
+### 业务组件 (`src/components/`)
+
+| 组件 | 文件 | 功能 |
+|------|------|------|
+| StatCard | `StatCard.tsx` | 统计卡片（检测次数、数据库大小等） |
+| RuleHitChart | `RuleHitChart.tsx` | 规则命中分布饼图 |
+| EventFeed | `EventFeed.tsx` | 实时检测事件流 |
+| AuditTable | `AuditTable.tsx` | 审计记录表格 |
+| AuditDetailPanel | `AuditDetailPanel.tsx` | 审计详情侧边栏 |
+| RuleEditor | `RuleEditor.tsx` | 规则编辑表单 |
+| RuleTestPanel | `RuleTestPanel.tsx` | 规则测试面板 |
+| GenerateRuleModal | `GenerateRuleModal.tsx` | AI 生成规则对话框 |
+| PresetSwitcher | `PresetSwitcher.tsx` | 规则预设切换器 |
+| OperationGuide | `OperationGuide.tsx` | 操作指南 |
+| ThemeSwitcher | `ThemeSwitcher.tsx` | 主题切换 |
+| Logo | `Logo.tsx` | 应用 Logo |
+
+### UI 组件 (`src/components/ui/`)
+
+基于 shadcn/ui (Radix UI + Tailwind CSS)：
+
+| 组件 | 说明 |
+|------|------|
+| `button` | 按钮 |
+| `card` | 卡片容器 |
+| `dialog` | 对话框 |
+| `input` | 输入框 |
+| `select` | 下拉选择 |
+| `switch` | 开关 |
+| `table` | 表格 |
+| `tabs` | 标签页 |
+| `textarea` | 多行文本 |
+| `tooltip` | 提示 |
+| `alert` | 警告提示 |
+| `badge` | 徽章 |
+| `checkbox` | 复选框 |
+| `label` | 标签 |
+| `separator` | 分隔线 |
+| `skeleton` | 骨架屏 |
+| `toggle` | 切换按钮 |
+
+---
+
+## 模块详细设计
 
 ### 一、系统托盘
 
@@ -49,345 +105,236 @@
 │   ├── 启动代理
 │   ├── 停止代理
 │   ├── ──────────────
-│   ├── 最近检测: N 次
-│   ├── 当前规则: N 条
-│   ├── ──────────────
 │   ├── 打开主窗口
 │   └── 退出 Aidaguard
 └── 状态
     ├── idle      — 代理未启动，灰色图标
     ├── running   — 代理运行中，绿色图标
-    └── error     — 启动失败，红色图标（hover 显示错误原因）
+    └── error     — 启动失败，红色图标
 ```
-
-**与其他模块关系：**
-- 调用代理核心 `start(config)` / 进程 kill
-- 显示仪表盘统计的快照数据
-- 退出时检查是否有未保存的规则/配置变更
 
 ---
 
-### 二、仪表盘
+### 二、仪表盘 (Dashboard)
 
 ```
 仪表盘
 ├── 顶部状态栏
 │   ├── 代理状态徽章（运行中/已停止）
-│   ├── 监听端口: 19000
-│   ├── 上游名称: 千帆 / DeepSeek / ...
-│   └── 运行时长: 2h 34m
+│   ├── 监听端口
+│   ├── 上游名称
+│   └── 运行时长
 │
-├── 统计卡片行
-│   ├── 今日检测次数 ───────── 关联审计记录（按时间筛选）
+├── 统计卡片行 (StatCard × 4)
+│   ├── 今日检测次数
 │   ├── 本周检测次数
 │   ├── 总计检测次数
 │   └── 审计数据库大小
 │
-├── 规则命中分布
-│   ├── 饼图或柱状图
-│   ├── 维度: 规则名
-│   └── 时间范围切换: 今日 / 本周 / 全部
-│       └── 关联审计记录（GROUP BY rule_id）
+├── 规则命中分布 (RuleHitChart)
+│   └── 饼图：按规则名聚合
 │
-└── 最近事件流
-    ├── 实时 WebSocket 推送（代理检测到敏感数据时广播）
-    ├── 每条事件显示: 时间 · 规则名 · 策略 · 请求路径
-    ├── 不显示敏感值原文
-    └── 点击跳转到审计记录详情 ──→ 关联审计模块
+└── 最近事件流 (EventFeed)
+    ├── 实时 WebSocket 推送
+    └── 点击跳转审计详情
 ```
-
-**与其他模块关系：**
-- 数据来源：storage 查询、health API、WebSocket 事件
-- 规则命中分布 → 关联规则管理（点击跳转）
-- 最近事件 → 关联审计记录详情
-- 上游名称 → 来自大模型接入配置
 
 ---
 
-### 三、大模型接入
+### 三、大模型接入 (Upstreams)
 
 ```
 大模型接入
 ├── 上游列表（左侧面板）
-│   ├── 列表项（名称 · 默认标签 · 状态指示灯）
-│   ├── 设为默认
-│   └── 拖拽排序（优先级）
+│   ├── 列表项：名称 · 默认标签 · 状态
+│   └── 拖拽排序
 │
 ├── 上游详情（右侧面板）
-│   ├── 基本信息
-│   │   ├── 名称            — 如"千帆"
-│   │   ├── API 基础 URL    — https://qianfan.baidubce.com/v2/coding
-│   │   ├── API Key         — 密码输入框，可切换可见
-│   │   └── 备注
-│   │
-│   ├── 模型管理
-│   │   ├── 模型列表（表格: 模型名 · 状态 · 操作）
-│   │   ├── 手动添加模型
-│   │   └── 自动拉取模型列表（调用上游 /models API）
-│   │
-│   ├── 高级设置
-│   │   ├── 请求超时（秒）
-│   │   ├── 速率限制（QPS）
-│   │   ├── 最大重试次数
-│   │   └── 自定义请求头（KV 列表）
-│   │
+│   ├── 基本信息：名称、URL、API Key
+│   ├── 模型管理：模型列表、自动拉取
+│   ├── 高级设置：超时、速率限制
 │   └── 连通性测试
-│       ├── 发送测试 ping 请求
-│       └── 显示结果（延迟 ms、模型列表、错误信息）
 │
-└── 操作按钮
-    ├── 添加上游
-    ├── 复制上游
-    ├── 删除上游（确认对话框）
-    └── 保存修改 ──→ 写入 config.toml [upstreams] section
+└── 操作：添加、复制、删除、保存
 ```
-
-**config.toml 对应结构：**
-```toml
-[[upstreams]]
-name = "千帆"
-url = "https://qianfan.baidubce.com/v2/coding"
-api_key = "..."
-default = true
-timeout_secs = 300
-rate_limit_qps = 0
-models = ["ernie-4.0", "ernie-3.5"]
-
-[[upstreams]]
-name = "DeepSeek"
-url = "https://api.deepseek.com/v1"
-api_key = "..."
-models = ["deepseek-chat", "deepseek-reasoner"]
-```
-
-**与其他模块关系：**
-- 配置写入 config.toml → 代理核心读取
-- 默认上游 → 仪表盘状态栏显示
-- 连通性测试 → 调用代理核心 forwarder
 
 ---
 
-### 四、审计记录
+### 四、审计记录 (AuditLog)
 
 ```
 审计记录
 ├── 工具栏
-│   ├── 搜索框（规则名、请求路径）
+│   ├── 搜索框
 │   ├── 时间筛选
-│   │   ├── 今天
-│   │   ├── 近 7 天
-│   │   ├── 近 30 天
-│   │   └── 自定义范围（日期选择器）
-│   └── 导出按钮 ──→ 导出 CSV / JSON
+│   └── 导出 CSV/JSON
 │
-├── 记录列表（表格）
-│   ├── 列: 时间 · 规则 · 策略 · 请求路径 · 状态码
-│   ├── 分页（每页 20/50/100 条）
-│   └── 点击行展开详情
+├── 记录列表 (AuditTable)
+│   └── 列：时间 · 规则 · 策略 · 请求路径 · 状态码
 │
-└── 详情面板（展开行内嵌）
+└── 详情面板 (AuditDetailPanel)
     ├── 基本信息
-    │   ├── 记录 ID
-    │   ├── 精确时间
-    │   ├── 规则名称
-    │   └── 响应状态码
-    ├── 敏感数据
-    │   ├── 占位符
-    │   ├── 原始值（点击"解密查看"后显示，带确认）
-    │   └── 上下文片段（解密后显示原文高亮匹配位置）
-    ├── 请求体
-    │   ├── 替换后的完整请求体（JSON 格式化显示）
-    │   └── 复制按钮
-    └── 操作
-        └── 删除单条记录
-
-导出格式:
-  CSV:  id, time, rule_id, strategy, placeholder, request_path, response_status
-  JSON: [{id, time, rule_id, strategy, placeholder, request_path, response_status}, ...]
-  注意: original 和 context 不导出（始终加密）
+    ├── 敏感数据（解密查看）
+    └── 请求体预览
 ```
-
-**与其他模块关系：**
-- 数据来源：storage.list() / storage.count()
-- 规则筛选 → 关联规则管理（跳转到对应规则）
-- 仪表盘统计 → 聚合查询审计表
-- 详情解密 → 调用 storage 解密接口
 
 ---
 
-### 五、规则管理
+### 五、规则管理 (Rules)
 
 ```
 规则管理
 ├── 工具栏
-│   ├── 分类筛选: 全部 / 通用 / 金融 / 医疗 / 自定义
-│   ├── 搜索框（规则名、ID）
-│   ├── 添加规则按钮
-│   └── 重载规则按钮 ──→ POST /reload
+│   ├── 预设切换 (PresetSwitcher)
+│   ├── 搜索框
+│   ├── 添加规则
+│   └── 重载规则
 │
-├── 规则列表（表格）
-│   ├── 列: 状态 · 名称 · ID · 正则模式 · 策略 · 优先级 · 操作
-│   ├── 启用/禁用开关
-│   └── 操作按钮: 编辑 · 删除 · 测试
+├── 规则列表
+│   └── 列：状态 · 名称 · ID · 正则 · 策略 · 操作
 │
-├── 规则编辑对话框
-│   ├── 基本信息
-│   │   ├── 规则 ID（唯一标识，创建后不可改）
-│   │   ├── 规则名称（人类可读）
-│   │   ├── 正则表达式
-│   │   ├── 策略选择: Placeholder / Mask
-│   │   ├── 优先级（数字）
-│   │   └── 所属分类
-│   └── 保存 / 取消
+├── 规则编辑 (RuleEditor)
+│   └── 表单：ID、名称、正则、策略、优先级
 │
-└── 规则测试面板
-    ├── 输入测试文本（多行）
-    ├── "运行测试" 按钮
-    └── 结果展示
-        ├── 匹配数量
-        ├── 每条匹配: 规则名 · 匹配文本 · 位置 · 替换结果
-        └── 替换后文本预览
-
-规则文件映射:
-  rules/general.yaml  → 通用分类
-  rules/finance.yaml  → 金融分类
-  rules/medical.yaml  → 医疗分类
-  rules/custom.yaml   → 自定义分类（新增文件）
+└── 规则测试 (RuleTestPanel)
+    ├── 输入测试文本
+    └── 显示匹配结果
 ```
-
-**与其他模块关系：**
-- 规则数据 → 写入 YAML 文件
-- 重载 → POST /reload API
-- 审计记录可跳转到对应规则
-- 仪表盘规则分布 → 按规则聚合统计
-- 测试面板 → 调用 detector.detect() + replacer.replace()
 
 ---
 
-### 六、设置
+### 六、工具配置 (ToolsConfig)
+
+```
+工具配置
+├── 工具列表
+│   ├── 已配置：显示上游名称
+│   └── 未配置：显示"未设置"
+│
+├── 配置面板
+│   ├── 选择上游
+│   └── 写入工具配置文件
+│
+└── 支持的工具
+    ├── Claude Code
+    ├── Aider
+    ├── Codex CLI
+    ├── Gemini CLI
+    ├── JetBrains AI
+    └── ...
+```
+
+---
+
+### 七、设置 (Settings)
 
 ```
 设置
 ├── 代理设置
-│   ├── 监听端口（默认 19000）
-│   └── 请求体大小限制 MB（默认 10）
+│   ├── 监听端口
+│   └── 请求体大小限制
 │
 ├── 存储设置
-│   ├── 启用审计记录（开关）
-│   ├── 数据库文件路径
-│   ├── 加密密钥（密码输入框）
-│   └── 数据库信息（位置 · 大小 · 记录数）
-│
-├── 日志设置
-│   ├── 日志级别（下拉: trace / debug / info / warn / error）
-│   └── 打开日志目录
+│   ├── 启用审计记录
+│   ├── 数据库路径
+│   └── 加密密钥
 │
 ├── 外观设置
-│   ├── 主题: 浅色 / 深色 / 跟随系统
-│   └── 实时预览切换
+│   └── 主题：浅色 / 深色 / 跟随系统
 │
 ├── 通知设置
-│   ├── 启用桌面通知（开关）
-│   └── 通知过滤: 仅通知高危规则 / 全部规则
+│   └── 启用桌面通知
 │
 └── 关于
-    ├── 版本号
-    ├── 许可证
-    └── 检查更新
-
-保存策略:
-  - 代理端口、请求体大小 → 需重启代理生效
-  - 存储设置 → 需重启代理生效
-  - 日志级别 → 运行时生效
-  - 外观设置 → 立即生效（主题存储于本地 localStorage，无需写入 config.toml）
-  - 通知设置 → 立即生效
+    └── 版本号
 ```
-
-**与其他模块关系：**
-- 所有设置 → 写入 config.toml
-- 代理设置变更 → 提示需要重启
-- 存储设置 → 关联审计模块（启用/禁用影响记录写入）
 
 ---
 
-### 七、通知
+## 前端技术栈
 
-```
-通知
-├── 触发条件: 代理检测到敏感数据
-├── 通知内容
-│   ├── 标题: "Aidaguard 检测到敏感数据"
-│   ├── 正文: "规则: {rule_id} | 请求: {path}"
-│   └── 不包含敏感值原文
-├── 点击行为: 打开主窗口 → 跳转到审计记录
-└── 频率控制: 同一规则 1 分钟内最多通知 1 次（防刷屏）
-```
-
-**与其他模块关系：**
-- 依赖设置模块的通知开关
-- 点击跳转审计记录
-- 数据来源：代理核心检测事件（WebSocket 或 IPC 推送）
-
----
-
-## 前端技术选型（Tauri）
-
-| 层 | 技术 | 说明 |
+| 层 | 技术 | 版本 |
 |----|------|------|
-| 桌面框架 | Tauri 2.x | Rust 后端 + Web 前端 |
-| 前端框架 | React + TypeScript | 组件化 UI |
-| UI 组件库 | Ant Design / Radix | 表格、表单、图表 |
-| 图表 | recharts / echarts | 仪表盘统计图 |
-| 状态管理 | Zustand / Jotai | 轻量状态 |
-| IPC 通信 | Tauri invoke / event | Rust ↔ React |
-| 数据库查询 | 通过 Tauri command 调用 storage API | 不在前端直接操作 SQLite |
-| 实时事件 | Tauri event system | 检测事件推送到前端 |
+| 桌面框架 | Tauri | 2.x |
+| 前端框架 | React | 18.x |
+| 语言 | TypeScript | 6.x |
+| UI 组件 | shadcn/ui (Radix UI) | - |
+| 样式 | Tailwind CSS | 3.4.x |
+| 图表 | Recharts | 2.x |
+| 状态管理 | Zustand | 4.x |
+| 表单 | React Hook Form + Zod | - |
+| 日期 | date-fns | 4.x |
+| 通知 | Sonner | 2.x |
 
 ---
 
-## Tauri 与 aidaguard-core 的关系
+## 项目结构
 
 ```
-aidaguard-tauri/                 # Tauri 桌面应用
-├── src-tauri/
-│   ├── Cargo.toml               # 依赖 aidaguard-core
+aidaguard-tauri/
+├── src-tauri/                    # Rust 后端
+│   ├── Cargo.toml
 │   ├── tauri.conf.json
 │   └── src/
-│       ├── main.rs              # Tauri 入口，注册 commands
-│       ├── commands/
-│       │   ├── proxy.rs         # 启动/停止代理
-│       │   ├── audit.rs         # 审计查询 command
-│       │   ├── rules.rs         # 规则 CRUD command
-│       │   ├── config.rs        # 配置读写 command
-│       │   └── upstream.rs      # 上游管理 command
-│       └── events.rs            # 检测事件广播
+│       ├── main.rs               # Tauri 入口
+│       ├── commands/             # Tauri commands
+│       │   ├── proxy.rs
+│       │   ├── audit.rs
+│       │   ├── rules.rs
+│       │   ├── config.rs
+│       │   └── upstream.rs
+│       └── events.rs
 │
-└── src/                         # React 前端
-    ├── App.tsx
-    ├── pages/
+└── src/                          # React 前端
+    ├── main.tsx                  # 入口
+    ├── App.tsx                   # 路由
+    ├── pages/                    # 页面
     │   ├── Dashboard.tsx
     │   ├── Upstreams.tsx
     │   ├── AuditLog.tsx
     │   ├── Rules.tsx
+    │   ├── ToolsConfig.tsx
     │   └── Settings.tsx
-    ├── components/
-    └── hooks/
+    ├── components/               # 业务组件
+    │   ├── StatCard.tsx
+    │   ├── RuleHitChart.tsx
+    │   ├── EventFeed.tsx
+    │   ├── AuditTable.tsx
+    │   ├── AuditDetailPanel.tsx
+    │   ├── RuleEditor.tsx
+    │   ├── RuleTestPanel.tsx
+    │   ├── GenerateRuleModal.tsx
+    │   ├── PresetSwitcher.tsx
+    │   ├── OperationGuide.tsx
+    │   ├── ThemeSwitcher.tsx
+    │   ├── Logo.tsx
+    │   └── ui/                   # shadcn/ui 组件
+    ├── store/                    # Zustand 状态
+    │   └── useThemeStore.ts
+    ├── i18n/                     # 国际化
+    │   ├── en.ts
+    │   └── zh.ts
+    ├── lib/                      # 工具函数
+    │   └── utils.ts
+    └── globals.css               # Tailwind 样式
 ```
 
-每个 Tauri command 封装 aidaguard-core 的对应 API：
+---
 
-| Command | 调用 Core API |
-|---------|--------------|
-| `start_proxy(config)` | `aidaguard_core::proxy::start(config)` |
-| `stop_proxy()` | kill child process |
-| `get_health()` | 内置 health 查询 |
-| `list_audit(limit, offset, filter)` | `storage.list()` / `storage.count()` |
-| `get_audit_detail(id)` | `storage.list()` with single record |
-| `get_rules()` | 读取 YAML 文件 |
-| `save_rule(rule)` | 写入 YAML 文件 |
-| `delete_rule(id)` | 编辑 YAML 文件 |
-| `test_rule(pattern, text)` | `detector.detect()` |
-| `reload_rules()` | POST /reload |
-| `get_config()` | `config::Config::load()` |
-| `save_config(config)` | 写入 config.toml |
-| `test_upstream(url, key)` | `forwarder.forward()` 测试请求 |
+## Tauri Commands
+
+| Command | 功能 |
+|---------|------|
+| `start_proxy` | 启动代理 |
+| `stop_proxy` | 停止代理 |
+| `get_health` | 获取代理状态 |
+| `list_audit` | 查询审计记录 |
+| `get_audit_detail` | 获取审计详情 |
+| `get_rules` | 获取规则列表 |
+| `save_rule` | 保存规则 |
+| `delete_rule` | 删除规则 |
+| `test_rule` | 测试规则 |
+| `reload_rules` | 重载规则 |
+| `get_config` | 获取配置 |
+| `save_config` | 保存配置 |
+| `test_upstream` | 测试上游连通性 |

@@ -1,10 +1,14 @@
 # Aidaguard 开发工作记录
 
+**版本：** 0.5.0
+
 ## 项目概述
 
-Aidaguard 是一个本地 API 网关代理，部署在 AI 客户端与大模型 API 之间，自动检测请求中的敏感数据（手机号、身份证、银行卡等），替换为占位符后再转发给大模型，并在响应中将占位符还原为原始数据。同时提供 Tauri 2.x 桌面应用进行可视化管理。
+Aidaguard 是一个本地 LLM API 代理，部署在 AI 客户端与大模型 API 之间，自动检测请求中的敏感数据（手机号、身份证、银行卡等），替换为占位符后再转发给大模型，并在响应中将占位符还原为原始数据。同时提供 Tauri 2.x 桌面应用进行可视化管理。
 
-**技术栈：** Rust, Tokio, Axum 0.7, Reqwest 0.12, Tauri 2.x, React 18, Ant Design 5, Zustand, TypeScript
+**技术栈：**
+- 后端：Rust, Tokio, Axum 0.7, Reqwest 0.12
+- 前端：Tauri 2.x, React 18, TypeScript, shadcn/ui, Tailwind CSS, Zustand
 
 ---
 
@@ -12,12 +16,56 @@ Aidaguard 是一个本地 API 网关代理，部署在 AI 客户端与大模型 
 
 | 提交 | 描述 |
 |------|------|
+| `5ba1c7b` | feat: migrate frontend to shadcn/ui + Tailwind CSS |
+| `bab11dc` | fix: use aws.proxy for CodeWhisperer proxy detection |
+| `e4276b4` | feat: declarative tool adapter engine + 31 EchoBird-aligned adapters |
+| `218e9b0` | feat: dual theme presets, Cline/Roo Code adapters, and bug fixes |
+| `d6b9e92` | feat: Phase 4 tool adapters + v0.5.0 |
+| `180bf83` | fix: rules_dir resolution, dark theme, collapsible audit body |
+| `c47210e` | docs: add Phase 4 planning documents |
+| `e0bdef0` | feat: enhance error handling (3.5) |
+| `6a401c5` | feat: add plugin dynamic loading support (3.4) |
+| `2bdde5a` | feat: enhance DetectionEngine trait (3.3) |
+| `c8a02de` | feat: implement MemoryStorage and StorageFactory (3.2) |
+| `54619de` | refactor: eliminate reverse dependency - core no longer depends on storage |
 | `65240c8` | MVP — 本地 API 网关代理，敏感数据检测与流式占位符还原 |
-| `c448014` | 配置系统、加密审计存储、健康检查端点、HTTP 转发器 |
-| `ada046f` | 代理增强：请求体大小限制、reasoning_content 还原、规则重载 API |
-| `9c75f9c` | Tauri 2.x 桌面应用 + aidaguard-core 安全加固 |
-| `81aedda` | 开发工作记录文档 |
-| `9fb8089` | 易用性改进：设置页解耦上游配置、规则目录关联配置、清理测试数据 |
+
+---
+
+## Phase 4: 工具适配器系统
+
+### 声明式适配器引擎
+
+实现了基于 JSON manifest 的声明式工具适配器引擎：
+
+- 25 个声明式适配器（从 `manifests/*.json` 编译时嵌入）
+- 6 个复杂适配器（`aider`, `codex`, `hermes_agent`, `gemini`, `codewhisperer`, `jetbrains_ai`）
+- 支持 JSON/YAML/TOML/INI/ENV/XML 等多种配置格式
+- JSON 路径查询（`$.key.nested[0]`）
+
+### 支持的工具
+
+| 类别 | 工具 |
+|------|------|
+| CLI | Claude Code, Aider, Codex, Gemini CLI, OpenClaw, OpenCode |
+| IDE | Cursor, Zed, Windsurf, JetBrains AI |
+| VS Code 扩展 | Cline, Continue.dev, Codeium, Cody, Tabnine, CodeWhisperer |
+
+---
+
+## Phase 5: UI 现代化
+
+### shadcn/ui + Tailwind CSS 迁移
+
+完成前端 UI 框架升级：
+
+- 从 Ant Design 迁移到 shadcn/ui (Radix UI)
+- 使用 Tailwind CSS 替代自定义 CSS
+- 添加全局主题支持（浅色/深色/跟随系统）
+- 统一组件样式和交互体验
+
+**新增 UI 组件：**
+- `button`, `card`, `dialog`, `input`, `select`, `switch`, `table`, `tabs`, `tooltip`, `alert`, `badge`, `checkbox`, `label`, `separator`, `skeleton`, `toggle`
 
 ---
 
