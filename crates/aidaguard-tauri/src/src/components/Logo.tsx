@@ -1,4 +1,4 @@
-import { theme } from "antd";
+import { cn } from "@/lib/utils";
 
 interface LogoProps {
   size?: number;
@@ -6,26 +6,18 @@ interface LogoProps {
 }
 
 export default function Logo({ size = 32, collapsed = false }: LogoProps) {
-  const { token } = theme.useToken();
-
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: collapsed ? 0 : 10,
-        userSelect: "none",
-      }}
-    >
+    <div className={cn("flex items-center select-none", collapsed ? "" : "gap-2.5")}>
       <img
         src="/logo.png"
         alt="AIDAGuard"
-        style={{ width: size, height: size, borderRadius: size * 0.22 }}
+        className="rounded-[22%]"
+        style={{ width: size, height: size }}
       />
       {!collapsed && (
-        <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0, whiteSpace: "nowrap" }}>
-          <span style={{ color: token.colorPrimary }}>AIDA</span>
-          <span style={{ color: token.colorText }}>Guard</span>
+        <h1 className="text-xl font-bold whitespace-nowrap m-0">
+          <span className="text-preset">AIDA</span>
+          <span className="text-foreground">Guard</span>
         </h1>
       )}
     </div>

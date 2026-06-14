@@ -269,17 +269,19 @@ const zh = {
   "Enable NLP-based detection of unstructured entities (names, addresses, organizations). Increases CPU usage by ~40%.": "启用基于 NLP 的非结构化实体检测（人名、地址、机构名）。CPU 占用增加约 40%。",
   "Model Language": "模型语言",
   "Select the language for the NER model. The model will be downloaded on first use.": "选择 NER 模型语言。首次使用时将自动下载模型。",
-  "Download NLP Model": "下载 NLP 模型",
-  "Pre-download the NLP model now to avoid first-use delay (~400 MB)": "预下载 NLP 模型以避免首次使用时的等待（约 400 MB）",
-  "Downloading NLP model...": "正在下载 NLP 模型...",
-  "NLP model downloaded successfully": "NLP 模型下载成功",
-  "NLP model download failed": "NLP 模型下载失败",
   "Collapse": "收起",
   "Show Full Body": "展开完整内容",
   "Emerald Green": "安全绿",
   "Indigo Purple": "深蓝紫",
   "Theme Preset": "主题预设",
-  "Theme Mode": "主题模式"
+  "Theme Mode": "主题模式",
+  "Confirm Delete": "确认删除",
+  "Loading...": "加载中...",
+  "Next": "下一页",
+  "Previous": "上一页",
+  "Saving...": "保存中...",
+  "Testing...": "测试中...",
+  "This action cannot be undone.": "此操作不可撤销。"
 };
 
 export default zh;

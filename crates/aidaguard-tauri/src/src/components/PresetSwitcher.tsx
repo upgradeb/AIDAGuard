@@ -1,57 +1,33 @@
-import { Segmented, Space } from "antd";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useTranslation } from "react-i18next";
-import { useThemeStore, PRESETS, type ThemePreset } from "../store/useThemeStore";
+import { useThemeStore, type ThemePreset } from "../store/useThemeStore";
 
-const SWATCH_SIZE = 16;
-
-function ColorSwatch({ color }: { color: string }) {
-  return (
-    <span
-      style={{
-        display: "inline-block",
-        width: SWATCH_SIZE,
-        height: SWATCH_SIZE,
-        borderRadius: 4,
-        background: color,
-        verticalAlign: "middle",
-      }}
-    />
-  );
-}
+const PRESET_COLORS: Record<ThemePreset, string> = {
+  emerald: "#10b981",
+  indigo: "#6366f1",
+};
 
 export default function PresetSwitcher() {
   const preset = useThemeStore((s) => s.preset);
   const setPreset = useThemeStore((s) => s.setPreset);
   const { t } = useTranslation();
 
-  const handleChange = (val: string) => {
-    setPreset(val as ThemePreset);
-  };
-
   return (
-    <Segmented
+    <ToggleGroup
+      type="single"
       value={preset}
-      onChange={handleChange}
-      options={[
-        {
-          value: "emerald",
-          label: (
-            <Space size={6}>
-              <ColorSwatch color={PRESETS.emerald.colorPrimary} />
-              <span>{t("Emerald Green")}</span>
-            </Space>
-          ),
-        },
-        {
-          value: "indigo",
-          label: (
-            <Space size={6}>
-              <ColorSwatch color={PRESETS.indigo.colorPrimary} />
-              <span>{t("Indigo Purple")}</span>
-            </Space>
-          ),
-        },
-      ]}
-    />
+      onValueChange={(v) => {
+        if (v) setPreset(v as ThemePreset);
+      }}
+    >
+      <ToggleGroupItem value="emerald" aria-label={t("Emerald Green")}>
+        <span className="inline-block w-4 h-4 rounded mr-1.5" style={{ background: PRESET_COLORS.emerald }} />
+        <span className="text-sm">{t("Emerald Green")}</span>
+      </ToggleGroupItem>
+      <ToggleGroupItem value="indigo" aria-label={t("Indigo Purple")}>
+        <span className="inline-block w-4 h-4 rounded mr-1.5" style={{ background: PRESET_COLORS.indigo }} />
+        <span className="text-sm">{t("Indigo Purple")}</span>
+      </ToggleGroupItem>
+    </ToggleGroup>
   );
 }

@@ -17,11 +17,14 @@ pub struct AnalyzerEngine {
     registry: RecognizerRegistry,
     legacy_detector: Option<Detector>,
     min_confidence: f64,
+    #[allow(dead_code)]
     nlp_enabled: bool,  // 是否启用 NLP
 }
 
 /// 智能跳过策略阈值
+#[allow(dead_code)]
 const SMART_SKIP_TEXT_THRESHOLD: usize = 200;  // 小于此长度跳过 NLP
+#[allow(dead_code)]
 const SMART_SKIP_MIN_PII_SIGNALS: usize = 2;   // 至少有 2 个 PII 信号才启用 NLP
 
 impl AnalyzerEngine {
@@ -35,6 +38,7 @@ impl AnalyzerEngine {
     /// 1. NLP 未启用 → 跳过
     /// 2. 文本过短 (< 200 字符) → 跳过
     /// 3. 无 PII 信号特征 → 跳过
+    #[allow(dead_code)]
     fn should_run_nlp(&self, text: &str) -> bool {
         if !self.nlp_enabled {
             return false;
@@ -315,6 +319,7 @@ impl AnalyzerEngineBuilder {
 
 /// 统计文本中的 PII 信号特征数量
 /// 用于智能判断是否需要 NLP 检测
+#[allow(dead_code)]
 fn count_pii_signals(text: &str) -> usize {
     let mut signals = 0;
     

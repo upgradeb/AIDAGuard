@@ -1,33 +1,39 @@
 import { useEffect, useMemo } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import {
-  Card,
-  Button,
-  Tag,
-  Typography,
-  Space,
-  List,
-  message,
-  theme,
-  Alert,
-  Popconfirm,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
   Tooltip,
-  Switch,
-} from "antd";
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { toast } from "sonner";
 import {
-  SettingOutlined,
-  UndoOutlined,
-  CheckCircleOutlined,
-  WarningOutlined,
-  ApiOutlined,
-  EyeOutlined,
-  EyeInvisibleOutlined,
-} from "@ant-design/icons";
+  Settings,
+  Undo2,
+  CheckCircle2,
+  AlertTriangle,
+  Server,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useToolsStore } from "../store/useToolsStore";
 import { useProxyStore } from "../store/useProxyStore";
 
 export default function ToolsConfig() {
-  const { token } = theme.useToken();
   const { t } = useTranslation();
   const tools = useToolsStore((s) => s.tools);
   const loading = useToolsStore((s) => s.loading);
@@ -61,27 +67,27 @@ export default function ToolsConfig() {
     await fetchTools();
     const err = useToolsStore.getState().error;
     if (err) {
-      message.error(err);
+      toast.error(err);
     } else {
-      message.success(t("Rescan Complete"));
+      toast.success(t("Rescan Complete"));
     }
   };
 
   const handleApply = async (toolId: string) => {
     try {
       await apply(toolId);
-      message.success(t("Configuration Applied"));
+      toast.success(t("Configuration Applied"));
     } catch (e) {
-      message.error(String(e));
+      toast.error(String(e));
     }
   };
 
   const handleRestore = async (toolId: string) => {
     try {
       await restore(toolId);
-      message.success(t("Configuration Restored"));
+      toast.success(t("Configuration Restored"));
     } catch (e) {
-      message.error(String(e));
+      toast.error(String(e));
     }
   };
 
@@ -89,16 +95,16 @@ export default function ToolsConfig() {
     try {
       await togglePlugin(toolId);
     } catch (e) {
-      message.error(String(e));
+      toast.error(String(e));
     }
   };
 
   const handleRestoreAll = async () => {
     try {
       await restoreAll();
-      message.success(t("All Configurations Restored"));
+      toast.success(t("All Configurations Restored"));
     } catch (e) {
-      message.error(String(e));
+      toast.error(String(e));
     }
   };
 
@@ -106,212 +112,264 @@ export default function ToolsConfig() {
   const installedCount = sortedTools.filter((t) => t.installed).length;
 
   return (
-    <div style={{ height: "100%", overflow: "auto" }}>
-      {/* 提示 */}
+    <div className="h-full overflow-auto">
+      {/* Warning alert */}
       {!isRunning && (
-        <Alert
-          type="warning"
-          showIcon
-          message={t("Proxy Not Started")}
-          description={t("Start the proxy to preview configuration effects below. Configuration will redirect all requests to the local proxy address.")}
-          style={{ marginBottom: 16, borderRadius: 8 }}
-        />
+        <Alert className="mb-4 border-yellow-500/50 text-yellow-700 dark:text-yellow-400 [&>svg]:text-yellow-600">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>{t("Proxy Not Started")}</AlertTitle>
+          <AlertDescription>
+            {t(
+              "Start the proxy to preview configuration effects below. Configuration will redirect all requests to the local proxy address."
+            )}
+          </AlertDescription>
+        </Alert>
       )}
       {error && (
-        <Alert
-          type="error"
-          showIcon
-          message={t("Operation Failed")}
-          description={error}
-          closable
-          style={{ marginBottom: 16, borderRadius: 8 }}
-        />
+        <Alert variant="destructive" className="mb-4">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>{t("Operation Failed")}</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
 
-      {/* 概览信息 */}
-      <Card
-        size="small"
-        style={{
-          borderRadius: 12,
-          border: `1px solid ${token.colorBorderSecondary}`,
-          marginBottom: 16,
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            flexWrap: "wrap",
-            gap: 8,
-          }}
-        >
-          <Space size={12}>
-            <Typography.Text strong>
-              {t("{{installedCount}}/{{totalCount}} Tools Detected", { installedCount, totalCount: sortedTools.length })}
-            </Typography.Text>
-            {configuredCount > 0 && (
-              <Tag color="blue">{t("{{configuredCount}} Configured", { configuredCount })}</Tag>
-            )}
-            <Tag color="geekblue">
-              <ApiOutlined /> {proxyUrl}
-            </Tag>
-          </Space>
-          <Space>
-            <Button onClick={handleRescan} loading={loading}>
-              {t("Rescan")}
-            </Button>
-            <Popconfirm
-              title={t("Restore all tools to their original configuration?")}
-              onConfirm={handleRestoreAll}
-              okText={t("OK")}
-              cancelText={t("Cancel")}
-            >
-              <Button icon={<UndoOutlined />} danger>
-                {t("Restore All")}
+      {/* Overview card */}
+      <Card className="mb-4">
+        <CardContent className="p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-3">
+              <span className="font-semibold">
+                {t(
+                  "{{installedCount}}/{{totalCount}} Tools Detected",
+                  { installedCount, totalCount: sortedTools.length }
+                )}
+              </span>
+              {configuredCount > 0 && (
+                <Badge variant="secondary" className="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+                  {t("{{configuredCount}} Configured", { configuredCount })}
+                </Badge>
+              )}
+              <Badge variant="outline" className="gap-1">
+                <Server className="h-3 w-3" /> {proxyUrl}
+              </Badge>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRescan}
+                disabled={loading}
+              >
+                {loading && (
+                  <span className="mr-1 h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                )}
+                {t("Rescan")}
               </Button>
-            </Popconfirm>
-          </Space>
-        </div>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" size="sm">
+                    <Undo2 className="h-4 w-4" />
+                    {t("Restore All")}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>
+                      {t("Restore all tools to their original configuration?")}
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      {t(
+                        "This will undo all configuration changes made by Aidaguard."
+                      )}
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleRestoreAll}>
+                      {t("OK")}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          </div>
+        </CardContent>
       </Card>
 
-      {/* 工具列表 */}
-      <Card
-        size="small"
-        style={{
-          borderRadius: 12,
-          border: `1px solid ${token.colorBorderSecondary}`,
-        }}
-        styles={{ body: { padding: 0 } }}
-      >
-        <List
-          dataSource={sortedTools}
-          loading={loading}
-          renderItem={(tool) => (
-            <List.Item
-              style={{ padding: "14px 20px" }}
-              actions={[
-                tool.installed ? (
-                  <Button
-                    key="apply"
-                    type="primary"
-                    size="small"
-                    icon={<SettingOutlined />}
-                    loading={applying === tool.toolId}
-                    onClick={() => handleApply(tool.toolId)}
-                  >
-                    {t("Configure")}
-                  </Button>
-                ) : null,
-                tool.installed ? (
-                  <Popconfirm
-                    key="restore"
-                    title={t("Restore original configuration?")}
-                    onConfirm={() => handleRestore(tool.toolId)}
-                    okText={t("OK")}
-                    cancelText={t("Cancel")}
-                  >
-                    <Button
-                      size="small"
-                      icon={<UndoOutlined />}
-                      loading={applying === tool.toolId}
-                    >
-                      {t("Restore")}
-                    </Button>
-                  </Popconfirm>
-                ) : (
-                  <Typography.Text
-                    key="na"
-                    type="secondary"
-                    style={{ fontSize: 12 }}
-                  >
-                    {t("Not Installed")}
-                  </Typography.Text>
-                ),
-              ]}
-            >
-              <List.Item.Meta
-                avatar={
-                  tool.installed ? (
-                    tool.configured ? (
-                      <CheckCircleOutlined
-                        style={{ fontSize: 20, color: token.colorSuccess }}
-                      />
-                    ) : (
-                      <WarningOutlined
-                        style={{ fontSize: 20, color: token.colorWarning }}
-                      />
-                    )
-                  ) : (
-                    <span
-                      style={{
-                        fontSize: 20,
-                        color: token.colorTextQuaternary,
-                      }}
-                    >
-                      —
-                    </span>
-                  )
-                }
-                title={
-                  <Space size={8}>
-                    <Typography.Text strong>{tool.toolName}</Typography.Text>
+      {/* Tool list card */}
+      <Card>
+        <CardContent className="p-0">
+          {loading && sortedTools.length === 0 ? (
+            <div className="flex items-center justify-center py-12 text-muted-foreground">
+              <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+              {t("Loading...")}
+            </div>
+          ) : (
+            <div className="divide-y">
+              {sortedTools.map((tool) => (
+                <div
+                  key={tool.toolId}
+                  className="flex items-center gap-4 px-5 py-3.5"
+                >
+                  {/* Status icon */}
+                  <div className="mt-0.5 shrink-0">
                     {tool.installed ? (
-                      <Tag color="green" style={{ fontSize: 11 }}>
-                        {t("Installed")}
-                      </Tag>
+                      tool.configured ? (
+                        <CheckCircle2 className="h-5 w-5 text-green-600" />
+                      ) : (
+                        <AlertTriangle className="h-5 w-5 text-yellow-600" />
+                      )
                     ) : (
-                      <Tag color="default" style={{ fontSize: 11 }}>
-                        {t("Not Installed")}
-                      </Tag>
-                    )}
-                    {tool.configured && (
-                      <Tag color="blue" style={{ fontSize: 11 }}>
-                        {t("Configured")}
-                      </Tag>
-                    )}
-                  </Space>
-                }
-                description={
-                  <div style={{ fontSize: 12 }}>
-                    <div style={{ color: token.colorTextSecondary, marginBottom: 4 }}>
-                      {t("Config File: ")}<code>{tool.configPath}</code>
-                    </div>
-                    {!tool.enabled && (
-                      <div style={{ color: token.colorWarning, fontWeight: 500, marginTop: 2 }}>
-                        {t("Plugin is disabled — Click toggle to re-enable")}
-                      </div>
-                    )}
-                    {tool.enabled && tool.configured && (
-                      <div style={{ color: token.colorPrimary, fontWeight: 500, marginTop: 2 }}>
-                        {t("Proxied — Requests will be scanned by Aidaguard for sensitive data")}
-                      </div>
-                    )}
-                    {tool.enabled && tool.installed && !tool.configured && (
-                      <div style={{ color: token.colorWarning, fontWeight: 500, marginTop: 2 }}>
-                        {t("Not Proxied — Click \"Configure\" to route through local proxy")}
-                      </div>
-                    )}
-                    {tool.enabled && !tool.installed && (
-                      <div style={{ color: token.colorTextQuaternary }}>
-                        {t("Install this tool to enable one-click configuration")}
-                      </div>
+                      <span className="block h-5 w-5 text-center text-muted-foreground/50">
+                        &mdash;
+                      </span>
                     )}
                   </div>
-                }
-              />
-              <Tooltip title={tool.enabled ? t("Disable Plugin") : t("Enable Plugin")}>
-                <Switch
-                  size="small"
-                  checked={tool.enabled}
-                  onChange={() => handleTogglePlugin(tool.toolId)}
-                  checkedChildren={<EyeOutlined />}
-                  unCheckedChildren={<EyeInvisibleOutlined />}
-                />
-              </Tooltip>
-            </List.Item>
+
+                  {/* Title + description */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold">{tool.toolName}</span>
+                      {tool.installed ? (
+                        <Badge
+                          variant="secondary"
+                          className="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300"
+                        >
+                          {t("Installed")}
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline">{t("Not Installed")}</Badge>
+                      )}
+                      {tool.configured && (
+                        <Badge
+                          variant="secondary"
+                          className="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300"
+                        >
+                          {t("Configured")}
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="mt-0.5 text-sm">
+                      <div className="text-muted-foreground">
+                        {t("Config File: ")}
+                        <code className="rounded bg-muted px-1 py-0.5 text-xs">
+                          {tool.configPath}
+                        </code>
+                      </div>
+                      {!tool.enabled && (
+                        <div className="mt-0.5 font-medium text-yellow-600">
+                          {t("Plugin is disabled — Click toggle to re-enable")}
+                        </div>
+                      )}
+                      {tool.enabled && tool.configured && (
+                        <div className="mt-0.5 font-medium text-primary">
+                          {t(
+                            "Proxied — Requests will be scanned by Aidaguard for sensitive data"
+                          )}
+                        </div>
+                      )}
+                      {tool.enabled && tool.installed && !tool.configured && (
+                        <div className="mt-0.5 font-medium text-yellow-600">
+                          {t(
+                            'Not Proxied — Click "Configure" to route through local proxy'
+                          )}
+                        </div>
+                      )}
+                      {tool.enabled && !tool.installed && (
+                        <div className="mt-0.5 text-muted-foreground/60">
+                          {t(
+                            "Install this tool to enable one-click configuration"
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex shrink-0 items-center gap-2">
+                    {tool.installed && (
+                      <Button
+                        size="sm"
+                        onClick={() => handleApply(tool.toolId)}
+                        disabled={applying === tool.toolId}
+                      >
+                        {applying === tool.toolId ? (
+                          <span className="mr-1 h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                        ) : (
+                          <Settings className="h-4 w-4" />
+                        )}
+                        {t("Configure")}
+                      </Button>
+                    )}
+                    {tool.installed ? (
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={applying === tool.toolId}
+                          >
+                            {applying === tool.toolId ? (
+                              <span className="mr-1 h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                            ) : (
+                              <Undo2 className="h-4 w-4" />
+                            )}
+                            {t("Restore")}
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>
+                              {t("Restore original configuration?")}
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                              {t(
+                                "This will revert the configuration file to its original state."
+                              )}
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>
+                              {t("Cancel")}
+                            </AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleRestore(tool.toolId)}
+                            >
+                              {t("OK")}
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">
+                        {t("Not Installed")}
+                      </span>
+                    )}
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div>
+                            <Switch
+                              checked={tool.enabled}
+                              onCheckedChange={() =>
+                                handleTogglePlugin(tool.toolId)
+                              }
+                            />
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {tool.enabled
+                            ? t("Disable Plugin")
+                            : t("Enable Plugin")}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
-        />
+        </CardContent>
       </Card>
     </div>
   );

@@ -1,27 +1,22 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  Modal,
-  Input,
-  Button,
-  Descriptions,
-  Tag,
-  Typography,
-  Space,
-  message,
-  Alert,
-  Spin,
-} from "antd";
-import { theme } from "antd";
-import {
-  RobotOutlined,
-  ThunderboltOutlined,
-  EditOutlined,
-  ReloadOutlined,
-  ApiOutlined,
-} from "@ant-design/icons";
+import { Bot, Zap, Pencil, RefreshCw, Server } from "lucide-react";
 import { generateRule, type GeneratedRule } from "../api/rules";
 import type { RuleDef } from "../types";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 interface GenerateRuleModalProps {
   open: boolean;
@@ -37,7 +32,6 @@ export default function GenerateRuleModal({
   onClose,
 }: GenerateRuleModalProps) {
   const { t } = useTranslation();
-  const { token } = theme.useToken();
   const [sampleText, setSampleText] = useState("");
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState<GeneratedRule | null>(null);
@@ -45,7 +39,7 @@ export default function GenerateRuleModal({
 
   const handleGenerate = async () => {
     if (!sampleText.trim()) {
-      message.warning(t("Please enter test sample"));
+      toast.warning(t("Please enter test sample"));
       return;
     }
     setGenerating(true);
@@ -89,163 +83,127 @@ export default function GenerateRuleModal({
     : defaultModelLabel;
 
   return (
-    <Modal
-      title={
-        <Space>
-          <RobotOutlined />
-          {t("AI-Generated Rules")}
-        </Space>
-      }
-      open={open}
-      onCancel={handleClose}
-      footer={
-        result
-          ? [
-              <Button key="close" onClick={handleClose}>
-                {t("Close")}
-              </Button>,
-              <Button
-                key="regenerate"
-                icon={<ReloadOutlined />}
-                onClick={handleGenerate}
-                loading={generating}
-              >
-                {t("Regenerate")}
-              </Button>,
-              <Button
-                key="apply"
-                type="primary"
-                icon={<EditOutlined />}
-                onClick={handleApply}
-              >
-                {t("Apply to Editor")}
-              </Button>,
-            ]
-          : [
-              <Button key="cancel" onClick={handleClose}>
-                {t("Cancel")}
-              </Button>,
-            ]
-      }
-      width={640}
-      destroyOnClose
-    >
-      {/* 模型信息 */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          marginBottom: 12,
-          padding: "6px 12px",
-          borderRadius: 6,
-          background: token.colorPrimaryBg,
-          border: `1px solid ${token.colorPrimaryBorder}`,
-          fontSize: 13,
-        }}
-      >
-        <ApiOutlined style={{ color: token.colorPrimary }} />
-        <Typography.Text style={{ color: token.colorPrimary }}>
-          {t("Model: ")}<strong>{modelLabel}</strong>
-        </Typography.Text>
-      </div>
+    <Dialog open={open} onOpenChange={(o) => { if (!o) handleClose(); }}>
+      <DialogContent className="sm:max-w-[640px]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Bot className="h-5 w-5" />
+            {t("AI-Generated Rules")}
+          </DialogTitle>
+        </DialogHeader>
 
-      <Typography.Paragraph type="secondary" style={{ fontSize: 13 }}>
-        {t("Enter a test sample containing sensitive data. The LLM will analyze it and generate detection rules automatically. You can further refine the result in the rule editor.")}
-      </Typography.Paragraph>
-
-      <Input.TextArea
-        value={sampleText}
-        onChange={(e) => setSampleText(e.target.value)}
-        placeholder={t("Example:\nPatient Zhang San, Phone 13812345678, ID 320102199001011234")}
-        rows={4}
-        style={{ marginBottom: 12 }}
-      />
-
-      {!result && (
-        <Button
-          type="primary"
-          icon={<ThunderboltOutlined />}
-          onClick={handleGenerate}
-          loading={generating}
-          disabled={!sampleText.trim()}
-          block
-        >
-          {generating ? t("Generating...") : t("Generate Rule")}
-        </Button>
-      )}
-
-      {generating && !result && (
-        <div style={{ textAlign: "center", padding: 24 }}>
-          <Spin tip={t("LLM is analyzing sample...")} />
+        {/* Model info */}
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-primary/10 border border-primary/20 text-sm">
+          <Server className="h-4 w-4 text-preset" />
+          <span className="text-preset">
+            {t("Model: ")}<strong>{modelLabel}</strong>
+          </span>
         </div>
-      )}
 
-      {error && (
-        <Alert
-          type="error"
-          showIcon
-          message={t("Generation Failed")}
-          description={error}
-          closable
-          style={{ marginTop: 12, borderRadius: 8 }}
+        <p className="text-sm text-muted-foreground">
+          {t("Enter a test sample containing sensitive data. The LLM will analyze it and generate detection rules automatically. You can further refine the result in the rule editor.")}
+        </p>
+
+        <Textarea
+          value={sampleText}
+          onChange={(e) => setSampleText(e.target.value)}
+          placeholder={t("Example:\nPatient Zhang San, Phone 13812345678, ID 320102199001011234")}
+          rows={4}
         />
-      )}
 
-      {result && (
-        <Spin spinning={generating} tip={t("Regenerating...")}>
-          <div
-            style={{
-              marginTop: 16,
-              padding: 16,
-              background: generating ? token.colorWarningBg : token.colorSuccessBg,
-              border: `1px solid ${generating ? token.colorWarningBorder : token.colorSuccessBorder}`,
-              borderRadius: 8,
-              transition: "background 0.3s, border-color 0.3s",
-            }}
+        {!result && (
+          <Button
+            onClick={handleGenerate}
+            disabled={generating || !sampleText.trim()}
+            className="w-full"
           >
-            <Typography.Text
-              strong
-              style={{
-                color: generating ? "#faad14" : "#52c41a",
-                marginBottom: 12,
-                display: "block",
-              }}
-            >
-              {generating ? t("Regenerating...") : t("Done — {{upstreamName}} / {{model}}", { upstreamName: result.upstreamName, model: result.model })}
-            </Typography.Text>
-          <Descriptions column={1} size="small" bordered>
-            <Descriptions.Item label={t("Rule ID")}>
-              <Typography.Text code copyable>{result.id}</Typography.Text>
-            </Descriptions.Item>
-            <Descriptions.Item label={t("Rule Name")}>
-              <Typography.Text strong>{result.name}</Typography.Text>
-            </Descriptions.Item>
-            <Descriptions.Item label={t("Pattern")}>
-              <Typography.Text code copyable>
-                {result.pattern}
-              </Typography.Text>
-            </Descriptions.Item>
-            <Descriptions.Item label={t("Strategy")}>
-              <Tag color={result.strategy === "placeholder" ? "blue" : "purple"}>
-                {result.strategy === "placeholder" ? t("Placeholder Replacement") : t("Partial Mask")}
-              </Tag>
-            </Descriptions.Item>
-            <Descriptions.Item label={t("Mode")}>
-              <Tag color={result.mode === "filter" ? "green" : "orange"}>
-                {result.mode === "filter" ? t("Filter & Replace") : t("Detect Only")}
-              </Tag>
-            </Descriptions.Item>
-            <Descriptions.Item label={t("Priority")}>
-              {result.priority}
-            </Descriptions.Item>
-            <Descriptions.Item label={t("Generation Model")}>
-              <Typography.Text code>{result.upstreamName} / {result.model}</Typography.Text>
-            </Descriptions.Item>
-          </Descriptions>
+            <Zap className="h-4 w-4 mr-2" />
+            {generating ? t("Generating...") : t("Generate Rule")}
+          </Button>
+        )}
+
+        {generating && !result && (
+          <div className="flex flex-col items-center gap-2 py-6">
+            <Skeleton className="h-4 w-[200px]" />
+            <Skeleton className="h-4 w-[160px]" />
+            <span className="text-sm text-muted-foreground">{t("LLM is analyzing sample...")}</span>
           </div>
-        </Spin>
-      )}
-    </Modal>
+        )}
+
+        {error && (
+          <Alert variant="destructive">
+            <AlertTitle>{t("Generation Failed")}</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {result && (
+          <div
+            className={cn(
+              "mt-4 p-4 rounded-lg border transition-colors",
+              generating
+                ? "bg-amber-500/10 border-amber-500/30"
+                : "bg-green-500/10 border-green-500/30"
+            )}
+          >
+            <span
+              className={cn(
+                "font-semibold block mb-3",
+                generating ? "text-amber-600" : "text-green-600"
+              )}
+            >
+              {generating
+                ? t("Regenerating...")
+                : t("Done — {{upstreamName}} / {{model}}", { upstreamName: result.upstreamName, model: result.model })}
+            </span>
+
+            <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
+              <span className="text-muted-foreground">{t("Rule ID")}</span>
+              <code className="text-xs">{result.id}</code>
+
+              <span className="text-muted-foreground">{t("Rule Name")}</span>
+              <span className="font-medium">{result.name}</span>
+
+              <span className="text-muted-foreground">{t("Pattern")}</span>
+              <code className="text-xs">{result.pattern}</code>
+
+              <span className="text-muted-foreground">{t("Strategy")}</span>
+              <Badge className={result.strategy === "placeholder" ? "bg-blue-500/15 text-blue-600 hover:bg-blue-500/15" : "bg-purple-500/15 text-purple-600 hover:bg-purple-500/15"}>
+                {result.strategy === "placeholder" ? t("Placeholder Replacement") : t("Partial Mask")}
+              </Badge>
+
+              <span className="text-muted-foreground">{t("Mode")}</span>
+              <Badge className={result.mode === "filter" ? "bg-green-500/15 text-green-600 hover:bg-green-500/15" : "bg-amber-500/15 text-amber-600 hover:bg-amber-500/15"}>
+                {result.mode === "filter" ? t("Filter & Replace") : t("Detect Only")}
+              </Badge>
+
+              <span className="text-muted-foreground">{t("Priority")}</span>
+              <span>{result.priority}</span>
+
+              <span className="text-muted-foreground">{t("Generation Model")}</span>
+              <code className="text-xs">{result.upstreamName} / {result.model}</code>
+            </div>
+          </div>
+        )}
+
+        <DialogFooter>
+          {result ? (
+            <>
+              <Button variant="outline" onClick={handleClose}>{t("Close")}</Button>
+              <Button variant="outline" onClick={handleGenerate} disabled={generating}>
+                <RefreshCw className={cn("h-4 w-4 mr-2", generating && "animate-spin")} />
+                {t("Regenerate")}
+              </Button>
+              <Button onClick={handleApply}>
+                <Pencil className="h-4 w-4 mr-2" />
+                {t("Apply to Editor")}
+              </Button>
+            </>
+          ) : (
+            <Button variant="outline" onClick={handleClose}>{t("Cancel")}</Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -1,4 +1,5 @@
-import { Card, Typography, theme } from "antd";
+import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 
@@ -10,7 +11,6 @@ interface StatCardProps {
   gradient?: boolean;
 }
 
-// Animated number counter
 function AnimatedNumber({ value }: { value: number }) {
   const [displayValue, setDisplayValue] = useState(0);
 
@@ -25,9 +25,7 @@ function AnimatedNumber({ value }: { value: number }) {
       step++;
       current = Math.min(Math.round(increment * step), value);
       setDisplayValue(current);
-      if (step >= steps) {
-        clearInterval(timer);
-      }
+      if (step >= steps) clearInterval(timer);
     }, duration / steps);
 
     return () => clearInterval(timer);
@@ -36,61 +34,64 @@ function AnimatedNumber({ value }: { value: number }) {
   return <span className="stat-number">{displayValue.toLocaleString()}</span>;
 }
 
+const gradientMap: Record<string, string> = {
+  success: "bg-gradient-to-br from-[#11998e] to-[#38ef7d]",
+  warning: "bg-gradient-to-br from-[#f093fb] to-[#f5576c]",
+  primary: "bg-gradient-to-br from-[#667eea] to-[#764ba2]",
+};
+
 export default function StatCard({ title, value, icon, color, gradient }: StatCardProps) {
-  const { token } = theme.useToken();
-  const numericValue = typeof value === "number" ? value : parseInt(value.replace(/[^0-9]/g, "")) || 0;
+  const numericValue =
+    typeof value === "number" ? value : parseInt(value.replace(/[^0-9]/g, "")) || 0;
 
   return (
     <Card
-      size="small"
-      className="stat-card"
-      style={{
-        borderRadius: 12,
-        border: `1px solid ${token.colorBorderSecondary}`,
-        boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
-        background: gradient ? (color === "success" ? "linear-gradient(135deg, #11998e 0%, #38ef7d 100%)" :
-                       color === "warning" ? "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)" :
-                       "linear-gradient(135deg, #667eea 0%, #764ba2 100%)") : undefined,
-        color: gradient ? "#fff" : undefined,
-      }}
+      className={cn(
+        "rounded-xl shadow-sm hover:-translate-y-0.5 transition-transform",
+        gradient && color ? gradientMap[color] || gradientMap.primary : ""
+      )}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        {icon && (
-          <div
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: 10,
-              background: gradient ? "rgba(255,255,255,0.2)" : (color || token.colorPrimaryBg),
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: gradient ? "#fff" : (color ? "#fff" : token.colorPrimary),
-              fontSize: 18,
-            }}
-          >
-            {icon}
+      <CardContent className="p-4">
+        <div className="flex items-center gap-3">
+          {icon && (
+            <div
+              className={cn(
+                "w-10 h-10 rounded-[10px] flex items-center justify-center text-lg",
+                gradient
+                  ? "bg-white/20 text-white"
+                  : color
+                    ? "text-white"
+                    : "bg-primary/10 text-preset"
+              )}
+              style={!gradient && color ? { background: color } : undefined}
+            >
+              {icon}
+            </div>
+          )}
+          <div>
+            <span
+              className={cn(
+                "block text-[13px] min-h-[20px] truncate",
+                gradient ? "text-white/85" : "text-muted-foreground"
+              )}
+            >
+              {title}
+            </span>
+            <span
+              className={cn(
+                "text-2xl leading-8 font-bold",
+                gradient ? "text-white" : ""
+              )}
+            >
+              {typeof value === "number" ? (
+                <AnimatedNumber value={numericValue} />
+              ) : (
+                <span className="stat-number">{value}</span>
+              )}
+            </span>
           </div>
-        )}
-        <div>
-          <Typography.Text
-            type={gradient ? undefined : "secondary"}
-            style={{ fontSize: 13, display: "block", color: gradient ? "rgba(255,255,255,0.85)" : undefined, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minHeight: 20 }}
-          >
-            {title}
-          </Typography.Text>
-          <Typography.Text
-            strong
-            style={{ fontSize: 24, lineHeight: "32px", color: gradient ? "#fff" : undefined }}
-          >
-            {typeof value === "number" ? (
-              <AnimatedNumber value={numericValue} />
-            ) : (
-              <span className="stat-number">{value}</span>
-            )}
-          </Typography.Text>
         </div>
-      </div>
+      </CardContent>
     </Card>
   );
 }

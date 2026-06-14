@@ -1,8 +1,20 @@
 import { useState } from "react";
-import { Drawer, Input, Button, Space, Typography, Tag, Card, Divider, theme } from "antd";
-import { PlayCircleOutlined } from "@ant-design/icons";
+import { Play } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { TestRuleResult } from "../types";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface RuleTestPanelProps {
   open: boolean;
@@ -22,98 +34,90 @@ export default function RuleTestPanel({
   const [pattern, setPattern] = useState("");
   const [text, setText] = useState("");
   const { t } = useTranslation();
-  const { token } = theme.useToken();
 
   return (
-    <Drawer
-      title={t("Rule Test")}
-      placement="right"
-      width={640}
-      open={open}
-      onClose={onClose}
-    >
-      <Space direction="vertical" style={{ width: "100%" }} size={16}>
-        <div>
-          <Typography.Text strong style={{ display: "block", marginBottom: 8 }}>
-            {t("Regex Pattern")}
-          </Typography.Text>
-          <Input
-            value={pattern}
-            onChange={(e) => setPattern(e.target.value)}
-            placeholder={t("e.g. 1[3-9]\\d{9}")}
-          />
+    <Sheet open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <SheetContent className="w-[640px] sm:max-w-[640px] overflow-auto">
+        <SheetHeader>
+          <SheetTitle>{t("Rule Test")}</SheetTitle>
+        </SheetHeader>
+
+        <div className="mt-6 space-y-4">
+          <div className="space-y-2">
+            <Label>{t("Regex Pattern")}</Label>
+            <Input
+              value={pattern}
+              onChange={(e) => setPattern(e.target.value)}
+              placeholder={t("e.g. 1[3-9]\\d{9}")}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>{t("Test Text")}</Label>
+            <Textarea
+              rows={5}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder={t("Enter test text containing sensitive data...")}
+            />
+          </div>
+
+          <Button
+            onClick={() => onTest(pattern, text)}
+            disabled={!pattern || !text}
+            className="w-full"
+          >
+            <Play className="h-4 w-4 mr-2" />
+            {testing ? t("Testing...") : t("Run Test")}
+          </Button>
+
+          {result && (
+            <>
+              <Separator />
+
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">
+                    {t("Matches: {{count}}", { count: result.matches.length })}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {result.matches.map((m, i) => (
+                    <div key={i} className="py-2 border-b last:border-b-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge className="bg-amber-500/15 text-amber-600 hover:bg-amber-500/15">
+                          {m.text}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          pos {m.start}-{m.end}
+                        </span>
+                        <Badge variant="secondary">{m.strategy}</Badge>
+                        <Badge variant={m.mode === "filter" ? "default" : "outline"}>
+                          {m.mode === "filter" ? t("Filter") : t("Detect")}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                  {result.matches.length === 0 && (
+                    <span className="text-sm text-muted-foreground">{t("No Matches")}</span>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm">{t("Sanitized Text")}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <pre className="bg-muted text-foreground p-3 rounded-md text-[13px] whitespace-pre-wrap break-all">
+                    {result.sanitizedText}
+                  </pre>
+                </CardContent>
+              </Card>
+            </>
+          )}
         </div>
-
-        <div>
-          <Typography.Text strong style={{ display: "block", marginBottom: 8 }}>
-            {t("Test Text")}
-          </Typography.Text>
-          <Input.TextArea
-            rows={5}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder={t("Enter test text containing sensitive data...")}
-          />
-        </div>
-
-        <Button
-          type="primary"
-          icon={<PlayCircleOutlined />}
-          onClick={() => onTest(pattern, text)}
-          loading={testing}
-          disabled={!pattern || !text}
-        >
-          {t("Run Test")}
-        </Button>
-
-        {result && (
-          <>
-            <Divider />
-
-            <Card size="small" title={t("Matches: {{count}}", { count: result.matches.length })}>
-              {result.matches.map((m, i) => (
-                <div
-                  key={i}
-                  style={{
-                    padding: "8px 0",
-                    borderBottom: "1px solid #f0f0f0",
-                  }}
-                >
-                  <Space wrap size={8}>
-                    <Tag color="orange">{m.text}</Tag>
-                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                      pos {m.start}-{m.end}
-                    </Typography.Text>
-                    <Tag>{m.strategy}</Tag>
-                    <Tag color={m.mode === "filter" ? "blue" : "default"}>
-                      {m.mode === "filter" ? t("Filter") : t("Detect")}
-                    </Tag>
-                  </Space>
-                </div>
-              ))}
-              {result.matches.length === 0 && (
-                <Typography.Text type="secondary">{t("No Matches")}</Typography.Text>
-              )}
-            </Card>
-
-            <Card size="small" title={t("Sanitized Text")}>
-              <pre
-                style={{
-                  background: token.colorFillAlter,
-                  color: token.colorText,
-                  padding: 12,
-                  borderRadius: 6,
-                  fontSize: 13,
-                  whiteSpace: "pre-wrap",
-                  wordBreak: "break-all",
-                }}
-              >
-                {result.sanitizedText}
-              </pre>
-            </Card>
-          </>
-        )}
-      </Space>
-    </Drawer>
+      </SheetContent>
+    </Sheet>
   );
 }

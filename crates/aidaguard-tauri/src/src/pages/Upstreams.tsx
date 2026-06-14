@@ -1,36 +1,69 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Plus, Pencil, Trash2, Server, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+
 import {
-  Card,
   Table,
-  Tag,
-  Switch,
-  Space,
-  Button,
-  Input,
-  Modal,
-  Form,
-  InputNumber,
-  Popconfirm,
-  message,
-  theme,
-  Alert,
-  Typography,
-  Radio,
-} from "antd";
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from "@/components/ui/table";
 import {
-  PlusOutlined,
-  EditOutlined,
-  DeleteOutlined,
-  ApiOutlined,
-} from "@ant-design/icons";
-import type { ColumnsType } from "antd/es/table";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+
 import { useUpstreamStore } from "../store/useUpstreamStore";
 import type { UpstreamConfig } from "../types";
 
+/* ---------- zod schema ---------- */
+
+const upstreamSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  url: z.string().min(1, "API URL is required"),
+  api_key: z.string(),
+  default: z.boolean(),
+  timeout_secs: z.number().min(1).max(600),
+  rate_limit_qps: z.number().min(0).max(100),
+  models: z.array(z.string()),
+  protocol: z.enum(["openai", "anthropic"]),
+});
+
+type UpstreamFormValues = z.infer<typeof upstreamSchema>;
+
+/* ---------- component ---------- */
+
 export default function Upstreams() {
   const { t } = useTranslation();
-  const { token } = theme.useToken();
+
   const upstreams = useUpstreamStore((s) => s.upstreams);
   const loading = useUpstreamStore((s) => s.loading);
   const saving = useUpstreamStore((s) => s.saving);
@@ -45,7 +78,26 @@ export default function Upstreams() {
 
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState<UpstreamConfig | null>(null);
-  const [form] = Form.useForm<UpstreamConfig>();
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+
+  const {
+    control,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<UpstreamFormValues>({
+    resolver: zodResolver(upstreamSchema),
+    defaultValues: {
+      name: "",
+      url: "",
+      api_key: "",
+      default: false,
+      timeout_secs: 300,
+      rate_limit_qps: 0,
+      models: [],
+      protocol: "openai",
+    },
+  });
 
   useEffect(() => {
     fetchUpstreams();
@@ -54,15 +106,32 @@ export default function Upstreams() {
   useEffect(() => {
     if (editorOpen) {
       if (editingRecord) {
-        form.setFieldsValue(editingRecord);
+        reset({
+          name: editingRecord.name,
+          url: editingRecord.url,
+          api_key: editingRecord.api_key || "",
+          default: editingRecord.default,
+          timeout_secs: editingRecord.timeout_secs || 300,
+          rate_limit_qps: editingRecord.rate_limit_qps || 0,
+          models: editingRecord.models || [],
+          protocol: editingRecord.protocol || "openai",
+        });
       } else {
-        form.resetFields();
+        reset({
+          name: "",
+          url: "",
+          api_key: "",
+          default: false,
+          timeout_secs: 300,
+          rate_limit_qps: 0,
+          models: [],
+          protocol: "openai",
+        });
       }
     }
   }, [editorOpen]);
 
-  const handleSave = async () => {
-    const values = await form.validateFields();
+  const onSubmit = async (values: UpstreamFormValues) => {
     const upstream: UpstreamConfig = {
       name: values.name,
       url: values.url,
@@ -79,22 +148,23 @@ export default function Upstreams() {
       } else {
         await add(upstream);
       }
-      message.success(t("Upstream Saved"));
+      toast.success(t("Upstream Saved"));
       setEditorOpen(false);
       setEditingRecord(null);
       fetchUpstreams();
     } catch (e) {
-      message.error(String(e));
+      toast.error(String(e));
     }
   };
 
   const handleDelete = async (name: string) => {
     try {
       await remove(name);
-      message.success(t("Upstream Deleted"));
+      toast.success(t("Upstream Deleted"));
+      setDeleteTarget(null);
       fetchUpstreams();
     } catch (e) {
-      message.error(String(e));
+      toast.error(String(e));
     }
   };
 
@@ -107,244 +177,394 @@ export default function Upstreams() {
     );
   };
 
-  const columns: ColumnsType<UpstreamConfig> = [
-    {
-      title: t("Default"),
-      dataIndex: "default",
-      key: "default",
-      width: 70,
-      render: (val: boolean) =>
-        val ? <Tag color="blue">{t("Default")}</Tag> : null,
-    },
-    {
-      title: t("Name"),
-      dataIndex: "name",
-      key: "name",
-      width: 120,
-    },
-    {
-      title: t("URL"),
-      dataIndex: "url",
-      key: "url",
-      ellipsis: true,
-    },
-    {
-      title: t("Timeout(s)"),
-      dataIndex: "timeout_secs",
-      key: "timeout_secs",
-      width: 90,
-    },
-    {
-      title: t("QPS"),
-      dataIndex: "rate_limit_qps",
-      key: "rate_limit_qps",
-      width: 90,
-      render: (v: number) => (v > 0 ? v : t("Unlimited")),
-    },
-    {
-      title: t("Model"),
-      dataIndex: "models",
-      key: "models",
-      width: 200,
-      render: (v: string[]) =>
-        v.length > 0
-          ? v.map((m) => <Tag key={m}>{m}</Tag>)
-          : <span style={{ color: token.colorTextQuaternary }}>{t("Unspecified")}</span>,
-    },
-    {
-      title: t("Protocol"),
-      dataIndex: "protocol",
-      key: "protocol",
-      width: 110,
-      render: (val: string) =>
-        val === "anthropic" ? <Tag color="orange">Anthropic</Tag> : <Tag color="blue">OpenAI</Tag>,
-    },
-    {
-      title: t("Actions"),
-      key: "actions",
-      width: 200,
-      render: (_, record) => (
-        <Space size={4}>
-          <Button
-            size="small"
-            icon={<ApiOutlined />}
-            loading={testing === record.name}
-            onClick={() => handleTest(record)}
-          >
-            {t("Test")}
-          </Button>
-          <Button
-            size="small"
-            icon={<EditOutlined />}
-            onClick={() => {
-              setEditingRecord(record);
-              setEditorOpen(true);
-            }}
-          />
-          <Popconfirm
-            title={t("Delete this upstream?")}
-            onConfirm={() => handleDelete(record.name)}
-            okText={t("Delete")}
-            cancelText={t("Cancel")}
-          >
-            <Button size="small" danger icon={<DeleteOutlined />} />
-          </Popconfirm>
-        </Space>
-      ),
-    },
-  ];
-
   return (
-    <div style={{ maxWidth: 960, height: "100%", overflow: "auto" }}>
-      <Card
-        size="small"
-        style={{
-          borderRadius: 12,
-          border: `1px solid ${token.colorBorderSecondary}`,
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 16,
-          }}
-        >
-          <span style={{ color: token.colorTextSecondary, fontSize: 13 }}>
+    <div className="max-w-[960px] h-full overflow-auto">
+      {/* Card wrapper */}
+      <div className="rounded-xl border p-4">
+        {/* Header row */}
+        <div className="flex items-center justify-between mb-4">
+          <span className="text-sm text-muted-foreground">
             {t("Manage LLM Upstream Services")}
           </span>
           <Button
-            type="primary"
-            icon={<PlusOutlined />}
             onClick={() => {
               setEditingRecord(null);
               clearTestResult();
               setEditorOpen(true);
             }}
           >
+            <Plus className="h-4 w-4 mr-1" />
             {t("Add Upstream")}
           </Button>
         </div>
 
-        <Table
-          columns={columns}
-          dataSource={upstreams}
-          rowKey="name"
-          loading={loading}
-          size="small"
-          pagination={false}
-          scroll={{ x: "max-content" }}
-          locale={{ emptyText: t("No Upstreams Configured") }}
-        />
-      </Card>
+        {/* Table */}
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[70px]">{t("Default")}</TableHead>
+              <TableHead className="w-[120px]">{t("Name")}</TableHead>
+              <TableHead>{t("URL")}</TableHead>
+              <TableHead className="w-[90px]">{t("Timeout(s)")}</TableHead>
+              <TableHead className="w-[90px]">{t("QPS")}</TableHead>
+              <TableHead className="w-[200px]">{t("Model")}</TableHead>
+              <TableHead className="w-[110px]">{t("Protocol")}</TableHead>
+              <TableHead className="w-[200px]">{t("Actions")}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
+                  <Loader2 className="h-5 w-5 animate-spin mx-auto" />
+                </TableCell>
+              </TableRow>
+            ) : upstreams.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
+                  {t("No Upstreams Configured")}
+                </TableCell>
+              </TableRow>
+            ) : (
+              upstreams.map((record) => (
+                <TableRow key={record.name}>
+                  <TableCell>
+                    {record.default ? (
+                      <Badge variant="secondary">{t("Default")}</Badge>
+                    ) : null}
+                  </TableCell>
+                  <TableCell className="font-medium">{record.name}</TableCell>
+                  <TableCell className="max-w-[200px] truncate">{record.url}</TableCell>
+                  <TableCell>{record.timeout_secs}</TableCell>
+                  <TableCell>
+                    {record.rate_limit_qps > 0
+                      ? record.rate_limit_qps
+                      : t("Unlimited")}
+                  </TableCell>
+                  <TableCell>
+                    {record.models && record.models.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {record.models.map((m) => (
+                          <Badge key={m} variant="outline" className="text-xs">
+                            {m}
+                          </Badge>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground/50 text-xs">
+                        {t("Unspecified")}
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {record.protocol === "anthropic" ? (
+                      <Badge className="bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300 border-orange-200 dark:border-orange-800">
+                        Anthropic
+                      </Badge>
+                    ) : (
+                      <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300 border-blue-200 dark:border-blue-800">
+                        OpenAI
+                      </Badge>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleTest(record)}
+                        disabled={testing === record.name}
+                      >
+                        {testing === record.name ? (
+                          <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                        ) : (
+                          <Server className="h-3.5 w-3.5 mr-1" />
+                        )}
+                        {t("Test")}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setEditingRecord(record);
+                          setEditorOpen(true);
+                        }}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <AlertDialog
+                        open={deleteTarget === record.name}
+                        onOpenChange={(open) => {
+                          if (!open) setDeleteTarget(null);
+                        }}
+                      >
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => setDeleteTarget(record.name)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>
+                              {t("Delete this upstream?")}
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                              {t("This action cannot be undone.")}
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>
+                              {t("Cancel")}
+                            </AlertDialogCancel>
+                            <AlertDialogAction
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              onClick={() => handleDelete(record.name)}
+                            >
+                              {t("Delete")}
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
 
-      {/* 连接测试结果 */}
+      {/* Connectivity test result */}
       {testResult && (
         <Alert
-          type={testResult.startsWith("✓") ? "success" : "error"}
-          message={t("Connectivity Test Result")}
-          description={
-            <Typography.Paragraph
-              style={{ margin: 0, whiteSpace: "pre-wrap", fontSize: 12 }}
-            >
-              {testResult}
-            </Typography.Paragraph>
-          }
-          closable
-          onClose={clearTestResult}
-          style={{ marginTop: 16, borderRadius: 8 }}
-        />
+          variant={testResult.startsWith("✓") ? "default" : "destructive"}
+          className="mt-4 rounded-lg"
+        >
+          <AlertTitle>{t("Connectivity Test Result")}</AlertTitle>
+          <AlertDescription className="whitespace-pre-wrap text-xs">
+            {testResult}
+          </AlertDescription>
+          <button
+            className="absolute right-3 top-3 text-muted-foreground hover:text-foreground"
+            onClick={clearTestResult}
+          >
+            &times;
+          </button>
+        </Alert>
       )}
 
-      {/* 添加/编辑弹窗 */}
-      <Modal
-        title={editingRecord ? t("Edit Upstream") : t("Add Upstream")}
+      {/* Add / Edit dialog */}
+      <Dialog
         open={editorOpen}
-        onOk={handleSave}
-        onCancel={() => {
-          setEditorOpen(false);
-          setEditingRecord(null);
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditorOpen(false);
+            setEditingRecord(null);
+          }
         }}
-        confirmLoading={saving}
-        okText={t("Save")}
-        cancelText={t("Cancel")}
-        width={560}
       >
-        <Form
-          form={form}
-          layout="vertical"
-          style={{ marginTop: 16 }}
-          initialValues={{
-            timeout_secs: 300,
-            rate_limit_qps: 0,
-            default: false,
-            protocol: "openai",
-          }}
-        >
-          <Form.Item
-            name="name"
-            label={t("Name")}
-            rules={[{ required: true, message: t("Please enter name") }]}
-          >
-            <Input placeholder={t("e.g. qianfan-pro")} disabled={!!editingRecord} />
-          </Form.Item>
-          <Form.Item
-            name="url"
-            label={t("API URL")}
-            rules={[{ required: true, message: t("Please enter API URL") }]}
-          >
-            <Input placeholder="https://qianfan.baidubce.com/v2/coding" />
-          </Form.Item>
-          <Form.Item name="api_key" label="API Key">
-            <Input.Password placeholder={t("Leave empty to skip authentication header")} />
-          </Form.Item>
-          <Space size={16}>
-            <Form.Item name="timeout_secs" label={t("Timeout (s)")}>
-              <InputNumber min={1} max={600} style={{ width: 140 }} />
-            </Form.Item>
-            <Form.Item name="rate_limit_qps" label={t("QPS Limit")}>
-              <InputNumber min={0} max={100} style={{ width: 140 }} />
-            </Form.Item>
-            <Form.Item
-              name="default"
-              label={t("Set as Default")}
-              valuePropName="checked"
-            >
-              <Switch />
-            </Form.Item>
-          </Space>
-          <Form.Item
-            name="protocol"
-            label={t("Protocol Type")}
-            extra={t("Select the upstream LLM API protocol format")}
-          >
-            <Radio.Group>
-              <Radio.Button value="openai">{t("OpenAI Compatible")}</Radio.Button>
-              <Radio.Button value="anthropic">{t("Anthropic Compatible")}</Radio.Button>
-            </Radio.Group>
-          </Form.Item>
-          <Form.Item
-            name="models"
-            label={t("Model List")}
-            extra={t("Separate multiple models with commas")}
-            getValueFromEvent={(e) =>
-              e.target.value
-                .split(",")
-                .map((s: string) => s.trim())
-                .filter(Boolean)
-            }
-            getValueProps={(v: string[]) => ({
-              value: v ? v.join(", ") : "",
-            })}
-          >
-            <Input.TextArea
-              rows={2}
-              placeholder="gpt-4, claude-3-opus"
-            />
-          </Form.Item>
-        </Form>
-      </Modal>
+        <DialogContent className="sm:max-w-[560px]">
+          <DialogHeader>
+            <DialogTitle>
+              {editingRecord ? t("Edit Upstream") : t("Add Upstream")}
+            </DialogTitle>
+          </DialogHeader>
+
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-2">
+            {/* Name */}
+            <div className="space-y-1.5">
+              <Label htmlFor="name">{t("Name")}</Label>
+              <Controller
+                name="name"
+                control={control}
+                render={({ field }) => (
+                  <Input
+                    id="name"
+                    placeholder={t("e.g. qianfan-pro")}
+                    disabled={!!editingRecord}
+                    {...field}
+                  />
+                )}
+              />
+              {errors.name && (
+                <p className="text-xs text-destructive">{errors.name.message}</p>
+              )}
+            </div>
+
+            {/* URL */}
+            <div className="space-y-1.5">
+              <Label htmlFor="url">{t("API URL")}</Label>
+              <Controller
+                name="url"
+                control={control}
+                render={({ field }) => (
+                  <Input
+                    id="url"
+                    placeholder="https://qianfan.baidubce.com/v2/coding"
+                    {...field}
+                  />
+                )}
+              />
+              {errors.url && (
+                <p className="text-xs text-destructive">{errors.url.message}</p>
+              )}
+            </div>
+
+            {/* API Key */}
+            <div className="space-y-1.5">
+              <Label htmlFor="api_key">API Key</Label>
+              <Controller
+                name="api_key"
+                control={control}
+                render={({ field }) => (
+                  <Input
+                    id="api_key"
+                    type="password"
+                    placeholder={t("Leave empty to skip authentication header")}
+                    {...field}
+                  />
+                )}
+              />
+            </div>
+
+            {/* Timeout + QPS + Default row */}
+            <div className="flex items-end gap-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="timeout_secs">{t("Timeout (s)")}</Label>
+                <Controller
+                  name="timeout_secs"
+                  control={control}
+                  render={({ field }) => (
+                    <Input
+                      id="timeout_secs"
+                      type="number"
+                      min={1}
+                      max={600}
+                      className="w-[140px]"
+                      {...field}
+                      onChange={(e) => field.onChange(Number(e.target.value))}
+                    />
+                  )}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="rate_limit_qps">{t("QPS Limit")}</Label>
+                <Controller
+                  name="rate_limit_qps"
+                  control={control}
+                  render={({ field }) => (
+                    <Input
+                      id="rate_limit_qps"
+                      type="number"
+                      min={0}
+                      max={100}
+                      className="w-[140px]"
+                      {...field}
+                      onChange={(e) => field.onChange(Number(e.target.value))}
+                    />
+                  )}
+                />
+              </div>
+              <div className="flex items-center gap-2 pb-1">
+                <Controller
+                  name="default"
+                  control={control}
+                  render={({ field }) => (
+                    <Switch
+                      id="default"
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  )}
+                />
+                <Label htmlFor="default" className="cursor-pointer">
+                  {t("Set as Default")}
+                </Label>
+              </div>
+            </div>
+
+            {/* Protocol */}
+            <div className="space-y-1.5">
+              <Label>{t("Protocol Type")}</Label>
+              <Controller
+                name="protocol"
+                control={control}
+                render={({ field }) => (
+                  <ToggleGroup
+                    type="single"
+                    value={field.value}
+                    onValueChange={(val) => {
+                      if (val) field.onChange(val);
+                    }}
+                    variant="outline"
+                    className="justify-start"
+                  >
+                    <ToggleGroupItem value="openai">
+                      {t("OpenAI Compatible")}
+                    </ToggleGroupItem>
+                    <ToggleGroupItem value="anthropic">
+                      {t("Anthropic Compatible")}
+                    </ToggleGroupItem>
+                  </ToggleGroup>
+                )}
+              />
+              <p className="text-xs text-muted-foreground">
+                {t("Select the upstream LLM API protocol format")}
+              </p>
+            </div>
+
+            {/* Models */}
+            <div className="space-y-1.5">
+              <Label htmlFor="models">{t("Model List")}</Label>
+              <Controller
+                name="models"
+                control={control}
+                render={({ field }) => (
+                  <Textarea
+                    id="models"
+                    rows={2}
+                    placeholder="gpt-4, claude-3-opus"
+                    value={field.value ? field.value.join(", ") : ""}
+                    onChange={(e) => {
+                      const val = e.target.value
+                        .split(",")
+                        .map((s: string) => s.trim())
+                        .filter(Boolean);
+                      field.onChange(val);
+                    }}
+                  />
+                )}
+              />
+              <p className="text-xs text-muted-foreground">
+                {t("Separate multiple models with commas")}
+              </p>
+            </div>
+
+            {/* Footer */}
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setEditorOpen(false);
+                  setEditingRecord(null);
+                }}
+              >
+                {t("Cancel")}
+              </Button>
+              <Button type="submit" disabled={saving}>
+                {saving && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+                {t("Save")}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

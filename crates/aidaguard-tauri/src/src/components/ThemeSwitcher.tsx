@@ -1,4 +1,5 @@
-import { Segmented } from "antd";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Sun, Moon, Monitor } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useThemeStore } from "../store/useThemeStore";
 
@@ -8,14 +9,22 @@ export default function ThemeSwitcher() {
   const { t } = useTranslation();
 
   return (
-    <Segmented
+    <ToggleGroup
+      type="single"
       value={theme}
-      onChange={(val) => setTheme(val as "light" | "dark" | "system")}
-      options={[
-        { value: "light", label: t("Light") },
-        { value: "dark", label: t("Dark") },
-        { value: "system", label: t("System") },
-      ]}
-    />
+      onValueChange={(v) => {
+        if (v) setTheme(v as "light" | "dark" | "system");
+      }}
+    >
+      <ToggleGroupItem value="light" aria-label={t("Light")}>
+        <Sun className="h-4 w-4" />
+      </ToggleGroupItem>
+      <ToggleGroupItem value="dark" aria-label={t("Dark")}>
+        <Moon className="h-4 w-4" />
+      </ToggleGroupItem>
+      <ToggleGroupItem value="system" aria-label={t("System")}>
+        <Monitor className="h-4 w-4" />
+      </ToggleGroupItem>
+    </ToggleGroup>
   );
 }

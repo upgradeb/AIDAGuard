@@ -1,9 +1,11 @@
 import { useState } from "react";
-import { Descriptions, Typography, Tag, theme, Button } from "antd";
-import { DownOutlined, UpOutlined } from "@ant-design/icons";
+import { ChevronDown, ChevronUp, Copy, Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { DetectionRecord } from "../types";
-import dayjs from "dayjs";
+import { format } from "date-fns";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 interface AuditDetailPanelProps {
   record: DetectionRecord;
@@ -11,9 +13,33 @@ interface AuditDetailPanelProps {
 
 const PREVIEW_MAX = 300;
 
+function Copyable({ text, className }: { text: string; className?: string }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = () => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+  return (
+    <span className={cn("inline-flex items-start gap-1", className)}>
+      <span className="break-all">{text}</span>
+      <button onClick={handleCopy} className="text-muted-foreground hover:text-foreground shrink-0 mt-0.5">
+        {copied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
+      </button>
+    </span>
+  );
+}
+
+function strategyBadge(strategy: string, t: (k: string) => string) {
+  if (strategy === "detect")
+    return <Badge className="bg-amber-500/15 text-amber-600 hover:bg-amber-500/15">{t("Detect Only")}</Badge>;
+  if (strategy === "mask")
+    return <Badge className="bg-purple-500/15 text-purple-600 hover:bg-purple-500/15">{t("Partial Mask")}</Badge>;
+  return <Badge className="bg-blue-500/15 text-blue-600 hover:bg-blue-500/15">{t("Placeholder Replacement")}</Badge>;
+}
+
 export default function AuditDetailPanel({ record }: AuditDetailPanelProps) {
   const { t } = useTranslation();
-  const { token } = theme.useToken();
   const [bodyExpanded, setBodyExpanded] = useState(false);
 
   const body = record.sanitizedBody || "";
@@ -22,105 +48,91 @@ export default function AuditDetailPanel({ record }: AuditDetailPanelProps) {
   const displayBody = truncated ? body.slice(0, PREVIEW_MAX) + "…" : body;
 
   return (
-    <div className="detail-panel" style={{ padding: "0 24px 16px" }}>
-      <Descriptions
-        bordered
-        size="small"
-        column={2}
-        style={{ marginBottom: 16 }}
-      >
-        <Descriptions.Item label={t("Record ID")} span={2}>
-          <Typography.Text copyable style={{ fontSize: 12 }}>
-            {record.id}
-          </Typography.Text>
-        </Descriptions.Item>
-        <Descriptions.Item label={t("Time")}>
-          {dayjs(record.timestampMs).format("YYYY-MM-DD HH:mm:ss.SSS")}
-        </Descriptions.Item>
-        <Descriptions.Item label={t("Response Status")}>
-          <Tag color={record.responseStatus < 300 ? "green" : "red"}>
+    <div className="px-6 pb-4">
+      {/* Description grid */}
+      <div className="grid grid-cols-2 gap-x-6 gap-y-2 mb-4 text-sm border rounded-lg overflow-hidden">
+        <DescItem label={t("Record ID")} span2>
+          <Copyable text={record.id} className="text-xs" />
+        </DescItem>
+        <DescItem label={t("Time")}>
+          {format(record.timestampMs, "yyyy-MM-dd HH:mm:ss.SSS")}
+        </DescItem>
+        <DescItem label={t("Response Status")}>
+          <Badge variant={record.responseStatus < 300 ? "default" : "destructive"}>
             {record.responseStatus}
-          </Tag>
-        </Descriptions.Item>
-        <Descriptions.Item label={t("Tool")}>
-          {record.toolName || "—"}
-        </Descriptions.Item>
-        <Descriptions.Item label={t("Rule Name")}>
-          <Tag color="orange">{record.ruleName || record.ruleId}</Tag>
-        </Descriptions.Item>
-        <Descriptions.Item label={t("Audit Strategy")}>
-          {record.strategy === "detect" ? (
-            <Tag color="orange">{t("Detect Only")}</Tag>
-          ) : record.strategy === "mask" ? (
-            <Tag color="purple">{t("Partial Mask")}</Tag>
-          ) : (
-            <Tag color="blue">{t("Placeholder Replacement")}</Tag>
-          )}
-        </Descriptions.Item>
-        <Descriptions.Item label={t("Placeholder")} span={2}>
-          <Typography.Text code>{record.placeholder}</Typography.Text>
-        </Descriptions.Item>
-        <Descriptions.Item label={t("LLM / Model")} span={2}>
+          </Badge>
+        </DescItem>
+        <DescItem label={t("Tool")}>{record.toolName || "—"}</DescItem>
+        <DescItem label={t("Rule Name")}>
+          <Badge className="bg-amber-500/15 text-amber-600 hover:bg-amber-500/15">
+            {record.ruleName || record.ruleId}
+          </Badge>
+        </DescItem>
+        <DescItem label={t("Audit Strategy")}>
+          {strategyBadge(record.strategy, t)}
+        </DescItem>
+        <DescItem label={t("Placeholder")} span2>
+          <code className="text-xs bg-muted px-1.5 py-0.5 rounded">{record.placeholder}</code>
+        </DescItem>
+        <DescItem label={t("LLM / Model")} span2>
           {record.requestPath || "—"}
-        </Descriptions.Item>
-        <Descriptions.Item label={t("Original Data")} span={2}>
-          <Typography.Text
-            copyable
-            style={{ color: "#ef4444", wordBreak: "break-all" }}
-          >
-            {record.original}
-          </Typography.Text>
-        </Descriptions.Item>
-        <Descriptions.Item label={t("Context")} span={2}>
-          <Typography.Paragraph
-            style={{ fontSize: 13, wordBreak: "break-all" }}
-          >
-            {record.context || "—"}
-          </Typography.Paragraph>
-        </Descriptions.Item>
-      </Descriptions>
+        </DescItem>
+        <DescItem label={t("Original Data")} span2>
+          <Copyable text={record.original} className="text-destructive" />
+        </DescItem>
+        <DescItem label={t("Context")} span2>
+          <span className="break-all">{record.context || "—"}</span>
+        </DescItem>
+      </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-        <Typography.Text strong>
-          {t("Sanitized Request Body")}
-        </Typography.Text>
-        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-          ({bodyLen.toLocaleString()} chars)
-        </Typography.Text>
+      {/* Sanitized body */}
+      <div className="flex items-center gap-2 mb-2">
+        <span className="font-semibold text-sm">{t("Sanitized Request Body")}</span>
+        <span className="text-xs text-muted-foreground">({bodyLen.toLocaleString()} chars)</span>
       </div>
       {body ? (
         <>
           <pre
-            style={{
-              background: token.colorFillAlter,
-              color: token.colorText,
-              padding: 12,
-              borderRadius: 6,
-              fontSize: 12,
-              maxHeight: truncated ? 120 : 320,
-              overflow: "auto",
-              whiteSpace: "pre-wrap",
-              wordBreak: "break-all",
-              margin: 0,
-            }}
+            className={cn(
+              "bg-muted text-foreground p-3 rounded-md text-xs whitespace-pre-wrap break-all m-0",
+              truncated ? "max-h-[120px]" : "max-h-[320px]",
+              "overflow-auto"
+            )}
           >
             {displayBody}
           </pre>
           {bodyLen > PREVIEW_MAX && (
             <Button
-              type="link"
-              size="small"
-              icon={bodyExpanded ? <UpOutlined /> : <DownOutlined />}
+              variant="link"
+              size="sm"
+              className="px-0 py-1 h-auto"
               onClick={() => setBodyExpanded(!bodyExpanded)}
-              style={{ padding: "4px 0" }}
             >
+              {bodyExpanded ? <ChevronUp className="h-3 w-3 mr-1" /> : <ChevronDown className="h-3 w-3 mr-1" />}
               {bodyExpanded ? t("Collapse") : t("Show Full Body")}
             </Button>
           )}
         </>
       ) : (
-        <Typography.Text type="secondary">—</Typography.Text>
+        <span className="text-muted-foreground">—</span>
       )}
+    </div>
+  );
+}
+
+function DescItem({
+  label,
+  span2,
+  children,
+}: {
+  label: string;
+  span2?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className={cn("px-3 py-2 border-b border-r last:border-r-0", span2 ? "col-span-2" : "")}>
+      <div className="text-xs text-muted-foreground mb-0.5">{label}</div>
+      <div>{children}</div>
     </div>
   );
 }

@@ -1,22 +1,25 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, Steps, Typography, theme, Button } from "antd";
 import {
-  ApiOutlined,
-  CloudServerOutlined,
-  ToolOutlined,
-  SafetyOutlined,
-  ThunderboltOutlined,
-  CheckCircleFilled,
-} from "@ant-design/icons";
+  Network,
+  Cloud,
+  Wrench,
+  Shield,
+  Zap,
+  CheckCircle2,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { useProxyStore } from "../store/useProxyStore";
 import { useUpstreamStore } from "../store/useUpstreamStore";
 import { useToolsStore } from "../store/useToolsStore";
 import { useRulesStore } from "../store/useRulesStore";
 
+const stepIcons = [Network, Cloud, Wrench, Shield, Zap];
+
 export default function OperationGuide() {
-  const { token } = theme.useToken();
   const navigate = useNavigate();
   const { t } = useTranslation();
 
@@ -46,14 +49,12 @@ export default function OperationGuide() {
     {
       title: t("Confirm Proxy Port"),
       done: true,
-      icon: <ApiOutlined />,
       path: "/",
       desc: t("Port {{port}} Ready", { port: proxyPort }),
     },
     {
       title: t("Configure LLM Endpoint"),
       done: hasUpstream,
-      icon: <CloudServerOutlined />,
       path: "/upstreams",
       desc: hasUpstream
         ? t("{{count}} Upstreams Configured", { count: upstreams.length })
@@ -62,7 +63,6 @@ export default function OperationGuide() {
     {
       title: t("Configure AI Tool Proxy"),
       done: hasConfiguredTool,
-      icon: <ToolOutlined />,
       path: "/tools",
       desc: hasConfiguredTool
         ? t("{{count}} Tools Configured", { count: tools.filter((t) => t.configured).length })
@@ -71,7 +71,6 @@ export default function OperationGuide() {
     {
       title: t("Enable Detection Rules"),
       done: hasEnabledRule,
-      icon: <SafetyOutlined />,
       path: "/rules",
       desc: hasEnabledRule
         ? t("{{count}} Rules Enabled", { count: rules.filter((r) => r.enabled).length })
@@ -80,7 +79,6 @@ export default function OperationGuide() {
     {
       title: t("Start Proxy Service"),
       done: isRunning,
-      icon: <ThunderboltOutlined />,
       path: "/",
       desc: isRunning ? t("Proxy Running") : t("Click \"Start Proxy\" on Dashboard"),
     },
@@ -89,51 +87,60 @@ export default function OperationGuide() {
   const currentStep = steps.findIndex((s) => !s.done);
 
   return (
-    <Card
-      size="small"
-      title={
-        <span style={{ fontSize: 14 }}>
-          <ThunderboltOutlined style={{ marginRight: 8, color: token.colorPrimary }} />
+    <Card className="rounded-xl mb-6">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-sm flex items-center gap-2">
+          <Zap className="h-4 w-4 text-preset" />
           {t("Getting Started")}
-        </span>
-      }
-      style={{ borderRadius: 12, border: `1px solid ${token.colorBorderSecondary}`, marginBottom: 24 }}
-      styles={{ body: { padding: "16px 24px" } }}
-    >
-      <Steps
-        direction="horizontal"
-        size="small"
-        current={currentStep === -1 ? steps.length : currentStep}
-        labelPlacement="vertical"
-        responsive
-        items={steps.map((step, i) => ({
-          title: step.title,
-          status: step.done ? "finish" : i === currentStep ? "process" : "wait",
-          icon: step.done ? <CheckCircleFilled style={{ color: token.colorSuccess }} /> : step.icon,
-          description: (
-            <div style={{ fontSize: 12 }}>
-              <Typography.Text
-                type={step.done ? "success" : "secondary"}
-                style={{ fontSize: 12 }}
-              >
-                {step.desc}
-              </Typography.Text>
-              {!step.done && (
-                <div style={{ marginTop: 4 }}>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="px-6 pb-4">
+        <div className="flex items-start justify-between gap-2">
+          {steps.map((step, i) => {
+            const Icon = stepIcons[i];
+            return (
+              <div key={i} className="flex flex-col items-center flex-1">
+                <div
+                  className={cn(
+                    "w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0",
+                    step.done
+                      ? "bg-green-500 text-white"
+                      : i === currentStep
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground"
+                  )}
+                >
+                  {step.done ? (
+                    <CheckCircle2 className="h-4 w-4" />
+                  ) : (
+                    <Icon className="h-4 w-4" />
+                  )}
+                </div>
+                <span className="mt-1 text-xs text-center font-medium leading-tight">
+                  {step.title}
+                </span>
+                <span
+                  className={cn(
+                    "text-[11px] text-center leading-tight",
+                    step.done ? "text-green-600" : "text-muted-foreground"
+                  )}
+                >
+                  {step.desc}
+                </span>
+                {!step.done && (
                   <Button
-                    size="small"
-                    type="link"
-                    style={{ padding: 0, fontSize: 12, height: "auto" }}
+                    variant="link"
+                    className="h-auto p-0 mt-1 text-xs"
                     onClick={() => navigate(step.path)}
                   >
                     {t("Configure →")}
                   </Button>
-                </div>
-              )}
-            </div>
-          ),
-        }))}
-      />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
     </Card>
   );
 }

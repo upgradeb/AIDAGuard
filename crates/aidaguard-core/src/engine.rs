@@ -47,7 +47,7 @@ pub trait DetectionEngine: Send + Sync {
     fn reload(&mut self, dir: &Path) -> Result<usize, DetectionError>;
 
     /// 从预设目录加载规则
-    fn reload_presets(&mut self, base_dir: &Path, presets: &[String]) -> Result<usize, DetectionError> {
+    fn reload_presets(&mut self, base_dir: &Path, _presets: &[String]) -> Result<usize, DetectionError> {
         // 默认实现：直接加载 base_dir
         self.reload(base_dir)
     }

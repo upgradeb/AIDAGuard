@@ -1,123 +1,98 @@
-import { List, Space, Tag, Typography, theme } from "antd";
-import { WarningOutlined } from "@ant-design/icons";
+import { AlertTriangle, Copy, Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useState } from "react";
 import type { DetectionRecord } from "../types";
-import dayjs from "dayjs";
+import { format } from "date-fns";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 interface EventFeedProps {
   records: DetectionRecord[];
   onClickRecord?: (id: string) => void;
 }
 
-function useStrategyLabel(strategy: string) {
+function StrategyLabel({ strategy }: { strategy: string }) {
   const { t } = useTranslation();
+  let label: string, variant: "default" | "secondary" | "outline", className: string;
   switch (strategy) {
     case "placeholder":
     case "filter":
-      return { label: t("Filtered"), color: "#22c55e" as const };
+      label = t("Filtered"); variant = "default"; className = "bg-green-500/15 text-green-600 hover:bg-green-500/15"; break;
     case "detect":
-      return { label: t("Detect Only"), color: "#f59e0b" as const };
+      label = t("Detect Only"); variant = "secondary"; className = "bg-amber-500/15 text-amber-600 hover:bg-amber-500/15"; break;
     case "mask":
-      return { label: t("Masked"), color: "#8b5cf6" as const };
+      label = t("Masked"); variant = "secondary"; className = "bg-purple-500/15 text-purple-600 hover:bg-purple-500/15"; break;
     default:
-      return { label: strategy, color: "#3b82f6" as const };
+      label = strategy; variant = "outline"; className = ""; break;
   }
+  return <Badge variant={variant} className={cn("text-xs", className)}>{label}</Badge>;
+}
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = () => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+  return (
+    <button onClick={handleCopy} className="text-muted-foreground hover:text-foreground transition-colors p-0.5">
+      {copied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
+    </button>
+  );
 }
 
 export default function EventFeed({ records, onClickRecord }: EventFeedProps) {
-  const { token } = theme.useToken();
   const { t } = useTranslation();
 
   if (records.length === 0) {
     return (
-      <div
-        style={{
-          textAlign: "center",
-          padding: 32,
-          color: token.colorTextQuaternary,
-        }}
-      >
-        <WarningOutlined style={{ fontSize: 32, marginBottom: 8 }} />
-        <br />
+      <div className="text-center py-8 text-muted-foreground">
+        <AlertTriangle className="h-8 w-8 mx-auto mb-2" />
         {t("No Detection Events")}
       </div>
     );
   }
 
   return (
-    <List
-      dataSource={records}
-      renderItem={(item) => {
-        const strat = useStrategyLabel(item.strategy);
+    <div>
+      {records.map((item) => {
         return (
-          <List.Item
-            className="event-item"
-            style={{
-              padding: "10px 0",
-              borderBottom: `1px solid ${token.colorBorderSecondary}`,
-              cursor: onClickRecord ? "pointer" : "default",
-            }}
+          <div
+            key={item.id}
+            className={cn(
+              "py-2.5 border-b border-border",
+              onClickRecord ? "cursor-pointer" : ""
+            )}
             onClick={() => onClickRecord?.(item.id)}
           >
-            <div style={{ width: "100%" }}>
-              {/* 第一行：策略 + 规则名 + 工具 + 时间 */}
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  marginBottom: 6,
-                }}
-              >
-                <Space size={6}>
-                  <Tag color={strat.color}>{strat.label}</Tag>
-                  <Typography.Text strong style={{ fontSize: 13 }}>
-                    {item.ruleName || item.ruleId}
-                  </Typography.Text>
-                  {item.toolName && (
-                    <Tag color="geekblue" style={{ fontSize: 11 }}>{item.toolName}</Tag>
-                  )}
-                </Space>
-                <Typography.Text type="secondary" style={{ fontSize: 11 }}>
-                  {dayjs(item.timestampMs).format("MM-DD HH:mm:ss")}
-                </Typography.Text>
+            {/* Row 1: strategy + rule name + tool + time */}
+            <div className="flex justify-between items-center mb-1.5">
+              <div className="flex items-center gap-1.5">
+                <StrategyLabel strategy={item.strategy} />
+                <span className="text-[13px] font-semibold">{item.ruleName || item.ruleId}</span>
+                {item.toolName && (
+                  <Badge variant="outline" className="text-[11px]">{item.toolName}</Badge>
+                )}
               </div>
-
-              {/* 第二行：检测数据（左）+ 请求路径（右） */}
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: 8,
-                }}
-              >
-                <Typography.Text
-                  style={{
-                    flex: 1,
-                    fontSize: 13,
-                    color: token.colorError,
-                    background: token.colorErrorBg,
-                    padding: "2px 8px",
-                    borderRadius: 4,
-                    wordBreak: "break-all",
-                    lineHeight: 1.5,
-                  }}
-                  copyable
-                >
-                  {item.original || "—"}
-                </Typography.Text>
-                <Typography.Text
-                  type="secondary"
-                  style={{ fontSize: 11, whiteSpace: "nowrap", flexShrink: 0, maxWidth: 120 }}
-                  ellipsis
-                >
-                  {item.requestPath || "—"}
-                </Typography.Text>
-              </div>
+              <span className="text-[11px] text-muted-foreground">
+                {format(item.timestampMs, "MM-dd HH:mm:ss")}
+              </span>
             </div>
-          </List.Item>
+
+            {/* Row 2: original data + request path */}
+            <div className="flex items-start gap-2">
+              <span className="flex-1 text-[13px] text-destructive bg-destructive/10 px-2 py-0.5 rounded break-all leading-relaxed inline-flex items-start gap-1">
+                <span className="flex-1 break-all">{item.original || "—"}</span>
+                {item.original && <CopyButton text={item.original} />}
+              </span>
+              <span className="text-[11px] text-muted-foreground whitespace-nowrap shrink-0 max-w-[120px] truncate">
+                {item.requestPath || "—"}
+              </span>
+            </div>
+          </div>
         );
-      }}
-    />
+      })}
+    </div>
   );
 }

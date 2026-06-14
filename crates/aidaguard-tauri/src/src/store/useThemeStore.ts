@@ -1,23 +1,13 @@
 import { create } from "zustand";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 
 type Theme = "light" | "dark" | "system";
 export type ThemePreset = "emerald" | "indigo";
-
-export interface PresetColors {
-  colorPrimary: string;
-  borderRadius: number;
-}
-
-export const PRESETS: Record<ThemePreset, PresetColors> = {
-  emerald: { colorPrimary: "#10b981", borderRadius: 8 },
-  indigo: { colorPrimary: "#6366f1", borderRadius: 8 },
-};
 
 interface ThemeState {
   theme: Theme;
   resolved: "light" | "dark";
   preset: ThemePreset;
-  presetColors: PresetColors;
   setTheme: (t: Theme) => void;
   setPreset: (p: ThemePreset) => void;
 }
@@ -31,23 +21,39 @@ function resolveTheme(t: Theme): "light" | "dark" {
   return t;
 }
 
+function applyThemeToDOM(resolved: "light" | "dark", preset: ThemePreset) {
+  const root = document.documentElement;
+  root.classList.toggle("dark", resolved === "dark");
+  root.classList.toggle("preset-indigo", preset === "indigo");
+  try {
+    getCurrentWindow().setTheme?.(resolved);
+  } catch {
+    /* non-Tauri env */
+  }
+}
+
 const storedTheme = (localStorage.getItem("aidaguard-theme") as Theme) || "light";
 const storedPreset = (localStorage.getItem("aidaguard-preset") as ThemePreset) || "emerald";
+
+// Apply theme on load
+applyThemeToDOM(resolveTheme(storedTheme), storedPreset);
 
 export const useThemeStore = create<ThemeState>((set) => ({
   theme: storedTheme,
   resolved: resolveTheme(storedTheme),
   preset: storedPreset,
-  presetColors: PRESETS[storedPreset],
 
   setTheme: (t: Theme) => {
     localStorage.setItem("aidaguard-theme", t);
-    set({ theme: t, resolved: resolveTheme(t) });
+    const resolved = resolveTheme(t);
+    applyThemeToDOM(resolved, useThemeStore.getState().preset);
+    set({ theme: t, resolved });
   },
 
   setPreset: (p: ThemePreset) => {
     localStorage.setItem("aidaguard-preset", p);
-    set({ preset: p, presetColors: PRESETS[p] });
+    applyThemeToDOM(useThemeStore.getState().resolved, p);
+    set({ preset: p });
   },
 }));
 
@@ -57,6 +63,8 @@ window
   .addEventListener("change", () => {
     const current = useThemeStore.getState().theme;
     if (current === "system") {
-      useThemeStore.setState({ resolved: resolveTheme("system") });
+      const resolved = resolveTheme("system");
+      applyThemeToDOM(resolved, useThemeStore.getState().preset);
+      useThemeStore.setState({ resolved });
     }
   });

@@ -1,17 +1,29 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Row, Col, Card, Button, Tag, Typography, theme, Space, Alert, Select } from "antd";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
-  PlayCircleOutlined,
-  PauseCircleOutlined,
-  ReloadOutlined,
-  ThunderboltOutlined,
-  ClockCircleOutlined,
-  DatabaseOutlined,
-  ApiOutlined,
-  SafetyOutlined,
-  GlobalOutlined,
-} from "@ant-design/icons";
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
+import {
+  CirclePlay,
+  CirclePause,
+  RefreshCw,
+  Zap,
+  Clock,
+  Database,
+  Server,
+  Shield,
+  Globe,
+  CircleAlert,
+  X,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useProxyStore } from "../store/useProxyStore";
 import { useAuditStore } from "../store/useAuditStore";
@@ -23,7 +35,6 @@ import OperationGuide from "../components/OperationGuide";
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { token } = theme.useToken();
   const { t } = useTranslation();
   const status = useProxyStore((s) => s.status);
   const loading = useProxyStore((s) => s.loading);
@@ -69,212 +80,192 @@ export default function Dashboard() {
     return `${m}m`;
   };
 
-  const cardStyle = {
-    borderRadius: 12,
-    border: `1px solid ${token.colorBorderSecondary}`,
-  };
-
   return (
-    <div style={{ height: "100%", overflow: "auto" }}>
+    <div className="h-full overflow-auto">
       {error && (
-        <Alert
-          type="error"
-          showIcon
-          message={t("Proxy Operation Failed")}
-          description={error}
-          closable
-          onClose={() => useProxyStore.setState({ error: null })}
-          style={{ marginBottom: 16, borderRadius: 8 }}
-        />
+        <Alert variant="destructive" className="mb-4 rounded-lg">
+          <CircleAlert className="h-4 w-4" />
+          <AlertTitle>{t("Proxy Operation Failed")}</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+          <button
+            className="absolute right-3 top-3 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100"
+            onClick={() => useProxyStore.setState({ error: null })}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </Alert>
       )}
 
-      {/* 操作指引 */}
+      {/* Operation Guide */}
       <OperationGuide />
 
-      {/* 代理信息卡片 */}
-      <Card size="small" style={{ ...cardStyle, marginBottom: 24 }}>
-        {/* 第一行：状态 + 地址 + 操作按钮 */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            flexWrap: "wrap",
-            gap: 12,
-          }}
-        >
-          <Space size={16} wrap>
-            <Space size={8}>
-              <span
-                style={{
-                  width: 10,
-                  height: 10,
-                  borderRadius: "50%",
-                  background: isRunning ? "#22c55e" : "#9ca3af",
-                  display: "inline-block",
-                }}
-              />
-              <Typography.Text strong style={{ fontSize: 15 }}>
-                {isRunning ? t("Proxy Running") : t("Proxy Stopped")}
-              </Typography.Text>
-            </Space>
+      {/* Proxy Info Card */}
+      <Card className="mb-6 rounded-xl">
+        <CardContent className="p-4">
+          {/* Row 1: Status + Address + Action Buttons */}
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-4 flex-wrap">
+              <div className="flex items-center gap-2">
+                <span
+                  className="inline-block h-2.5 w-2.5 rounded-full"
+                  style={{ background: isRunning ? "#22c55e" : "#9ca3af" }}
+                />
+                <span className="text-[15px] font-semibold">
+                  {isRunning ? t("Proxy Running") : t("Proxy Stopped")}
+                </span>
+              </div>
 
-            <Tag icon={<GlobalOutlined />} color={isRunning ? "green" : "default"}>
-              {proxyUrl}
-            </Tag>
-
-            {isRunning && (
-              <>
-                <Tag icon={<ClockCircleOutlined />}>
-                  {t("Up {{uptime}}", { uptime: formatUptime(status?.uptimeSecs || 0) })}
-                </Tag>
-                <Tag icon={<SafetyOutlined />}>
-                  {t("{{count}} Rules", { count: status?.rulesCount ?? 0 })}
-                </Tag>
-                <Tag icon={<DatabaseOutlined />}>
-                  {t("Storage")} {status?.storageEnabled ? t("On") : t("Off")}
-                </Tag>
-              </>
-            )}
-          </Space>
-
-          <Space>
-            <Button
-              icon={<ReloadOutlined />}
-              size="small"
-              onClick={() => { fetchStatus(); fetchStats(); }}
-            />
-            {isRunning ? (
-              <Button
-                icon={<PauseCircleOutlined />}
-                size="small"
-                danger
-                onClick={stop}
-                loading={loading}
+              <Badge
+                variant={isRunning ? "default" : "secondary"}
+                className="gap-1.5"
               >
-                {t("Stop")}
-              </Button>
-            ) : (
-              <Button
-                type="primary"
-                icon={<PlayCircleOutlined />}
-                size="small"
-                onClick={start}
-                loading={loading}
-              >
-                {t("Start Proxy")}
-              </Button>
-            )}
-          </Space>
-        </div>
+                <Globe className="h-3 w-3" />
+                {proxyUrl}
+              </Badge>
 
-        {/* 第二行：对接模型选择器 */}
-        <div
-          style={{
-            marginTop: 16,
-            paddingTop: 16,
-            borderTop: `1px solid ${token.colorBorderSecondary}`,
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-            flexWrap: "wrap",
-          }}
-        >
-          <Space size={8}>
-            <ApiOutlined style={{ color: token.colorPrimary }} />
-            <Typography.Text style={{ fontSize: 13 }}>{t("Upstream Model")}</Typography.Text>
-          </Space>
-          <Select
-            style={{ minWidth: 280 }}
-            placeholder={t("Select Default Upstream LLM")}
-            value={defaultUpstream?.name || undefined}
-            onChange={async (name) => {
-              await setDefaultUpstream(name);
-              fetchUpstreams();
-            }}
-            options={upstreams.map((u) => ({
-              value: u.name,
-              label: `${u.name} — ${u.url}`,
-            }))}
-            notFoundContent={
-              <Typography.Text type="secondary" style={{ padding: 8, display: "block" }}>
-                {t("No upstream configured. Go to LLM Upstreams to add one.")}
-              </Typography.Text>
-            }
-          />
-          {defaultUpstream && (
-            <Tag color="blue" style={{ fontSize: 12 }}>
-              {defaultUpstream.url}
-              {defaultUpstream.models.length > 0 &&
-                ` (${defaultUpstream.models.join(", ")})`}
-            </Tag>
-          )}
-          <Typography.Text type="secondary" style={{ fontSize: 11 }}>
-            {isRunning ? t("Restart proxy after switching to apply") : t("Select target model before starting proxy")}
-          </Typography.Text>
-        </div>
+              {isRunning && (
+                <>
+                  <Badge variant="secondary" className="gap-1.5">
+                    <Clock className="h-3 w-3" />
+                    {t("Up {{uptime}}", { uptime: formatUptime(status?.uptimeSecs || 0) })}
+                  </Badge>
+                  <Badge variant="secondary" className="gap-1.5">
+                    <Shield className="h-3 w-3" />
+                    {t("{{count}} Rules", { count: status?.rulesCount ?? 0 })}
+                  </Badge>
+                  <Badge variant="secondary" className="gap-1.5">
+                    <Database className="h-3 w-3" />
+                    {t("Storage")} {status?.storageEnabled ? t("On") : t("Off")}
+                  </Badge>
+                </>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => { fetchStatus(); fetchStats(); }}
+              >
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+              {isRunning ? (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={stop}
+                  disabled={loading}
+                >
+                  <CirclePause className="h-4 w-4" />
+                  {t("Stop")}
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  onClick={start}
+                  disabled={loading}
+                >
+                  <CirclePlay className="h-4 w-4" />
+                  {t("Start Proxy")}
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Row 2: Upstream Model Selector */}
+          <div className="mt-4 pt-4 border-t border-border flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Server className="h-4 w-4 text-primary" />
+              <span className="text-[13px]">{t("Upstream Model")}</span>
+            </div>
+            <Select
+              value={defaultUpstream?.name || undefined}
+              onValueChange={async (name) => {
+                await setDefaultUpstream(name);
+                fetchUpstreams();
+              }}
+            >
+              <SelectTrigger className="w-[280px]">
+                <SelectValue placeholder={t("Select Default Upstream LLM")} />
+              </SelectTrigger>
+              <SelectContent>
+                {upstreams.length === 0 ? (
+                  <div className="p-2 text-sm text-muted-foreground">
+                    {t("No upstream configured. Go to LLM Upstreams to add one.")}
+                  </div>
+                ) : (
+                  upstreams.map((u) => (
+                    <SelectItem key={u.name} value={u.name}>
+                      {u.name} — {u.url}
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+            {defaultUpstream && (
+              <Badge variant="secondary" className="text-xs">
+                {defaultUpstream.url}
+                {defaultUpstream.models.length > 0 &&
+                  ` (${defaultUpstream.models.join(", ")})`}
+              </Badge>
+            )}
+            <span className="text-[11px] text-muted-foreground">
+              {isRunning ? t("Restart proxy after switching to apply") : t("Select target model before starting proxy")}
+            </span>
+          </div>
+        </CardContent>
       </Card>
 
-      {/* 统计卡片 */}
-      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-        <Col xs={24} sm={12} lg={6}>
-          <StatCard
-            title={t("Today")}
-            value={stats?.todayCount ?? 0}
-            icon={<ThunderboltOutlined />}
-            color="#3b82f6"
-          />
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <StatCard
-            title={t("This Week")}
-            value={stats?.weekCount ?? 0}
-            icon={<ThunderboltOutlined />}
-            color="#8b5cf6"
-          />
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <StatCard
-            title={t("Total")}
-            value={stats?.totalCount ?? 0}
-            icon={<ThunderboltOutlined />}
-            color="#f59e0b"
-          />
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <StatCard
-            title={t("DB Size")}
-            value={formatBytes(stats?.dbSizeBytes ?? 0)}
-            icon={<DatabaseOutlined />}
-            color="#22c55e"
-          />
-        </Col>
-      </Row>
+      {/* Stat Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <StatCard
+          title={t("Today")}
+          value={stats?.todayCount ?? 0}
+          icon={<Zap />}
+          color="#3b82f6"
+        />
+        <StatCard
+          title={t("This Week")}
+          value={stats?.weekCount ?? 0}
+          icon={<Zap />}
+          color="#8b5cf6"
+        />
+        <StatCard
+          title={t("Total")}
+          value={stats?.totalCount ?? 0}
+          icon={<Zap />}
+          color="#f59e0b"
+        />
+        <StatCard
+          title={t("DB Size")}
+          value={formatBytes(stats?.dbSizeBytes ?? 0)}
+          icon={<Database />}
+          color="#22c55e"
+        />
+      </div>
 
-      {/* 图表 + 实时事件 */}
-      <Row gutter={[16, 16]}>
-        <Col xs={24} lg={12}>
-          <Card
-            title={t("Rule Hit Distribution")}
-            size="small"
-            style={cardStyle}
-          >
+      {/* Chart + Live Events */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card className="rounded-xl">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-sm font-medium">{t("Rule Hit Distribution")}</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
             <RuleHitChart data={stats?.ruleDistribution ?? []} />
-          </Card>
-        </Col>
-        <Col xs={24} lg={12}>
-          <Card
-            title={t("Recent Events")}
-            size="small"
-            style={{ ...cardStyle, maxHeight: 380, overflow: "auto" }}
-          >
+          </CardContent>
+        </Card>
+        <Card className="rounded-xl max-h-[380px] overflow-auto">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-sm font-medium">{t("Recent Events")}</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
             <EventFeed
               records={recentRecords}
               onClickRecord={(id) => navigate("/audit", { state: { openRecordId: id } })}
             />
-          </Card>
-        </Col>
-      </Row>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

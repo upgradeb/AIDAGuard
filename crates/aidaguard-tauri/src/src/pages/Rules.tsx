@@ -1,32 +1,60 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
-  Card,
   Table,
-  Tag,
-  Switch,
-  Space,
-  Button,
-  Input,
-  Select,
-  Popconfirm,
-  Modal,
-  Typography,
-  message,
-  theme,
-  Alert,
-} from "antd";
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from "@/components/ui/table";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
-  PlusOutlined,
-  EditOutlined,
-  DeleteOutlined,
-  ReloadOutlined,
-  ExperimentOutlined,
-  FolderOpenOutlined,
-  SettingOutlined,
-  RobotOutlined,
-} from "@ant-design/icons";
-import type { ColumnsType } from "antd/es/table";
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogTrigger,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { toast } from "sonner";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  RefreshCw,
+  FlaskConical,
+  FolderOpen,
+  Settings,
+  Bot,
+  Search,
+  CircleAlert,
+  TriangleAlert,
+  Info,
+  X,
+} from "lucide-react";
 import { useRulesStore } from "../store/useRulesStore";
 import { useUpstreamStore } from "../store/useUpstreamStore";
 import RuleEditor from "../components/RuleEditor";
@@ -47,7 +75,6 @@ function groupByCategory(rules: RuleWithCategory[]): Map<string, RuleWithCategor
 
 export default function Rules() {
   const { t } = useTranslation();
-  const { token } = theme.useToken();
   const rules = useRulesStore((s) => s.rules);
   const ruleFiles = useRulesStore((s) => s.ruleFiles);
   const rulesDir = useRulesStore((s) => s.rulesDir);
@@ -102,22 +129,22 @@ export default function Rules() {
   const handleSave = async (rule: RuleDef, category: string) => {
     try {
       await save(rule, category);
-      message.success(t("Rule Saved"));
+      toast.success(t("Rule Saved"));
       setEditorOpen(false);
       setEditingRule(null);
       fetchRules();
     } catch (e) {
-      message.error(String(e));
+      toast.error(String(e));
     }
   };
 
   const handleDelete = async (ruleId: string, category: string) => {
     try {
       await remove(ruleId, category);
-      message.success(t("Rule Deleted"));
+      toast.success(t("Rule Deleted"));
       fetchRules();
     } catch (e) {
-      message.error(String(e));
+      toast.error(String(e));
     }
   };
 
@@ -136,7 +163,7 @@ export default function Rules() {
       await save(updated, record.category);
       fetchRules();
     } catch (e) {
-      message.error(String(e));
+      toast.error(String(e));
     }
   };
 
@@ -145,21 +172,21 @@ export default function Rules() {
     if (!name) return;
     try {
       await createCat(name);
-      message.success(t("Category {{name}} Created", { name }));
+      toast.success(t("Category {{name}} Created", { name }));
       setNewCatName("");
       fetchRules();
     } catch (e) {
-      message.error(String(e));
+      toast.error(String(e));
     }
   };
 
   const handleDeleteCategory = async (name: string) => {
     try {
       await deleteCat(name);
-      message.success(t("Category {{name}} Deleted", { name }));
+      toast.success(t("Category {{name}} Deleted", { name }));
       fetchRules();
     } catch (e) {
-      message.error(String(e));
+      toast.error(String(e));
     }
   };
 
@@ -169,12 +196,12 @@ export default function Rules() {
     if (!newName) return;
     try {
       await renameCat(renameTarget, newName);
-      message.success(t("Renamed to {{newName}}", { newName }));
+      toast.success(t("Renamed to {{newName}}", { newName }));
       setRenameTarget(null);
       setRenameNewName("");
       fetchRules();
     } catch (e) {
-      message.error(String(e));
+      toast.error(String(e));
     }
   };
 
@@ -204,273 +231,138 @@ export default function Rules() {
     fetchRules();
   };
 
-  const columns: ColumnsType<RuleWithCategory> = [
-    {
-      title: t("Enable"),
-      dataIndex: "enabled",
-      key: "enabled",
-      width: 60,
-      render: (val: boolean, record) => (
-        <Switch
-          size="small"
-          checked={val}
-          onChange={(checked) => {
-            toggle(record.id, checked);
-            fetchRules();
-          }}
-        />
-      ),
-    },
-    {
-      title: t("Mode"),
-      dataIndex: "mode",
-      key: "mode",
-      width: 80,
-      render: (val: string, record) => (
-        <Switch
-          size="small"
-          checked={val === "filter"}
-          checkedChildren={t("Filter")}
-          unCheckedChildren={t("Detect")}
-          onChange={() => handleToggleMode(record)}
-        />
-      ),
-    },
-    {
-      title: t("Rule Name"),
-      dataIndex: "name",
-      key: "name",
-      width: 150,
-    },
-    {
-      title: t("ID"),
-      dataIndex: "id",
-      key: "id",
-      width: 150,
-      render: (v: string) => <Tag>{v}</Tag>,
-    },
-    {
-      title: t("Pattern"),
-      dataIndex: "pattern",
-      key: "pattern",
-      ellipsis: true,
-      render: (v: string) => <code style={{ fontSize: 12 }}>{v}</code>,
-    },
-    {
-      title: t("Strategy"),
-      dataIndex: "strategy",
-      key: "strategy",
-      width: 110,
-      render: (v: string) => (
-        <Tag color={v === "placeholder" ? "blue" : "purple"}>{v}</Tag>
-      ),
-    },
-    {
-      title: t("Priority"),
-      dataIndex: "priority",
-      key: "priority",
-      width: 80,
-    },
-    {
-      title: t("Actions"),
-      key: "actions",
-      width: 130,
-      render: (_, record) => (
-        <Space size={4}>
-          <Button
-            type="link"
-            size="small"
-            icon={<EditOutlined />}
-            onClick={() => {
-              setEditingRule(record);
-              setEditorOpen(true);
-            }}
-          />
-          <Button
-            type="link"
-            size="small"
-            icon={<ExperimentOutlined />}
-            onClick={() => {
-              setTestOpen(true);
-              clearTestResult();
-            }}
-          />
-          <Popconfirm
-            title={t("Delete this rule?")}
-            onConfirm={() => handleDelete(record.id, record.category)}
-            okText={t("Delete")}
-            cancelText={t("Cancel")}
-          >
-            <Button
-              type="link"
-              size="small"
-              danger
-              icon={<DeleteOutlined />}
-            />
-          </Popconfirm>
-        </Space>
-      ),
-    },
-  ];
-
   return (
-    <div style={{ height: "100%", display: "flex", flexDirection: "column", gap: 12 }}>
-      {/* 顶部信息栏 + 工具栏 */}
-      <div style={{ flexShrink: 0 }}>
+    <div className="flex h-full flex-col gap-3">
+      {/* Top info bar + toolbar */}
+      <div className="shrink-0">
         {error && (
-          <Alert
-            type="error"
-            showIcon
-            message={t("Rule Loading Failed")}
-            description={error}
-            closable
-            style={{ marginBottom: 12, borderRadius: 8 }}
-          />
+          <Alert variant="destructive" className="mb-3">
+            <CircleAlert className="h-4 w-4" />
+            <AlertTitle>{t("Rule Loading Failed")}</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
         )}
 
         {!loading && !error && rules.length === 0 && (
-          <Alert
-            type="warning"
-            showIcon
-            message={t("No Rule Files Found")}
-            description={
+          <Alert className="mb-3 border-yellow-500/50 text-yellow-700 dark:text-yellow-400 [&>svg]:text-yellow-500">
+            <TriangleAlert className="h-4 w-4" />
+            <AlertTitle>{t("No Rule Files Found")}</AlertTitle>
+            <AlertDescription>
               <span>
                 {t("Rules Directory: ")}<code>{rulesDir || t("Unknown")}</code>
                 {t(". Ensure ")}<code>.yaml</code>{t(" rule files exist in the directory, or change the rules directory in Settings.")}
               </span>
-            }
-            style={{ marginBottom: 12, borderRadius: 8 }}
-          />
+            </AlertDescription>
+          </Alert>
         )}
 
         {rulesDir && (
-          <div
-            style={{
-              marginBottom: 12,
-              padding: "6px 12px",
-              borderRadius: 6,
-              background: token.colorFillSecondary,
-              display: "flex",
-              alignItems: "center",
-              gap: 16,
-              fontSize: 12,
-            }}
-          >
-            <span>
-              <FolderOpenOutlined style={{ marginRight: 4 }} />
-              {t("Rules Directory: ")}<code style={{ fontSize: 12 }}>{rulesDir}</code>
+          <div className="mb-3 flex items-center gap-4 rounded-md bg-muted px-3 py-1.5 text-xs">
+            <span className="flex items-center gap-1">
+              <FolderOpen className="h-3.5 w-3.5" />
+              {t("Rules Directory: ")}<code className="text-xs">{rulesDir}</code>
             </span>
-            <span style={{ color: token.colorTextSecondary }}>
+            <span className="text-muted-foreground">
               {t("{{ruleCount}} Rules · {{fileCount}} Files", { ruleCount: rules.length, fileCount: ruleFiles.length })}
             </span>
           </div>
         )}
 
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            flexWrap: "wrap",
-            gap: 8,
-            marginBottom: 12,
-          }}
-        >
-          <Space wrap>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Select
-              placeholder={t("Filter by Category")}
-              allowClear
-              style={{ width: 170 }}
               value={filterCat || undefined}
-              onChange={(v) => setFilterCat(v || "")}
-              options={ruleFiles.map((f) => ({ value: f, label: f }))}
-            />
-            <Input.Search
-              placeholder={t("Search Rule Name / ID")}
-              style={{ width: 260 }}
-              value={searchText}
-              onChange={(e) => setSearchText(e.target.value)}
-              allowClear
-            />
-            <Button icon={<ReloadOutlined />} onClick={reload}>
+              onValueChange={(v) => setFilterCat(v || "")}
+            >
+              <SelectTrigger className="w-[170px]">
+                <SelectValue placeholder={t("Filter by Category")} />
+              </SelectTrigger>
+              <SelectContent>
+                {ruleFiles.map((f) => (
+                  <SelectItem key={f} value={f}>
+                    {f}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder={t("Search Rule Name / ID")}
+                className="w-[260px] pl-8"
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+              />
+              {searchText && (
+                <button
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  onClick={() => setSearchText("")}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+            <Button variant="outline" size="sm" onClick={reload}>
+              <RefreshCw className="mr-1.5 h-4 w-4" />
               {t("Reload Rules")}
             </Button>
-          </Space>
-          <Space>
-            <Button
-              icon={<SettingOutlined />}
-              onClick={() => setCatModalOpen(true)}
-            >
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setCatModalOpen(true)}>
+              <Settings className="mr-1.5 h-4 w-4" />
               {t("Manage Categories")}
             </Button>
-            <Button
-              icon={<RobotOutlined />}
-              onClick={() => setGenerateOpen(true)}
-            >
+            <Button variant="outline" size="sm" onClick={() => setGenerateOpen(true)}>
+              <Bot className="mr-1.5 h-4 w-4" />
               {t("Generate Rule")}
             </Button>
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => {
-                setEditingRule(null);
-                setEditorOpen(true);
-              }}
-            >
+            <Button size="sm" onClick={() => {
+              setEditingRule(null);
+              setEditorOpen(true);
+            }}>
+              <Plus className="mr-1.5 h-4 w-4" />
               {t("Add Rule")}
             </Button>
-          </Space>
+          </div>
         </div>
       </div>
 
-      {/* 规则明细 — 仅此区域滚动 */}
-      <div
-        style={{
-          flex: 1,
-          overflow: "auto",
-          minHeight: 0,
-        }}
-      >
+      {/* Rule details — scrollable area */}
+      <div className="min-h-0 flex-1 overflow-auto">
         {categories.map((cat) => {
           const catRules = grouped.get(cat)!;
           const allEnabled = catRules.every((r) => r.enabled);
           const allFilter = catRules.every((r) => r.mode === "filter");
           return (
-            <Card
-              key={cat}
-              size="small"
-              title={
-                <Space>
-                  <Tag color="green">{cat}</Tag>
-                  <span style={{ fontSize: 12, color: token.colorTextSecondary }}>
+            <Card key={cat} className="mb-3">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <Badge variant="default" className="bg-green-600 hover:bg-green-700">{cat}</Badge>
+                  <span className="text-xs text-muted-foreground">
                     {t("{{count}} Rules", { count: catRules.length })}
                   </span>
-                </Space>
-              }
-              extra={
-                <Space size={8}>
-                  <Space size={2}>
-                    <Typography.Text style={{ fontSize: 11, color: token.colorTextQuaternary }}>{t("Enable")}</Typography.Text>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] text-muted-foreground">{t("Enable")}</span>
                     <Switch
-                      size="small"
+                      className="h-4 w-7 [&>span]:h-3 [&>span]:w-3 [&>span]:data-[state=checked]:translate-x-3"
                       checked={allEnabled}
-                      onChange={(v) => handleBulkToggleEnabled(cat, v)}
+                      onCheckedChange={(v) => handleBulkToggleEnabled(cat, v)}
                     />
-                  </Space>
-                  <Space size={2}>
-                    <Typography.Text style={{ fontSize: 11, color: token.colorTextQuaternary }}>{t("Filter")}</Typography.Text>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] text-muted-foreground">{t("Filter")}</span>
                     <Switch
-                      size="small"
+                      className="h-4 w-7 [&>span]:h-3 [&>span]:w-3 [&>span]:data-[state=checked]:translate-x-3"
                       checked={allFilter}
-                      checkedChildren={t("Filter")}
-                      unCheckedChildren={t("Detect")}
-                      onChange={(v) => handleBulkToggleMode(cat, v ? "filter" : "detect")}
+                      onCheckedChange={(v) => handleBulkToggleMode(cat, v ? "filter" : "detect")}
                     />
-                  </Space>
+                  </div>
                   <Button
-                    type="link"
-                    size="small"
-                    style={{ fontSize: 12 }}
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs"
                     onClick={() => {
                       setRenameTarget(cat);
                       setRenameNewName(cat);
@@ -478,44 +370,151 @@ export default function Rules() {
                   >
                     {t("Rename")}
                   </Button>
-                  <Popconfirm
-                    title={t("Delete category {{cat}}? All rules in this category will also be deleted.", { cat })}
-                    onConfirm={() => handleDeleteCategory(cat)}
-                    okText={t("Delete")}
-                    cancelText={t("Cancel")}
-                  >
-                    <Button
-                      type="link"
-                      size="small"
-                      danger
-                      style={{ fontSize: 12 }}
-                    >
-                      {t("Delete")}
-                    </Button>
-                  </Popconfirm>
-                </Space>
-              }
-              style={{ marginBottom: 12, borderRadius: 8 }}
-              styles={{ body: { padding: 0 } }}
-            >
-              <Table
-                columns={columns}
-                dataSource={catRules}
-                rowKey="id"
-                loading={loading}
-                size="small"
-                pagination={false}
-              />
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="ghost" size="sm" className="h-7 text-xs text-destructive hover:text-destructive">
+                        {t("Delete")}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>{t("Confirm Delete")}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          {t("Delete category {{cat}}? All rules in this category will also be deleted.", { cat })}
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
+                        <AlertDialogAction
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          onClick={() => handleDeleteCategory(cat)}
+                        >
+                          {t("Delete")}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              </CardHeader>
+              <CardContent className="px-0 pb-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[60px]">{t("Enable")}</TableHead>
+                      <TableHead className="w-[80px]">{t("Mode")}</TableHead>
+                      <TableHead className="w-[150px]">{t("Rule Name")}</TableHead>
+                      <TableHead className="w-[150px]">{t("ID")}</TableHead>
+                      <TableHead>{t("Pattern")}</TableHead>
+                      <TableHead className="w-[110px]">{t("Strategy")}</TableHead>
+                      <TableHead className="w-[80px]">{t("Priority")}</TableHead>
+                      <TableHead className="w-[130px]">{t("Actions")}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {catRules.map((record) => (
+                      <TableRow key={record.id}>
+                        <TableCell>
+                          <Switch
+                            className="h-4 w-7 [&>span]:h-3 [&>span]:w-3 [&>span]:data-[state=checked]:translate-x-3"
+                            checked={record.enabled}
+                            onCheckedChange={(checked) => {
+                              toggle(record.id, checked);
+                              fetchRules();
+                            }}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1.5">
+                            <Switch
+                              className="h-4 w-7 [&>span]:h-3 [&>span]:w-3 [&>span]:data-[state=checked]:translate-x-3"
+                              checked={record.mode === "filter"}
+                              onCheckedChange={() => handleToggleMode(record)}
+                            />
+                            <span className="text-xs text-muted-foreground">
+                              {record.mode === "filter" ? t("Filter") : t("Detect")}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-medium">{record.name}</TableCell>
+                        <TableCell>
+                          <Badge variant="secondary">{record.id}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <code className="text-xs">{record.pattern}</code>
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant="secondary"
+                            className={record.strategy === "placeholder" ? "bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900 dark:text-blue-300" : "bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900 dark:text-purple-300"}
+                          >
+                            {record.strategy}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{record.priority}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => {
+                                setEditingRule(record);
+                                setEditorOpen(true);
+                              }}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={() => {
+                                setTestOpen(true);
+                                clearTestResult();
+                              }}
+                            >
+                              <FlaskConical className="h-3.5 w-3.5" />
+                            </Button>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive">
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>{t("Confirm Delete")}</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    {t("Delete this rule?")}
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    onClick={() => handleDelete(record.id, record.category)}
+                                  >
+                                    {t("Delete")}
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
             </Card>
           );
         })}
 
         {filtered.length === 0 && !loading && (
-          <Alert
-            type="info"
-            message={t("No Matching Rules")}
-            style={{ borderRadius: 8 }}
-          />
+          <Alert className="border-blue-500/50 text-blue-700 dark:text-blue-400 [&>svg]:text-blue-500">
+            <Info className="h-4 w-4" />
+            <AlertTitle>{t("No Matching Rules")}</AlertTitle>
+          </Alert>
         )}
       </div>
 
@@ -560,95 +559,109 @@ export default function Rules() {
         onClose={() => setGenerateOpen(false)}
       />
 
-      {/* 分类管理弹窗 */}
-      <Modal
-        title={t("Manage Categories")}
-        open={catModalOpen}
-        onCancel={() => {
-          setCatModalOpen(false);
-          setNewCatName("");
-        }}
-        footer={null}
-        width={480}
-      >
-        <Space direction="vertical" style={{ width: "100%" }} size={16}>
-          <div>
-            <Space.Compact style={{ width: "100%" }}>
+      {/* Category management dialog */}
+      <Dialog open={catModalOpen} onOpenChange={(open) => {
+        if (!open) setNewCatName("");
+        setCatModalOpen(open);
+      }}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle>{t("Manage Categories")}</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-4">
+            <div className="flex gap-2">
               <Input
                 placeholder={t("Enter new category name (letters, digits, _, -)")}
                 value={newCatName}
                 onChange={(e) => setNewCatName(e.target.value)}
-                onPressEnter={handleCreateCategory}
+                onKeyDown={(e) => { if (e.key === "Enter") handleCreateCategory(); }}
+                className="flex-1"
               />
-              <Button type="primary" onClick={handleCreateCategory}>
+              <Button onClick={handleCreateCategory}>
                 {t("Create")}
               </Button>
-            </Space.Compact>
-          </div>
+            </div>
 
-          <div>
-            <Typography.Text strong style={{ display: "block", marginBottom: 8 }}>
-              {t("Existing Categories")}
-            </Typography.Text>
-            {ruleFiles.map((f) => {
-              const catRules = rules.filter((r) => r.category === f);
-              return (
-                <div
-                  key={f}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: "8px 0",
-                    borderBottom: "1px solid #f0f0f0",
-                  }}
-                >
-                  <Space>
-                    <Tag color="green">{f}</Tag>
-                    <span style={{ fontSize: 12, color: "#999" }}>
-                      {t("{{count}} Rules", { count: catRules.length })}
-                    </span>
-                  </Space>
-                  <Popconfirm
-                    title={t("Delete category {{cat}}? All rules in this category will also be deleted.", { cat: f })}
-                    onConfirm={() => handleDeleteCategory(f)}
-                    okText={t("Delete")}
-                    cancelText={t("Cancel")}
+            <div>
+              <p className="mb-2 text-sm font-semibold">{t("Existing Categories")}</p>
+              {ruleFiles.map((f) => {
+                const catRules = rules.filter((r) => r.category === f);
+                return (
+                  <div
+                    key={f}
+                    className="flex items-center justify-between border-b py-2 last:border-b-0"
                   >
-                    <Button type="link" size="small" danger>
-                      <DeleteOutlined />
-                    </Button>
-                  </Popconfirm>
-                </div>
-              );
-            })}
-            {ruleFiles.length === 0 && (
-              <Typography.Text type="secondary">{t("No Categories")}</Typography.Text>
-            )}
+                    <div className="flex items-center gap-2">
+                      <Badge variant="default" className="bg-green-600 hover:bg-green-700">{f}</Badge>
+                      <span className="text-xs text-muted-foreground">
+                        {t("{{count}} Rules", { count: catRules.length })}
+                      </span>
+                    </div>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>{t("Confirm Delete")}</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            {t("Delete category {{cat}}? All rules in this category will also be deleted.", { cat: f })}
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>{t("Cancel")}</AlertDialogCancel>
+                          <AlertDialogAction
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            onClick={() => handleDeleteCategory(f)}
+                          >
+                            {t("Delete")}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
+                );
+              })}
+              {ruleFiles.length === 0 && (
+                <p className="text-sm text-muted-foreground">{t("No Categories")}</p>
+              )}
+            </div>
           </div>
-        </Space>
-      </Modal>
+        </DialogContent>
+      </Dialog>
 
-      {/* 重命名分类弹窗 */}
-      <Modal
-        title={t("Rename Category: {{name}}", { name: renameTarget || "" })}
-        open={!!renameTarget}
-        onOk={handleRenameCategory}
-        onCancel={() => {
+      {/* Rename category dialog */}
+      <Dialog open={!!renameTarget} onOpenChange={(open) => {
+        if (!open) {
           setRenameTarget(null);
           setRenameNewName("");
-        }}
-        okText={t("Save")}
-        cancelText={t("Cancel")}
-        width={400}
-      >
-        <Input
-          placeholder={t("Enter New Name")}
-          value={renameNewName}
-          onChange={(e) => setRenameNewName(e.target.value)}
-          onPressEnter={handleRenameCategory}
-        />
-      </Modal>
+        }
+      }}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>{t("Rename Category: {{name}}", { name: renameTarget || "" })}</DialogTitle>
+          </DialogHeader>
+          <Input
+            placeholder={t("Enter New Name")}
+            value={renameNewName}
+            onChange={(e) => setRenameNewName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") handleRenameCategory(); }}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setRenameTarget(null);
+              setRenameNewName("");
+            }}>
+              {t("Cancel")}
+            </Button>
+            <Button onClick={handleRenameCategory}>
+              {t("Save")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

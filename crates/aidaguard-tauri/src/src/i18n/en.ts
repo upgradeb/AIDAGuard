@@ -269,17 +269,19 @@ const en = {
   "Enable NLP-based detection of unstructured entities (names, addresses, organizations). Increases CPU usage by ~40%.": "Enable NLP-based detection of unstructured entities (names, addresses, organizations). Increases CPU usage by ~40%.",
   "Model Language": "Model Language",
   "Select the language for the NER model. The model will be downloaded on first use.": "Select the language for the NER model. The model will be downloaded on first use.",
-  "Download NLP Model": "Download NLP Model",
-  "Pre-download the NLP model now to avoid first-use delay (~400 MB)": "Pre-download the NLP model now to avoid first-use delay (~400 MB)",
-  "Downloading NLP model...": "Downloading NLP model...",
-  "NLP model downloaded successfully": "NLP model downloaded successfully",
-  "NLP model download failed": "NLP model download failed",
   "Collapse": "Collapse",
   "Show Full Body": "Show Full Body",
   "Emerald Green": "Emerald Green",
   "Indigo Purple": "Indigo Purple",
   "Theme Preset": "Theme Preset",
-  "Theme Mode": "Theme Mode"
+  "Theme Mode": "Theme Mode",
+  "Confirm Delete": "Confirm Delete",
+  "Loading...": "Loading...",
+  "Next": "Next",
+  "Previous": "Previous",
+  "Saving...": "Saving...",
+  "Testing...": "Testing...",
+  "This action cannot be undone.": "This action cannot be undone."
 };
 
 export default en;

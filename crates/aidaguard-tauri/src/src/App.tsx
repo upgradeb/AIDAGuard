@@ -1,17 +1,17 @@
 import { Routes, Route } from "react-router-dom";
-import { Layout, theme, Button } from "antd";
-import {
-  DashboardOutlined,
-  AuditOutlined,
-  SafetyOutlined,
-  ApiOutlined,
-  SettingOutlined,
-  ToolOutlined,
-} from "@ant-design/icons";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import {
+  LayoutDashboard,
+  FileSearch,
+  Shield,
+  Settings as SettingsIcon,
+  Wrench,
+  Server,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import Dashboard from "./pages/Dashboard";
 import AuditLog from "./pages/AuditLog";
 import Rules from "./pages/Rules";
@@ -22,48 +22,28 @@ import Logo from "./components/Logo";
 import { useProxyStore } from "./store/useProxyStore";
 import { useNotification } from "./hooks/useNotification";
 
-const { Sider, Header, Content } = Layout;
-
-function useMenuItems() {
-  const { t } = useTranslation();
-  return [
-    { key: "/", icon: <DashboardOutlined />, label: t("Dashboard") },
-    { key: "/audit", icon: <AuditOutlined />, label: t("Audit Log") },
-    { key: "/upstreams", icon: <ApiOutlined />, label: t("LLM Upstreams") },
-    { key: "/tools", icon: <ToolOutlined />, label: t("AI Tools Config") },
-    { key: "/rules", icon: <SafetyOutlined />, label: t("Rules") },
-    { key: "/settings", icon: <SettingOutlined />, label: t("Settings") },
-  ];
-}
+const menuItems = [
+  { key: "/", icon: LayoutDashboard, labelKey: "Dashboard" },
+  { key: "/audit", icon: FileSearch, labelKey: "Audit Log" },
+  { key: "/upstreams", icon: Server, labelKey: "LLM Upstreams" },
+  { key: "/tools", icon: Wrench, labelKey: "AI Tools Config" },
+  { key: "/rules", icon: Shield, labelKey: "Rules" },
+  { key: "/settings", icon: SettingsIcon, labelKey: "Settings" },
+];
 
 export default function App() {
   const navigate = useNavigate();
   const location = useLocation();
   const status = useProxyStore((s) => s.status);
-  const { token } = theme.useToken();
   const startListening = useProxyStore((s) => s.startListening);
   const fetchStatus = useProxyStore((s) => s.fetchStatus);
   const { t, i18n } = useTranslation();
-  const menuItems = useMenuItems();
 
   useEffect(() => {
     fetchStatus();
     const cleanup = startListening();
     return cleanup;
   }, []);
-
-  useEffect(() => {
-    document.body.style.backgroundColor = token.colorBgLayout;
-    document.body.style.color = token.colorText;
-    document.body.style.transition = "background-color 0.2s, color 0.2s";
-    document.documentElement.style.colorScheme =
-      token.colorBgLayout === "#000000" ? "dark" : "light";
-    try {
-      getCurrentWindow().setTheme?.(
-        token.colorBgLayout === "#000000" ? "dark" : "light",
-      );
-    } catch { /* non-Tauri env */ }
-  }, [token.colorBgLayout, token.colorText]);
 
   useNotification();
 
@@ -80,115 +60,65 @@ export default function App() {
     localStorage.setItem("aidaguard-lang", next);
   };
 
+  const currentLabel =
+    menuItems.find((m) => m.key === location.pathname)?.labelKey || "Dashboard";
+
   return (
-    <Layout style={{ minHeight: "100vh" }}>
-      <Sider
-        width={230}
-        style={{
-          background: token.colorBgContainer,
-          borderRight: `1px solid ${token.colorBorderSecondary}`,
-          display: "flex",
-          flexDirection: "column",
-        }}
-      >
-        <div
-          style={{
-            height: 64,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            borderBottom: `1px solid ${token.colorBorderSecondary}`,
-          }}
-        >
+    <div className="flex h-screen">
+      {/* Sidebar */}
+      <aside className="w-[230px] flex flex-col border-r bg-card shrink-0">
+        <div className="h-16 flex items-center justify-center border-b">
           <Logo size={30} />
         </div>
 
-        {/* Navigation */}
-        <div style={{ padding: "8px 12px", flex: 1 }}>
+        <nav className="p-2 flex-1">
           {menuItems.map((item) => {
             const isActive = location.pathname === item.key;
+            const Icon = item.icon;
             return (
-              <div
+              <button
                 key={item.key}
                 onClick={() => navigate(item.key)}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  padding: "10px 12px",
-                  marginBottom: 2,
-                  borderRadius: 8,
-                  cursor: "pointer",
-                  fontSize: 14,
-                  fontWeight: isActive ? 600 : 400,
-                  color: isActive
-                    ? token.colorPrimary
-                    : token.colorText,
-                  background: isActive
-                    ? token.colorPrimaryBg
-                    : "transparent",
-                  transition: "all 0.2s",
-                }}
+                className={cn(
+                  "flex items-center gap-2.5 w-full px-3 py-2.5 mb-0.5 rounded-lg text-sm transition-colors cursor-pointer",
+                  isActive
+                    ? "bg-primary/10 text-preset font-semibold"
+                    : "text-foreground hover:bg-accent"
+                )}
               >
-                {item.icon}
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.label}</span>
-              </div>
+                <Icon className="h-4 w-4 shrink-0" />
+                <span className="truncate">{t(item.labelKey)}</span>
+              </button>
             );
           })}
-        </div>
+        </nav>
+      </aside>
 
-      </Sider>
+      {/* Main area */}
+      <div className="flex-1 flex flex-col min-w-0">
+        <header className="h-16 flex items-center justify-between px-6 border-b bg-card shrink-0">
+          <span className="text-base font-medium">{t(currentLabel)}</span>
 
-      <Layout>
-        <Header
-          style={{
-            background: token.colorBgContainer,
-            borderBottom: `1px solid ${token.colorBorderSecondary}`,
-            padding: "0 24px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            height: 64,
-          }}
-        >
-          <span style={{ fontSize: 16, fontWeight: 500 }}>
-            {menuItems.find((m) => m.key === location.pathname)?.label ||
-              t("Dashboard")}
-          </span>
-
-          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <div className="flex items-center gap-4">
             <span
-              style={{
-                width: 8,
-                height: 8,
-                borderRadius: "50%",
-                background: statusColor,
-                display: "inline-block",
-                flexShrink: 0,
-              }}
+              className="w-2 h-2 rounded-full shrink-0"
+              style={{ background: statusColor }}
             />
-            <span style={{ fontSize: 13, color: token.colorTextSecondary, minWidth: 100, whiteSpace: "nowrap" }}>
+            <span className="text-[13px] text-muted-foreground whitespace-nowrap min-w-[100px]">
               {status?.status === "running" ? t("Proxy Running") : t("Proxy Stopped")}
             </span>
             <Button
-              type="text"
-              size="small"
+              variant="ghost"
+              size="sm"
               onClick={switchLang}
-              style={{ fontSize: 12, color: token.colorTextSecondary, minWidth: 44, textAlign: "center" }}
+              className="text-xs text-muted-foreground min-w-[44px]"
             >
               {i18n.language === "zh" ? "EN" : "中文"}
             </Button>
           </div>
-        </Header>
+        </header>
 
-        <Content
-          style={{
-            padding: 24,
-            background: token.colorBgLayout,
-            overflow: "hidden",
-            height: "calc(100vh - 64px)",
-          }}
-        >
+        <main className="flex-1 overflow-auto p-6 bg-background">
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/audit" element={<AuditLog />} />
@@ -197,8 +127,8 @@ export default function App() {
             <Route path="/tools" element={<ToolsConfig />} />
             <Route path="/settings" element={<Settings />} />
           </Routes>
-        </Content>
-      </Layout>
-    </Layout>
+        </main>
+      </div>
+    </div>
   );
 }

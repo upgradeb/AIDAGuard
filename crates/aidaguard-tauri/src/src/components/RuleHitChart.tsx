@@ -27,14 +27,7 @@ export default function RuleHitChart({ data }: RuleHitChartProps) {
 
   if (data.length === 0) {
     return (
-      <div
-        style={{
-          textAlign: "center",
-          padding: 32,
-          color: "#9ca3af",
-          fontSize: 14,
-        }}
-      >
+      <div className="text-center py-8 text-muted-foreground text-sm">
         {t("No Data")}
       </div>
     );

@@ -1,32 +1,28 @@
 import { useEffect, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
+import { Search, Download, RefreshCw } from "lucide-react";
+import { startOfDay, endOfDay } from "date-fns";
+import { toast } from "sonner";
+
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import {
-  Card,
-  Space,
-  Input,
-  DatePicker,
-  Button,
-  Drawer,
-  message,
-  theme,
-} from "antd";
-import {
-  SearchOutlined,
-  ExportOutlined,
-  ReloadOutlined,
-} from "@ant-design/icons";
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+
 import { useAuditStore } from "../store/useAuditStore";
 import AuditTable from "../components/AuditTable";
 import AuditDetailPanel from "../components/AuditDetailPanel";
-import type { Dayjs } from "dayjs";
-
-const { RangePicker } = DatePicker;
 
 export default function AuditLog() {
   const { t } = useTranslation();
   const location = useLocation();
-  const { token } = theme.useToken();
   const groups = useAuditStore((s) => s.groups);
   const groupTotal = useAuditStore((s) => s.groupTotal);
   const loading = useAuditStore((s) => s.loading);
@@ -45,11 +41,17 @@ export default function AuditLog() {
   const setPage = useAuditStore((s) => s.setPage);
 
   const [searchText, setSearchText] = useState("");
-  const [dateRange, setDateRange] = useState<[Dayjs | null, Dayjs | null]>([null, null]);
+  const [dateRange, setDateRange] = useState<[string, string]>(["", ""]);
 
   const loadData = useCallback(() => {
-    const dateFrom = dateRange[0]?.startOf("day").valueOf();
-    const dateTo = dateRange[1]?.endOf("day").valueOf();
+    let dateFrom: number | undefined;
+    let dateTo: number | undefined;
+    if (dateRange[0]) {
+      dateFrom = startOfDay(new Date(dateRange[0])).getTime();
+    }
+    if (dateRange[1]) {
+      dateTo = endOfDay(new Date(dateRange[1])).getTime();
+    }
     fetchGroups({
       pathFilter: searchText || undefined,
       dateFromMs: dateFrom,
@@ -59,7 +61,7 @@ export default function AuditLog() {
 
   useEffect(() => {
     loadData();
-  }, [page, pageSize]);
+  }, [page, pageSize, loadData]);
 
   // Auto-open detail when navigated from dashboard
   useEffect(() => {
@@ -83,9 +85,9 @@ export default function AuditLog() {
   const handleExport = async (format: "csv" | "json") => {
     try {
       const path = await doExport(format);
-      message.success(t("Exported to: {{path}}", { path }));
+      toast.success(t("Exported to: {{path}}", { path }));
     } catch (e) {
-      message.error(String(e));
+      toast.error(String(e));
     }
   };
 
@@ -94,83 +96,133 @@ export default function AuditLog() {
   };
 
   const handleDelete = (id: string, ruleId?: string, strategy?: string) => {
-    removeRecord(id, ruleId, strategy).then(() => message.success(t("Deleted")));
+    removeRecord(id, ruleId, strategy).then(() => toast.success(t("Deleted")));
   };
 
   return (
     <div>
-      <Card
-        size="small"
-        style={{
-          borderRadius: 12,
-          border: `1px solid ${token.colorBorderSecondary}`,
-        }}
-      >
-        {/* Toolbar */}
-        <Space
-          wrap
-          style={{ marginBottom: 16, width: "100%", justifyContent: "space-between" }}
-        >
-          <Space wrap>
-            <Input
-              placeholder={t("Search Rule Name or Request Path")}
-              prefix={<SearchOutlined />}
-              value={searchText}
-              onChange={(e) => setSearchText(e.target.value)}
-              onPressEnter={handleSearch}
-              style={{ width: 320 }}
-              allowClear
-            />
-            <RangePicker
-              value={dateRange as [Dayjs, Dayjs]}
-              onChange={(dates) => {
-                setDateRange(dates ? [dates[0], dates[1]] : [null, null]);
-              }}
-              allowClear
-            />
-            <Button onClick={handleSearch} icon={<SearchOutlined />}>
-              {t("Search")}
-            </Button>
-            <Button onClick={loadData} icon={<ReloadOutlined />}>
-              {t("Refresh")}
-            </Button>
-          </Space>
-          <Space>
-            <Button icon={<ExportOutlined />} onClick={() => handleExport("csv")}>
-              {t("Export CSV")}
-            </Button>
-            <Button icon={<ExportOutlined />} onClick={() => handleExport("json")}>
-              {t("Export JSON")}
-            </Button>
-          </Space>
-        </Space>
+      <Card className="rounded-xl border-border/50">
+        <CardContent className="p-4">
+          {/* Toolbar */}
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Search input with icon */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder={t("Search Rule Name or Request Path")}
+                  value={searchText}
+                  onChange={(e) => setSearchText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleSearch();
+                  }}
+                  className="w-80 pl-9 pr-8"
+                />
+                {searchText && (
+                  <button
+                    onClick={() => setSearchText("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    &times;
+                  </button>
+                )}
+              </div>
 
-        {/* Table */}
-        <AuditTable
-          groups={groups}
-          groupTotal={groupTotal}
-          loading={loading}
-          page={page}
-          pageSize={pageSize}
-          expandedRecords={expandedRecords}
-          expandedLoading={expandedLoading}
-          onPageChange={handlePageChange}
-          onExpand={(ruleId, strategy) => expandGroup(ruleId, strategy)}
-          onViewDetail={handleViewDetail}
-          onDelete={handleDelete}
-        />
+              {/* Date range inputs */}
+              <div className="flex items-center gap-1">
+                <input
+                  type="date"
+                  value={dateRange[0]}
+                  onChange={(e) =>
+                    setDateRange([e.target.value, dateRange[1]])
+                  }
+                  className={cn(
+                    "flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                    "disabled:cursor-not-allowed disabled:opacity-50"
+                  )}
+                />
+                <span className="text-muted-foreground">~</span>
+                <input
+                  type="date"
+                  value={dateRange[1]}
+                  onChange={(e) =>
+                    setDateRange([dateRange[0], e.target.value])
+                  }
+                  className={cn(
+                    "flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                    "disabled:cursor-not-allowed disabled:opacity-50"
+                  )}
+                />
+                {(dateRange[0] || dateRange[1]) && (
+                  <button
+                    onClick={() => setDateRange(["", ""])}
+                    className="ml-1 text-muted-foreground hover:text-foreground"
+                  >
+                    &times;
+                  </button>
+                )}
+              </div>
+
+              <Button variant="outline" size="sm" onClick={handleSearch}>
+                <Search className="h-4 w-4" />
+                {t("Search")}
+              </Button>
+              <Button variant="outline" size="sm" onClick={loadData}>
+                <RefreshCw className="h-4 w-4" />
+                {t("Refresh")}
+              </Button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleExport("csv")}
+              >
+                <Download className="h-4 w-4" />
+                {t("Export CSV")}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleExport("json")}
+              >
+                <Download className="h-4 w-4" />
+                {t("Export JSON")}
+              </Button>
+            </div>
+          </div>
+
+          {/* Table */}
+          <AuditTable
+            groups={groups}
+            groupTotal={groupTotal}
+            loading={loading}
+            page={page}
+            pageSize={pageSize}
+            expandedRecords={expandedRecords}
+            expandedLoading={expandedLoading}
+            onPageChange={handlePageChange}
+            onExpand={(ruleId, strategy) => expandGroup(ruleId, strategy)}
+            onViewDetail={handleViewDetail}
+            onDelete={handleDelete}
+          />
+        </CardContent>
       </Card>
 
-      {/* Detail Drawer */}
-      <Drawer
-        title={t("Audit Detail")}
-        placement="right"
-        width={600}
-        open={detailOpen}
-        onClose={closeDetail}
-      >
-        {selectedRecord && <AuditDetailPanel record={selectedRecord} />}
-      </Drawer>
+      {/* Detail Sheet */}
+      <Sheet open={detailOpen} onOpenChange={(open) => !open && closeDetail()}>
+        <SheetContent side="right" className="w-[600px] sm:max-w-[600px]">
+          <SheetHeader>
+            <SheetTitle>{t("Audit Detail")}</SheetTitle>
+          </SheetHeader>
+          <div className="mt-4 overflow-y-auto">
+            {selectedRecord && <AuditDetailPanel record={selectedRecord} />}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
