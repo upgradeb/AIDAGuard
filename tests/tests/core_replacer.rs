@@ -3,7 +3,7 @@ use aidaguard_core::detector::{Match, Mode, Strategy};
 use aidaguard_core::replacer;
 
 fn make_match(start: usize, end: usize, text: &str, rule_id: &str, strategy: Strategy) -> Match {
-    Match { rule_id: rule_id.into(), start, end, text: text.into(), priority: 100, strategy, mode: Mode::Filter }
+    Match { rule_id: rule_id.into(), start, end, text: text.into(), priority: 100, strategy, mode: Mode::Filter, confidence: None }
 }
 
 #[test] fn test_replace_placeholder_single() {

@@ -78,6 +78,9 @@ fn default_mode() -> Mode {
 fn default_priority() -> u32 {
     100
 }
+fn default_source() -> String {
+    "system".to_string()
+}
 
 /// YAML 中单条规则的定义（未编译）
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -98,6 +101,21 @@ pub struct RuleDef {
     /// Applicable compliance frameworks (e.g. GDPR, PIPL, HIPAA, PCI_DSS)
     #[serde(default)]
     pub compliance: Vec<String>,
+    /// Validator name for checksum validation (e.g. "luhn", "id_card_cn", "iban")
+    #[serde(default)]
+    pub validator: Option<String>,
+    /// Context words that increase detection confidence
+    #[serde(default)]
+    pub context_words: Vec<String>,
+    /// Base confidence score (0.0 - 1.0), used as starting point for context enhancement
+    #[serde(default)]
+    pub base_confidence: Option<f64>,
+    /// Region code (e.g. "cn", "us", "eu", "sg", "jp", "gb", "kr", "global")
+    #[serde(default)]
+    pub region: Option<String>,
+    /// Source of the rule: "system" (bundled) or "custom" (user-defined)
+    #[serde(default = "default_source")]
+    pub source: String,
 }
 
 /// YAML 规则文件顶层结构
@@ -112,12 +130,38 @@ pub struct RuleFile {
     pub rules: Vec<RuleDef>,
 }
 
+/// Validator function type for checksum validation
+pub type ValidatorFn = Arc<dyn Fn(&str) -> bool + Send + Sync>;
+
 /// 编译后的规则
-#[derive(Debug, Clone)]
 pub struct CompiledRule {
     pub def: RuleDef,
     pub regex: Regex,
     pub exclude_regex: Option<Regex>,
+    /// Optional validator function for checksum validation (e.g., Luhn, mod-11)
+    pub validator_fn: Option<ValidatorFn>,
+}
+
+impl std::fmt::Debug for CompiledRule {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CompiledRule")
+            .field("def", &self.def)
+            .field("regex", &self.regex)
+            .field("exclude_regex", &self.exclude_regex)
+            .field("validator_fn", &self.validator_fn.as_ref().map(|_| "validator_fn"))
+            .finish()
+    }
+}
+
+impl Clone for CompiledRule {
+    fn clone(&self) -> Self {
+        Self {
+            def: self.def.clone(),
+            regex: self.regex.clone(),
+            exclude_regex: self.exclude_regex.clone(),
+            validator_fn: self.validator_fn.clone(),
+        }
+    }
 }
 
 /// 检测命中
@@ -130,6 +174,8 @@ pub struct Match {
     pub priority: u32,
     pub strategy: Strategy,
     pub mode: Mode,
+    /// Confidence score (0.0 - 1.0), derived from base_confidence and context enhancement
+    pub confidence: Option<f64>,
 }
 
 /// 敏感数据检测器
@@ -168,18 +214,24 @@ impl Detector {
         Ok(self.rules.len())
     }
 
-    /// 从基准目录加载多个规则预设子目录。
+    /// 从基准目录加载多个规则预设。
     ///
-    /// 每个预设名称对应 `base_dir` 下的一个子目录，所有子目录中的
-    /// `.yaml`/`.yml` 文件都会被加载并合并。
+    /// 支持两种结构：
+    /// - **扁平结构**：预设名对应 `base_dir/{preset}.yaml` 文件
+    /// - **目录结构**：预设名对应 `base_dir/{preset}/` 子目录
+    ///
+    /// 如果两者都存在，优先加载目录。
     pub fn load_from_presets(&mut self, base_dir: &Path, presets: &[&str]) -> Result<usize> {
         self.rules.clear();
         for preset in presets {
             let dir = base_dir.join(preset);
+            let file = base_dir.join(format!("{}.yaml", preset));
             if dir.is_dir() {
                 self.append_from_dir(&dir)?;
+            } else if file.is_file() {
+                self.append_from_file(&file)?;
             } else {
-                warn!("规则预设目录不存在，跳过: {}", dir.display());
+                warn!("规则预设不存在，跳过: {} (目录或文件)", preset);
             }
         }
         info!(
@@ -188,6 +240,17 @@ impl Detector {
             self.rules.len()
         );
         Ok(self.rules.len())
+    }
+
+    /// 从单个 YAML 文件加载规则并追加到当前规则集。
+    fn append_from_file(&mut self, path: &Path) -> Result<()> {
+        info!("加载规则文件: {}", path.display());
+        let contents = std::fs::read_to_string(path)
+            .with_context(|| format!("无法读取文件: {}", path.display()))?;
+        let rule_file: RuleFile = serde_yaml::from_str(&contents)
+            .with_context(|| format!("YAML 解析失败: {}", path.display()))?;
+        self.compile_append(rule_file.rules);
+        Ok(())
     }
 
     /// 追加单条规则。如果 `def.enabled` 为 false，跳过编译并返回 Ok.
@@ -203,7 +266,12 @@ impl Detector {
         } else {
             None
         };
-        self.rules.push(CompiledRule { def, regex, exclude_regex });
+        self.rules.push(CompiledRule {
+            def,
+            regex,
+            exclude_regex,
+            validator_fn: None, // Will be set by ValidatorRegistry
+        });
         Ok(())
     }
 
@@ -224,7 +292,12 @@ impl Detector {
                             }
                         }
                     });
-                    compiled.push(CompiledRule { def, regex, exclude_regex });
+                    compiled.push(CompiledRule {
+                        def,
+                        regex,
+                        exclude_regex,
+                        validator_fn: None, // Will be set by ValidatorRegistry
+                    });
                 }
                 Err(e) => warn!("规则 [{}] 正则编译失败: {}", def.id, e),
             }
@@ -250,7 +323,12 @@ impl Detector {
                             }
                         }
                     });
-                    self.rules.push(CompiledRule { def, regex, exclude_regex });
+                    self.rules.push(CompiledRule {
+                        def,
+                        regex,
+                        exclude_regex,
+                        validator_fn: None, // Will be set by ValidatorRegistry
+                    });
                 }
                 Err(e) => warn!("规则 [{}] 正则编译失败: {}", def.id, e),
             }
@@ -274,6 +352,32 @@ impl Detector {
         self.rules.iter().map(|r| r.def.id.clone()).collect()
     }
 
+    /// 获取所有需要校验器但尚未设置的规则 ID 和校验器名称
+    pub fn rules_needing_validators(&self) -> Vec<(String, String)> {
+        self.rules
+            .iter()
+            .filter(|r| r.validator_fn.is_none() && r.def.validator.is_some())
+            .filter_map(|r| {
+                r.def.validator.as_ref().map(|v| (r.def.id.clone(), v.clone()))
+            })
+            .collect()
+    }
+
+    /// 设置指定规则的校验器函数
+    pub fn set_validator(&mut self, rule_id: &str, validator_fn: ValidatorFn) -> bool {
+        if let Some(rule) = self.rules.iter_mut().find(|r| r.def.id == rule_id) {
+            rule.validator_fn = Some(validator_fn);
+            true
+        } else {
+            false
+        }
+    }
+
+    /// 获取所有编译后的规则（只读引用）
+    pub fn rules(&self) -> &[CompiledRule] {
+        &self.rules
+    }
+
     /// 在文本中检测敏感数据，返回去重且无重叠的命中列表
     pub fn detect(&self, text: &str) -> Vec<Match> {
         if self.rules.is_empty() {
@@ -291,6 +395,14 @@ impl Detector {
                         continue;
                     }
                 }
+                // 运行校验器（如果存在）
+                if let Some(ref validator_fn) = rule.validator_fn {
+                    if !validator_fn(match_text) {
+                        continue; // 校验失败，跳过此匹配
+                    }
+                }
+                // 计算置信度
+                let confidence = rule.def.base_confidence;
                 matches.push(Match {
                     rule_id: rule.def.id.clone(),
                     start: m.start(),
@@ -299,6 +411,7 @@ impl Detector {
                     priority: rule.def.priority,
                     strategy: rule.def.strategy.clone(),
                     mode: rule.def.mode.clone(),
+                    confidence,
                 });
             }
         }

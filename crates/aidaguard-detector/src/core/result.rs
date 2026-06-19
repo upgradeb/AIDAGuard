@@ -30,6 +30,7 @@ impl RecognizerResult {
             priority: 100,
             strategy,
             mode,
+            confidence: Some(self.score),
         }
     }
 

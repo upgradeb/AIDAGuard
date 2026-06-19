@@ -209,6 +209,8 @@ fn main() {
             commands::config::get_config,
             commands::config::save_config,
             commands::config::get_app_version,
+            commands::config::get_available_regions,
+            commands::config::update_detection_region,
             commands::upstream::get_upstreams,
             commands::upstream::add_upstream,
             commands::upstream::update_upstream,

@@ -128,6 +128,56 @@ impl Default for NotificationConfig {
 
 fn default_nlp_enabled() -> bool { false }  // 默认关闭，降低客户端 CPU 占用
 fn default_nlp_language() -> String { "en".to_string() }
+fn default_detection_primary_region() -> String { "cn".to_string() }
+fn default_detection_additional_regions() -> Vec<String> { Vec::new() }
+
+/// 检测区域配置
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct DetectionRegion {
+    /// 主区域代码 (e.g. "cn", "us", "eu", "gb", "sg", "jp", "kr")
+    #[serde(default = "default_detection_primary_region")]
+    pub primary_region: String,
+
+    /// 额外启用的区域列表
+    /// 例如主区域为 "cn"，额外启用 ["us", "eu"] 以检测 SSN、IBAN 等
+    #[serde(default = "default_detection_additional_regions")]
+    pub additional_regions: Vec<String>,
+}
+
+impl Default for DetectionRegion {
+    fn default() -> Self {
+        Self {
+            primary_region: default_detection_primary_region(),
+            additional_regions: default_detection_additional_regions(),
+        }
+    }
+}
+
+impl DetectionRegion {
+    /// 获取所有启用的区域列表（主区域 + 额外区域），去重
+    pub fn all_regions(&self) -> Vec<String> {
+        let mut regions = vec![self.primary_region.clone()];
+        for r in &self.additional_regions {
+            if !regions.contains(r) {
+                regions.push(r.clone());
+            }
+        }
+        regions
+    }
+
+    /// 所有支持的区域列表
+    pub fn available_regions() -> Vec<(&'static str, &'static str)> {
+        vec![
+            ("cn", "中国 (PIPL)"),
+            ("us", "美国 (CCPA/HIPAA)"),
+            ("eu", "欧盟 (GDPR)"),
+            ("gb", "英国 (UK GDPR)"),
+            ("sg", "新加坡 (PDPA)"),
+            ("jp", "日本 (APPI)"),
+            ("kr", "韩国 (PIPA)"),
+        ]
+    }
+}
 
 /// NLP/NER 子配置
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -190,12 +240,18 @@ pub struct Config {
     pub notification: NotificationConfig,
 
     /// Active region for rule presets (e.g. "cn", "us", "eu", "gb", "global")
+    /// Deprecated: use detection_region.primary_region instead
     #[serde(default = "default_region")]
     pub region: String,
 
     /// Enabled industry sub-presets within the region (e.g. ["medical", "finance"])
+    /// Deprecated: industry sub-presets are no longer used in flat rule structure
     #[serde(default = "default_rule_industries")]
     pub rule_industries: Vec<String>,
+
+    /// 检测区域配置（多区域支持）
+    #[serde(default)]
+    pub detection_region: DetectionRegion,
 
     /// NLP / NER configuration
     #[serde(default)]
@@ -216,6 +272,7 @@ impl Default for Config {
             notification: NotificationConfig::default(),
             region: default_region(),
             rule_industries: default_rule_industries(),
+            detection_region: DetectionRegion::default(),
             nlp: NlpConfig::default(),
         }
     }
@@ -245,21 +302,57 @@ impl Config {
         }
     }
 
-    /// Compute the list of rule preset paths from region and industry settings.
+    /// Compute the list of rule preset names from region settings.
     ///
-    /// Always includes `"global"` as baseline, then the region directory,
-    /// then region/industry subdirectories for each enabled industry.
+    /// Uses `detection_region` if configured, falls back to legacy `region` field.
+    ///
+    /// New flat structure: `rules/core.yaml` is always loaded as baseline,
+    /// then `rules/{region}.yaml` for each enabled region.
+    /// Falls back to legacy directory structure if flat files are not present.
     pub fn rule_presets(&self) -> Vec<String> {
-        let mut presets = vec!["global".to_string()];
-        if self.region != "global" && !self.region.is_empty() {
-            presets.push(self.region.clone());
-            for industry in &self.rule_industries {
-                if !industry.is_empty() {
-                    presets.push(format!("{}/{}", self.region, industry));
+        // Determine which regions to load
+        let regions = if !self.detection_region.additional_regions.is_empty()
+            || self.detection_region.primary_region != default_detection_primary_region()
+        {
+            // New detection_region config is explicitly set
+            self.detection_region.all_regions()
+        } else {
+            // Fallback to legacy region field
+            if self.region != "global" && !self.region.is_empty() {
+                vec![self.region.clone()]
+            } else {
+                vec![]
+            }
+        };
+
+        // Check if the new flat structure exists
+        let base = Path::new(&self.rules_dir);
+        let flat_core = base.join("core.yaml");
+
+        if flat_core.exists() {
+            // New flat structure: core.yaml + region.yaml files
+            let mut presets = vec!["core".to_string()];
+            for region in &regions {
+                if !region.is_empty() && region != "global" {
+                    presets.push(region.clone());
                 }
             }
+            presets
+        } else {
+            // Legacy directory structure: global/ + region/ + region/industry/
+            let mut presets = vec!["global".to_string()];
+            for region in &regions {
+                if !region.is_empty() && region != "global" {
+                    presets.push(region.clone());
+                    for industry in &self.rule_industries {
+                        if !industry.is_empty() {
+                            presets.push(format!("{}/{}", region, industry));
+                        }
+                    }
+                }
+            }
+            presets
         }
-        presets
     }
 
     /// 将配置写入 TOML 文件。

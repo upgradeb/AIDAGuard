@@ -244,9 +244,15 @@ mod tests {
                 mode: Mode::Filter,
                 priority: 100,
                 compliance: Vec::new(),
+                validator: None,
+                context_words: Vec::new(),
+                base_confidence: None,
+                region: None,
+                source: "system".to_string(),
             },
             regex: Regex::new(pattern).unwrap(),
             exclude_regex: None,
+            validator_fn: None,
         }
     }
 

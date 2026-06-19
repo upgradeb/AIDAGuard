@@ -141,6 +141,7 @@ impl DetectionEngine for AnalyzerEngine {
                 priority: 100,
                 strategy: Strategy::Placeholder,
                 mode: Mode::Filter,
+                confidence: Some(r.score),
             })
             .collect()
     }
@@ -204,6 +205,7 @@ pub struct AnalyzerEngineBuilder {
     rules_presets: Vec<String>,
     min_confidence: f64,
     load_predefined: bool,
+    load_yaml_as_recognizers: bool,
     nlp_enabled: bool,  // 控制 NLP 是否启用
     nlp_language: String,
 }
@@ -215,6 +217,7 @@ impl Default for AnalyzerEngineBuilder {
             rules_presets: Vec::new(),
             min_confidence: 0.0,
             load_predefined: false,
+            load_yaml_as_recognizers: false,
             nlp_enabled: false,  // 默认关闭
             nlp_language: "en".to_string(),
         }
@@ -256,6 +259,15 @@ impl AnalyzerEngineBuilder {
     /// Register all built-in pattern recognizers.
     pub fn with_all_pattern_recognizers(mut self) -> Self {
         self.load_predefined = true;
+        self
+    }
+
+    /// Load YAML rules as recognizers in addition to the legacy Detector.
+    /// When enabled, YAML rules are converted to `YamlRecognizer` instances
+    /// and integrated into the recognizer pipeline with validator and
+    /// context word support.
+    pub fn with_yaml_as_recognizers(mut self) -> Self {
+        self.load_yaml_as_recognizers = true;
         self
     }
 
@@ -303,6 +315,17 @@ impl AnalyzerEngineBuilder {
                 let presets: Vec<&str> = self.rules_presets.iter().map(|s| s.as_str()).collect();
                 detector.load_from_presets(base, &presets)?;
             }
+
+            // Also load YAML rules as recognizers (with validator + context support)
+            if self.load_yaml_as_recognizers {
+                if self.rules_presets.is_empty() {
+                    registry.load_from_rules_dir(base)?;
+                } else {
+                    let presets_refs: Vec<&str> = self.rules_presets.iter().map(|s| s.as_str()).collect();
+                    registry.load_from_rules_presets(base, &presets_refs)?;
+                }
+            }
+
             Some(detector)
         } else {
             None

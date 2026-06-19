@@ -1,17 +1,22 @@
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::Arc;
 
 use rayon::prelude::*;
 
 use crate::core::recognizer::Recognizer;
 use crate::core::result::RecognizerResult;
+use crate::recognizers::pattern::yaml_recognizer::YamlRecognizer;
+use crate::validation::registry::ValidatorRegistry;
 
-/// Registry of all installed recognizers. Supports preloading pattern recognizers
-/// and on-demand loading of NLP models.
+/// Registry of all installed recognizers. Supports preloading pattern recognizers,
+/// loading YAML rules as recognizers, and on-demand loading of NLP models.
 pub struct RecognizerRegistry {
     recognizers: Vec<Arc<dyn Recognizer>>,
     /// Entity type display name → recognizer name, for DetectionEngine::rule_name()
     entity_names: HashMap<String, String>,
+    /// Validator registry for wiring up YAML rule validators
+    validator_registry: ValidatorRegistry,
 }
 
 impl RecognizerRegistry {
@@ -19,6 +24,7 @@ impl RecognizerRegistry {
         Self {
             recognizers: Vec::new(),
             entity_names: HashMap::new(),
+            validator_registry: ValidatorRegistry::new(),
         }
     }
 
@@ -57,6 +63,72 @@ impl RecognizerRegistry {
         self.register(Arc::new(pattern::private_key::new()));
 
         self
+    }
+
+    /// Load YAML rules from a directory and register them as YamlRecognizers.
+    ///
+    /// Each enabled rule in the YAML files is converted to a `YamlRecognizer`
+    /// and registered in the pipeline. If a rule declares a `validator`,
+    /// the validator function is looked up from the ValidatorRegistry and
+    /// attached.
+    ///
+    /// Returns the number of rules loaded.
+    pub fn load_from_rules_dir(&mut self, dir: &Path) -> Result<usize, anyhow::Error> {
+        let mut detector = aidaguard_core::detector::Detector::new();
+        let count = detector.load_from_dir(dir)?;
+
+        // Wire up validators from registry
+        self.validator_registry.apply_to_detector(&mut detector);
+
+        // Convert each compiled rule to a YamlRecognizer
+        let yaml_count = self.load_yaml_recognizers_from_detector(&detector);
+
+        tracing::info!(
+            "从 {} 加载 {} 条 YAML 规则识别器（共 {} 条编译规则）",
+            dir.display(),
+            yaml_count,
+            count
+        );
+
+        Ok(yaml_count)
+    }
+
+    /// Load YAML rules from multiple preset subdirectories.
+    pub fn load_from_rules_presets(
+        &mut self,
+        base_dir: &Path,
+        presets: &[&str],
+    ) -> Result<usize, anyhow::Error> {
+        let mut detector = aidaguard_core::detector::Detector::new();
+        let presets_str: Vec<&str> = presets.iter().map(|s| *s).collect();
+        let _count = detector.load_from_presets(base_dir, &presets_str)?;
+
+        // Wire up validators
+        self.validator_registry.apply_to_detector(&mut detector);
+
+        let yaml_count = self.load_yaml_recognizers_from_detector(&detector);
+
+        tracing::info!(
+            "从 {} 个预设加载 {} 条 YAML 规则识别器",
+            presets.len(),
+            yaml_count
+        );
+
+        Ok(yaml_count)
+    }
+
+    /// Convert compiled rules from a Detector into YamlRecognizers and register them.
+    fn load_yaml_recognizers_from_detector(
+        &mut self,
+        detector: &aidaguard_core::detector::Detector,
+    ) -> usize {
+        let mut count = 0;
+        for rule in detector.rules() {
+            let recognizer = YamlRecognizer::from_compiled_rule(rule);
+            self.register(Arc::new(recognizer));
+            count += 1;
+        }
+        count
     }
 
     /// Load NLP recognizers for all unstructured entity types.

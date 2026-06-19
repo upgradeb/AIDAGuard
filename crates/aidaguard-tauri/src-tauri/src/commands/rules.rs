@@ -256,6 +256,7 @@ pub async fn test_rule(
             priority: 100,
             strategy: Strategy::Placeholder,
             mode: aidaguard_core::detector::Mode::Filter,
+            confidence: None,
         });
     }
 

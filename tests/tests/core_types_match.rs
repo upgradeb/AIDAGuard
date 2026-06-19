@@ -7,6 +7,7 @@ fn test_match_creation() {
         rule_id: "phone_cn".into(), start: 9, end: 20,
         text: "13812345678".into(), priority: 100,
         strategy: Strategy::Placeholder, mode: Mode::Filter,
+        confidence: None,
     };
     assert_eq!(m.rule_id, "phone_cn");
     assert_eq!(m.text, "13812345678");

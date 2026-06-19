@@ -22,28 +22,12 @@ import {
 } from "@/components/ui/select";
 
 import { useConfigStore } from "../store/useConfigStore";
-import { getAppVersion } from "../api/config";
+import { getAppVersion, getAvailableRegions, updateDetectionRegion } from "../api/config";
 import ThemeSwitcher from "../components/ThemeSwitcher";
 import PresetSwitcher from "../components/PresetSwitcher";
-import type { Config } from "../types";
+import type { Config, RegionInfo } from "../types";
 
 // ── Constants ────────────────────────────────────────────────────────────────
-
-const REGION_OPTIONS = [
-  { value: "global", labelKey: "Global (All Regions)" },
-  { value: "cn", labelKey: "China (PIPL)" },
-  { value: "us", labelKey: "United States (CCPA/HIPAA)" },
-  { value: "eu", labelKey: "European Union (GDPR)" },
-  { value: "gb", labelKey: "United Kingdom (UK DPA)" },
-];
-
-const INDUSTRIES_BY_REGION: Record<string, string[]> = {
-  global: [],
-  cn: ["general", "finance", "medical", "personal"],
-  us: ["general", "finance", "medical"],
-  eu: ["general", "finance"],
-  gb: ["general"],
-};
 
 const LOG_LEVELS = ["trace", "debug", "info", "warn", "error"] as const;
 
@@ -63,6 +47,10 @@ const configSchema = z.object({
   max_body_size_mb: z.number().min(1).max(100),
   region: z.string(),
   rule_industries: z.array(z.string()),
+  detection_region: z.object({
+    primary_region: z.string(),
+    additional_regions: z.array(z.string()),
+  }),
   storage: z.object({
     enabled: z.boolean(),
     db_path: z.string(),
@@ -102,7 +90,8 @@ export default function Settings() {
   const fetchConfig = useConfigStore((s) => s.fetchConfig);
   const save = useConfigStore((s) => s.saveConfig);
   const [appVersion, setAppVersion] = useState("");
-  const [region, setRegion] = useState<string>("global");
+  const [regions, setRegions] = useState<RegionInfo[]>([]);
+  const [regionSaving, setRegionSaving] = useState(false);
 
   const form = useForm<ConfigFormValues>({
     resolver: zodResolver(configSchema),
@@ -113,8 +102,9 @@ export default function Settings() {
       rules_dir: "",
       log_level: "info",
       max_body_size_mb: 10,
-      region: "global",
+      region: "cn",
       rule_industries: [],
+      detection_region: { primary_region: "cn", additional_regions: [] },
       storage: { enabled: false, db_path: "", encryption_key: "" },
       upstreams: [],
       notification: { enabled: false, rate_limit_secs: 60 },
@@ -125,12 +115,12 @@ export default function Settings() {
   useEffect(() => {
     fetchConfig();
     getAppVersion().then(setAppVersion).catch(() => {});
+    getAvailableRegions().then(setRegions).catch(() => {});
   }, []);
 
   useEffect(() => {
     if (config) {
       form.reset(config as ConfigFormValues);
-      setRegion(config.region || "global");
     }
   }, [config]);
 
@@ -144,13 +134,30 @@ export default function Settings() {
     }
   });
 
-  const handleRegionChange = (value: string) => {
-    setRegion(value);
-    form.setValue("region", value);
-    form.setValue("rule_industries", []);
+  const handleRegionUpdate = async (
+    primaryRegion: string,
+    additionalRegions: string[],
+  ) => {
+    setRegionSaving(true);
+    try {
+      await updateDetectionRegion(primaryRegion, additionalRegions);
+      form.setValue("detection_region", {
+        primary_region: primaryRegion,
+        additional_regions: additionalRegions,
+      });
+      toast.success(t("Detection region updated"));
+    } catch (e) {
+      toast.error(String(e));
+    } finally {
+      setRegionSaving(false);
+    }
   };
 
-  const industries = INDUSTRIES_BY_REGION[region] || [];
+  const primaryRegion = form.watch("detection_region.primary_region");
+  const additionalRegions = form.watch("detection_region.additional_regions") ?? [];
+  const availableAdditional = regions.filter(
+    (r) => r.code !== primaryRegion,
+  );
 
   return (
     <div className="h-full overflow-auto p-4">
@@ -229,25 +236,31 @@ export default function Settings() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label>{t("Region / Country")}</Label>
+              <Label>{t("Primary Region")}</Label>
               <Controller
-                name="region"
+                name="detection_region.primary_region"
                 control={form.control}
                 render={({ field }) => (
                   <Select
                     value={field.value}
                     onValueChange={(v) => {
+                      const nextAdditional = additionalRegions.filter(
+                        (r: string) => r !== v,
+                      );
                       field.onChange(v);
-                      handleRegionChange(v);
+                      form.setValue(
+                        "detection_region.additional_regions",
+                        nextAdditional,
+                      );
                     }}
                   >
                     <SelectTrigger className="w-[280px]">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {REGION_OPTIONS.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>
-                          {t(opt.labelKey)}
+                      {regions.map((r) => (
+                        <SelectItem key={r.code} value={r.code}>
+                          {r.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -256,60 +269,69 @@ export default function Settings() {
               />
               <p className="text-xs text-muted-foreground">
                 {t(
-                  "Select region or country for applicable detection rules",
+                  "Primary region determines the baseline detection rules loaded",
                 )}
               </p>
             </div>
 
-            {region === "global" ? (
-              <Alert>
-                <Info className="h-4 w-4" />
-                <AlertDescription>
-                  {t(
-                    "Global baseline rules are always loaded regardless of region selection.",
-                  )}
-                </AlertDescription>
-              </Alert>
-            ) : (
+            {availableAdditional.length > 0 && (
               <div className="space-y-2">
-                <Label>{t("Rule Industries")}</Label>
-                <Controller
-                  name="rule_industries"
-                  control={form.control}
-                  render={({ field }) => (
-                    <div className="flex flex-wrap gap-4">
-                      {industries.map((ind) => {
-                        const checked = field.value?.includes(ind) ?? false;
-                        return (
-                          <label
-                            key={ind}
-                            className="flex items-center gap-2 text-sm cursor-pointer"
-                          >
-                            <Checkbox
-                              checked={checked}
-                              onCheckedChange={(checked) => {
-                                const next = checked
-                                  ? [...(field.value ?? []), ind]
-                                  : (field.value ?? []).filter(
-                                      (v: string) => v !== ind,
-                                    );
-                                field.onChange(next);
-                              }}
-                            />
-                            {t(ind)}
-                          </label>
-                        );
-                      })}
-                    </div>
-                  )}
-                />
+                <Label>{t("Additional Regions")}</Label>
+                <div className="flex flex-wrap gap-4">
+                  {availableAdditional.map((r) => {
+                    const checked = additionalRegions.includes(r.code);
+                    return (
+                      <label
+                        key={r.code}
+                        className="flex items-center gap-2 text-sm cursor-pointer"
+                      >
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={(isChecked) => {
+                            const next = isChecked
+                              ? [...additionalRegions, r.code]
+                              : additionalRegions.filter(
+                                  (v: string) => v !== r.code,
+                                );
+                            form.setValue(
+                              "detection_region.additional_regions",
+                              next,
+                            );
+                          }}
+                        />
+                        {r.name}
+                      </label>
+                    );
+                  })}
+                </div>
                 <p className="text-xs text-muted-foreground">
                   {t(
-                    "Select industries within the region for domain-specific rules",
+                    "Enable extra regions to detect region-specific identifiers (e.g. SSN, IBAN, NINO)",
                   )}
                 </p>
               </div>
             )}
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={regionSaving}
+              onClick={() =>
+                handleRegionUpdate(primaryRegion, additionalRegions)
+              }
+            >
+              {regionSaving ? t("Applying...") : t("Apply Region Changes")}
+            </Button>
+
+            <Alert>
+              <Info className="h-4 w-4" />
+              <AlertDescription>
+                {t(
+                  "Core rules are always loaded. Region rules add compliance-specific patterns for the selected regions.",
+                )}
+              </AlertDescription>
+            </Alert>
           </CardContent>
         </Card>
 

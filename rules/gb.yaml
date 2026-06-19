@@ -1,0 +1,18 @@
+version: '1.0'
+name: UK Region Rules
+description: PII patterns under UK GDPR and DPA 2018
+
+rules:
+  # ── Identifiers ──────────────────────────────────────────────────────
+
+  - id: uk_nino
+    name: UK National Insurance Number
+    pattern: '(?-u:\b)[A-Za-z]{2}\d{6}[ABCDabcd](?-u:\b)'
+    enabled: true
+    strategy: placeholder
+    mode: detect
+    priority: 90
+    compliance: [UK_GDPR]
+    context_words: [nino, national insurance, NI number, 国民保险号]
+    base_confidence: 0.4
+    region: gb

@@ -76,6 +76,16 @@ export interface NotificationConfig {
   rate_limit_secs: number;
 }
 
+export interface DetectionRegion {
+  primary_region: string;
+  additional_regions: string[];
+}
+
+export interface RegionInfo {
+  code: string;
+  name: string;
+}
+
 export interface NlpConfig {
   enabled: boolean;
   default_language: string;
@@ -89,8 +99,11 @@ export interface Config {
   rules_dir: string;
   log_level: string;
   max_body_size_mb: number;
+  /** @deprecated Use detection_region instead */
   region: string;
+  /** @deprecated No longer used with flat rule structure */
   rule_industries: string[];
+  detection_region: DetectionRegion;
   storage: StorageConfig;
   upstreams: UpstreamConfig[];
   notification: NotificationConfig;

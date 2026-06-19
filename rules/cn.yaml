@@ -1,0 +1,173 @@
+version: '1.0'
+name: China Region Rules
+description: PII patterns under PIPL — identifiers, personal data, medical, and finance
+
+rules:
+  # ── Identifiers ──────────────────────────────────────────────────────
+
+  - id: phone_cn
+    name: Chinese Phone Number
+    pattern: '(?-u:\b)1[3-9]\d{9}(?-u:\b)'
+    enabled: true
+    strategy: placeholder
+    mode: detect
+    priority: 100
+    compliance: [PIPL]
+    context_words: [手机, 电话, 手机号, 联系电话, phone, mobile]
+    base_confidence: 0.4
+    region: cn
+
+  - id: id_card_cn
+    name: Chinese ID Card
+    pattern: '(?-u:\b)[1-9]\d{5}(?:19|20)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\d{3}[\dXx](?-u:\b)'
+    validator: id_card_cn
+    enabled: true
+    strategy: placeholder
+    mode: detect
+    priority: 100
+    compliance: [PIPL]
+    context_words: [身份证, 身份证号, 证件号, ID]
+    base_confidence: 0.3
+    region: cn
+
+  - id: bank_card
+    name: Bank Card Number
+    pattern: '(?-u:\b)\d{16,19}(?-u:\b)'
+    validator: luhn
+    enabled: true
+    strategy: placeholder
+    mode: detect
+    priority: 100
+    compliance: [PIPL, PCI_DSS]
+    context_words: [银行卡, 卡号, 信用卡, 借记卡, card]
+    base_confidence: 0.3
+    region: cn
+
+  - id: car_plate_cn
+    name: Chinese Car Plate
+    pattern: '(?-u:\b)[京津沪渝冀豫云辽黑湘皖鲁新苏浙赣鄂桂甘晋蒙陕吉闽贵粤川青藏琼宁][A-Z][A-Z0-9]{4,5}[A-Z0-9挂学警港澳](?-u:\b)'
+    enabled: true
+    strategy: mask
+    mode: detect
+    priority: 80
+    compliance: [PIPL]
+    base_confidence: 0.5
+    region: cn
+
+  - id: passport_cn
+    name: Chinese Passport Number
+    pattern: '(?-u:\b)[EGeg]\d{8}(?-u:\b)'
+    enabled: true
+    strategy: placeholder
+    mode: detect
+    priority: 90
+    compliance: [PIPL]
+    context_words: [护照, 护照号, passport]
+    base_confidence: 0.4
+    region: cn
+
+  - id: unified_social_credit
+    name: Unified Social Credit Code
+    pattern: '(?-u:\b)[0-9A-HJ-NPQRTUWXY]{2}\d{6}[0-9A-HJ-NPQRTUWXY]{10}(?-u:\b)'
+    enabled: true
+    strategy: placeholder
+    mode: detect
+    priority: 90
+    compliance: [PIPL]
+    context_words: [统一社会信用代码, 信用代码, 税号]
+    base_confidence: 0.5
+    region: cn
+
+  # ── Personal ─────────────────────────────────────────────────────────
+
+  - id: person_name_cn
+    name: Chinese Person Name
+    pattern: '(?:姓名|名字|称呼)[：:]\s*[一-龥]{2,4}'
+    enabled: true
+    strategy: placeholder
+    mode: detect
+    priority: 90
+    compliance: [PIPL]
+    base_confidence: 0.6
+    region: cn
+
+  - id: address_cn
+    name: Chinese Address
+    pattern: '(?:地址|住址|所在地)[：:]\s*[一-龥0-9\w\-号路街巷弄栋座单元楼室层]+'
+    enabled: true
+    strategy: placeholder
+    mode: detect
+    priority: 80
+    compliance: [PIPL]
+    base_confidence: 0.6
+    region: cn
+
+  - id: company_name_cn
+    name: Chinese Company Name
+    pattern: '[一-龥]{2,}(?:有限公司|有限责任公司|股份有限公司|集团)'
+    enabled: true
+    strategy: mask
+    mode: detect
+    priority: 70
+    compliance: [PIPL]
+    base_confidence: 0.5
+    region: cn
+
+  - id: date_of_birth
+    name: Date of Birth
+    pattern: '(?:出生|生日|生于)[：:]\s*\d{4}[-/年]\d{1,2}[-/月]\d{1,2}'
+    enabled: true
+    strategy: mask
+    mode: detect
+    priority: 80
+    compliance: [PIPL]
+    base_confidence: 0.6
+    region: cn
+
+  # ── Medical ──────────────────────────────────────────────────────────
+
+  - id: patient_name_hint
+    name: Patient Name Hint
+    pattern: '(?:患者|病人|就诊人|体检人)[：:]\s*[一-龥]{2,4}'
+    enabled: true
+    strategy: placeholder
+    mode: detect
+    priority: 90
+    compliance: [PIPL]
+    base_confidence: 0.6
+    region: cn
+
+  - id: medical_term_icd
+    name: Medical Term (ICD Related)
+    pattern: '(?:诊断|确诊|疑似|既往史|现病史|主诉)[：:]\s*[一-龥\w，,、\s]+'
+    enabled: true
+    strategy: mask
+    mode: detect
+    priority: 70
+    compliance: [PIPL]
+    base_confidence: 0.5
+    region: cn
+
+  - id: hospital_name
+    name: Hospital Name
+    pattern: '[一-龥]{2,}(?:医院|卫生院|诊所|保健院|急救中心|疾控中心)'
+    enabled: true
+    strategy: mask
+    mode: detect
+    priority: 70
+    compliance: [PIPL]
+    base_confidence: 0.5
+    region: cn
+
+  # ── Finance ──────────────────────────────────────────────────────────
+
+  - id: amount_cny
+    name: Amount (CNY)
+    pattern: '(?:¥|CNY\s?|RMB\s?|元)?\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?\s*(?:元|万元|亿元)?'
+    enabled: true
+    strategy: mask
+    mode: detect
+    priority: 70
+    compliance: [PIPL]
+    base_confidence: 0.5
+    region: cn

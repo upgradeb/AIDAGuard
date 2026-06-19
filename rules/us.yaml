@@ -1,0 +1,45 @@
+version: '1.0'
+name: US Region Rules
+description: PII patterns under CCPA/CPRA and HIPAA
+
+rules:
+  # ── Identifiers ──────────────────────────────────────────────────────
+
+  - id: us_ssn
+    name: US Social Security Number
+    pattern: '(?-u:\b)\d{3}-\d{2}-\d{4}(?-u:\b)'
+    validator: us_ssn
+    enabled: true
+    strategy: placeholder
+    mode: detect
+    priority: 100
+    compliance: [CCPA, HIPAA]
+    context_words: [ssn, social security, tax id, 社保号]
+    base_confidence: 0.4
+    region: us
+
+  # ── Medical ──────────────────────────────────────────────────────────
+
+  - id: medical_record_no
+    name: Medical Record Number
+    pattern: '(?-u:\b)MR\d{6,10}(?-u:\b)'
+    enabled: true
+    strategy: placeholder
+    mode: detect
+    priority: 100
+    compliance: [HIPAA]
+    context_words: [medical record, MR, 病历号, 病历]
+    base_confidence: 0.5
+    region: us
+
+  - id: diagnosis_code
+    name: ICD Diagnosis Code
+    pattern: '(?-u:\b)[A-Z]\d{2}(?:\.\d{1,4})?(?-u:\b)'
+    enabled: true
+    strategy: placeholder
+    mode: detect
+    priority: 80
+    compliance: [HIPAA]
+    context_words: [ICD, diagnosis, 诊断]
+    base_confidence: 0.3
+    region: us

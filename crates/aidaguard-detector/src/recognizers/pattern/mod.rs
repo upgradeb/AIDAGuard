@@ -1,4 +1,5 @@
 pub mod pattern_recognizer;
+pub mod yaml_recognizer;
 
 // Structured (regex + checksum)
 pub mod credit_card;

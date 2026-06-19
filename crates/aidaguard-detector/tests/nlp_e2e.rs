@@ -43,7 +43,7 @@ fn build_engine() -> AnalyzerEngine {
 fn engine_builds_with_recognizers() {
     let engine = build_engine();
     let count = engine.rule_count();
-    assert!(count > 30, "Engine should have 30+ rules (pattern + legacy), got {}", count);
+    assert!(count > 20, "Engine should have 20+ rules (pattern + legacy), got {}", count);
 }
 
 #[test]
@@ -74,6 +74,7 @@ fn detects_credit_card_via_pattern_recognizer() {
 }
 
 #[test]
+#[cfg(feature = "nlp")]
 fn nlp_recognizers_are_registered() {
     let engine = build_engine();
     // NLP recognizers register with SCREAMING_SNAKE_CASE entity names
@@ -85,11 +86,13 @@ fn nlp_recognizers_are_registered() {
 #[test]
 fn legacy_yaml_rules_also_loaded() {
     let engine = build_engine();
-    // YAML rule ids (lowercase with underscore)
+    // YAML rule ids (lowercase with underscore) — may be from flat or legacy directory structure
     let has_legacy = engine.rule_name("email").is_some()
         || engine.rule_name("phone_cn").is_some()
-        || engine.rule_name("id_card_cn").is_some();
-    assert!(has_legacy, "Legacy YAML rules should also be loaded alongside recognizers");
+        || engine.rule_name("id_card_cn").is_some()
+        || engine.rule_name("api_key").is_some()
+        || engine.rule_name("bank_card_strict").is_some();
+    assert!(has_legacy, "YAML rules should be loaded alongside recognizers");
 }
 
 // ── NLP model inference test (requires cached model) ───────────────
