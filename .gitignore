@@ -29,5 +29,8 @@ config.toml
 .env
 .env.local
 
+# 工具备份（本地运行时生成）
+tools-backup/
+
 # Claude Code
 .claude/
