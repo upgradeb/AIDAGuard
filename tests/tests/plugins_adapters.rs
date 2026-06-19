@@ -87,7 +87,9 @@ fn mock_tool(config_path: &str) -> MockTool {
     std::fs::write(&config_path, "{}").unwrap();
     let backup_dir = dir.join("empty_backups");
     let tool = mock_tool(&config_path.to_string_lossy());
-    assert!(tool.restore(&backup_dir).is_err());
+    // No backup means the config was created by configure(); restore deletes it.
+    tool.restore(&backup_dir).unwrap();
+    assert!(!config_path.exists());
     let _ = std::fs::remove_dir_all(&dir);
 }
 #[test] fn test_backup_nonexistent_source() {
