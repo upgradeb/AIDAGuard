@@ -160,7 +160,9 @@ export default function Settings() {
   );
 
   return (
-    <form onSubmit={handleSave} className="space-y-4 max-w-5xl">
+    <div className="flex h-full flex-col">
+      <div className="min-h-0 flex-1 overflow-auto">
+        <form onSubmit={handleSave} className="space-y-4 max-w-5xl pb-6">
         {/* ── Proxy Settings ──────────────────────────────────────────── */}
         <Card>
           <CardHeader className="pb-3">
@@ -606,6 +608,8 @@ export default function Settings() {
           <Save className="mr-2 h-4 w-4" />
           {saving ? t("Saving...") : t("Save Settings")}
         </Button>
-      </form>
+        </form>
+        </div>
+      </div>
   );
 }

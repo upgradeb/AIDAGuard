@@ -64,7 +64,7 @@ export default function App() {
     menuItems.find((m) => m.key === location.pathname)?.labelKey || "Dashboard";
 
   return (
-    <div className="flex h-screen">
+    <div className="flex h-screen overflow-hidden">
       {/* Sidebar */}
       <aside className="w-[230px] flex flex-col border-r bg-card shrink-0">
         <div className="h-16 flex items-center justify-center border-b">
@@ -118,7 +118,7 @@ export default function App() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-auto p-6 bg-background">
+        <main className="flex-1 min-h-0 overflow-auto p-6 bg-background">
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/audit" element={<AuditLog />} />
