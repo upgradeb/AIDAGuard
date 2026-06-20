@@ -161,7 +161,7 @@ export default function Settings() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="min-h-0 flex-1 overflow-auto">
+      <div className="min-h-0 flex-1 overflow-auto overscroll-contain">
         <form onSubmit={handleSave} className="space-y-4 max-w-5xl pb-6">
         {/* ── Proxy Settings ──────────────────────────────────────────── */}
         <Card>
