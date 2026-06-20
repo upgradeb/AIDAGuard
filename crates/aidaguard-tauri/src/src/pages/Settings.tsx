@@ -160,8 +160,7 @@ export default function Settings() {
   );
 
   return (
-    <div className="h-full overflow-auto p-4">
-      <form onSubmit={handleSave} className="space-y-4">
+    <form onSubmit={handleSave} className="space-y-4 max-w-5xl">
         {/* ── Proxy Settings ──────────────────────────────────────────── */}
         <Card>
           <CardHeader className="pb-3">
@@ -608,6 +607,5 @@ export default function Settings() {
           {saving ? t("Saving...") : t("Save Settings")}
         </Button>
       </form>
-    </div>
   );
 }
