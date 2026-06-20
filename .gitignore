@@ -36,3 +36,8 @@ tools-backup/
 .claude/
 AGENTS.md
 CLAUDE.md
+
+# VitePress
+docs/node_modules/
+docs/.vitepress/dist/
+docs/.vitepress/cache/
