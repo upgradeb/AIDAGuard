@@ -310,20 +310,24 @@ impl Config {
     /// then `rules/{region}.yaml` for each enabled region.
     /// Falls back to legacy directory structure if flat files are not present.
     pub fn rule_presets(&self) -> Vec<String> {
-        // Determine which regions to load
-        let regions = if !self.detection_region.additional_regions.is_empty()
-            || self.detection_region.primary_region != default_detection_primary_region()
+        // Migrate legacy region field to detection_region if detection_region is at default
+        let detection_region = if self.detection_region.primary_region == default_detection_primary_region()
+            && self.detection_region.additional_regions.is_empty()
+            && self.region != "global" && !self.region.is_empty()
         {
-            // New detection_region config is explicitly set
-            self.detection_region.all_regions()
-        } else {
-            // Fallback to legacy region field
-            if self.region != "global" && !self.region.is_empty() {
-                vec![self.region.clone()]
-            } else {
-                vec![]
+            tracing::warn!(
+                "Config field `region` is deprecated, use `detection_region.primary_region` instead. Auto-migrating region='{}'",
+                self.region
+            );
+            DetectionRegion {
+                primary_region: self.region.clone(),
+                additional_regions: Vec::new(),
             }
+        } else {
+            self.detection_region.clone()
         };
+
+        let regions = detection_region.all_regions();
 
         // Check if the new flat structure exists
         let base = Path::new(&self.rules_dir);

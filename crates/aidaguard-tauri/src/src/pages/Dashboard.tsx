@@ -81,7 +81,7 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="h-full overflow-auto">
+    <div className="h-full overflow-auto overscroll-contain">
       {error && (
         <Alert variant="destructive" className="mb-4 rounded-lg">
           <CircleAlert className="h-4 w-4" />

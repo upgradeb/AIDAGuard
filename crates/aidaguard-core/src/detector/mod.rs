@@ -493,6 +493,7 @@ impl crate::engine::DetectionEngine for Detector {
 
 /// Start rule directory hot-reload. When files change, the detector is reloaded
 /// using preset-based loading. Returns a watcher that must be held by the caller.
+#[must_use]
 pub fn watch_rules<D: crate::engine::DetectionEngine + 'static>(
     detector: Arc<RwLock<D>>,
     dir: PathBuf,

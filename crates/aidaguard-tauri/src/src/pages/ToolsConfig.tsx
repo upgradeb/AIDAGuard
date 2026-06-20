@@ -112,7 +112,7 @@ export default function ToolsConfig() {
   const installedCount = sortedTools.filter((t) => t.installed).length;
 
   return (
-    <div className="h-full overflow-auto">
+    <div className="h-full overflow-auto overscroll-contain">
       {/* Warning alert */}
       {!isRunning && (
         <Alert className="mb-4 border-yellow-500/50 text-yellow-700 dark:text-yellow-400 [&>svg]:text-yellow-600">

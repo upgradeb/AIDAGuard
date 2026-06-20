@@ -178,7 +178,7 @@ export default function Upstreams() {
   };
 
   return (
-    <div className="max-w-[960px] h-full overflow-auto">
+    <div className="max-w-[960px] h-full overflow-auto overscroll-contain">
       {/* Card wrapper */}
       <div className="rounded-xl border p-4">
         {/* Header row */}

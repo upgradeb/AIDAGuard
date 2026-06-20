@@ -116,15 +116,22 @@ where
     let builtin_count = upstream_mgr.load_builtins();
     info!("Loaded {} built-in LLM providers", builtin_count);
 
+    // Look up rate_limit_qps from matching upstream config
+    let rate_limit_qps = config.upstreams.iter()
+        .find(|u| u.url == config.target_url)
+        .map(|u| u.rate_limit_qps)
+        .unwrap_or(0);
+
     let forwarder = if let Some(provider) = upstream_mgr.find_by_endpoint(&config.target_url) {
         info!(
             "Matched provider '{}' for target URL, using {:?} auth",
             provider.id, provider.auth
         );
-        Forwarder::from_upstream(provider, api_key.clone(), 300)?
+        Forwarder::from_upstream(provider, api_key.clone(), 300, rate_limit_qps)?
     } else {
         info!("No built-in provider matched, using default Bearer auth");
-        Forwarder::new()?.with_bearer_auth(api_key.clone())
+        let f = Forwarder::new()?.with_bearer_auth(api_key.clone());
+        if rate_limit_qps > 0 { f.with_rate_limit(rate_limit_qps) } else { f }
     };
 
     let rules_dir = Arc::new(config.rules_dir.clone());
