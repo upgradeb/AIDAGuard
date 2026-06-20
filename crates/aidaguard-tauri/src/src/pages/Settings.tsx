@@ -160,7 +160,7 @@ export default function Settings() {
   );
 
   return (
-    <form onSubmit={handleSave} className="space-y-4 max-w-5xl">
+    <form onSubmit={handleSave} className="min-h-full space-y-4 max-w-5xl">
         {/* ── Proxy Settings ──────────────────────────────────────────── */}
         <Card>
           <CardHeader className="pb-3">

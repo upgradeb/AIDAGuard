@@ -118,15 +118,19 @@ export default function App() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-auto p-6 bg-background">
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/audit" element={<AuditLog />} />
-            <Route path="/rules" element={<Rules />} />
-            <Route path="/upstreams" element={<Upstreams />} />
-            <Route path="/tools" element={<ToolsConfig />} />
-            <Route path="/settings" element={<Settings />} />
-          </Routes>
+        <main className="flex-1 flex flex-col min-h-0">
+          <div className="flex-1 min-h-0 overflow-auto">
+            <div className="min-h-full p-6 bg-background">
+            <Routes>
+              <Route path="/" element={<Dashboard />} />
+              <Route path="/audit" element={<AuditLog />} />
+              <Route path="/rules" element={<Rules />} />
+              <Route path="/upstreams" element={<Upstreams />} />
+              <Route path="/tools" element={<ToolsConfig />} />
+              <Route path="/settings" element={<Settings />} />
+            </Routes>
+            </div>
+          </div>
         </main>
       </div>
     </div>
