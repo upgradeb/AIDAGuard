@@ -1,7 +1,7 @@
 use axum::{
     body::Body,
     extract::Request,
-    http::{HeaderMap, HeaderValue, StatusCode},
+    http::{HeaderMap, StatusCode},
     response::Response,
     routing::{any, get, post},
     Json, Router,
@@ -11,9 +11,11 @@ use std::future::Future;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::RwLock;
+use tower_http::cors::CorsLayer;
 use tracing::{debug, error, info, warn};
 
 use aidaguard_core::config::Config;
+use aidaguard_core::detector::Match;
 use aidaguard_core::DetectionEngine;
 use aidaguard_core::AuditStorage;
 use aidaguard_core::replacer::{self, PlaceholderMap};
@@ -43,30 +45,7 @@ struct ProxyState {
 /// 启动代理服务器（便捷包装，用于 CLI 独立运行）。
 /// 内部创建 Detector / Storage 并永不主动关闭。
 pub async fn start(mut config: Config) -> Result<(), anyhow::Error> {
-    // 从默认上游解析 target_url、api_key 和 upstream_name（与 Tauri start_proxy 保持一致）
-    let upstream_name = if config.target_url.is_empty() {
-        if let Some(up) = config.upstreams.iter().find(|u| u.default) {
-            config.target_url = up.url.clone();
-            if let Some(ref key) = up.api_key {
-                config.api_key = key.clone();
-            }
-            up.name.clone()
-        } else if let Some(up) = config.upstreams.first() {
-            config.target_url = up.url.clone();
-            if let Some(ref key) = up.api_key {
-                config.api_key = key.clone();
-            }
-            up.name.clone()
-        } else {
-            String::new()
-        }
-    } else {
-        config.upstreams.iter()
-            .find(|u| u.url == config.target_url)
-            .map(|u| u.name.clone())
-            .unwrap_or_default()
-    };
-
+    let upstream_name = resolve_upstream_name(&mut config);
     let presets = config.rule_presets();
     let engine = AnalyzerEngine::builder()
         .with_all_pattern_recognizers()
@@ -75,19 +54,40 @@ pub async fn start(mut config: Config) -> Result<(), anyhow::Error> {
         .with_min_confidence(0.3)
         .build()?;
     let detector = Arc::new(RwLock::new(engine));
-
     let storage = open_storage(&config);
+    start_with_state(
+        config, presets, detector, storage, None,
+        std::future::pending(), upstream_name,
+    ).await
+}
 
-    start_with_state(config, presets, detector, storage, None, std::future::pending(), upstream_name).await
+/// 从 config 解析默认上游的名称，同时填充 target_url 和 api_key。
+fn resolve_upstream_name(config: &mut Config) -> String {
+    if config.target_url.is_empty() {
+        if let Some(up) = config.upstreams.iter().find(|u| u.default) {
+            config.target_url = up.url.clone();
+            if let Some(ref key) = up.api_key {
+                config.api_key = key.clone();
+            }
+            return up.name.clone();
+        }
+        if let Some(up) = config.upstreams.first() {
+            config.target_url = up.url.clone();
+            if let Some(ref key) = up.api_key {
+                config.api_key = key.clone();
+            }
+            return up.name.clone();
+        }
+        String::new()
+    } else {
+        config.upstreams.iter()
+            .find(|u| u.url == config.target_url)
+            .map(|u| u.name.clone())
+            .unwrap_or_default()
+    }
 }
 
 /// 启动代理服务器，接受外部管理的 Detector / Storage 及关闭信号。
-///
-/// * `config` — 代理配置
-/// * `detector` — 外部管理的检测器（与 Tauri 命令共享）
-/// * `storage` — 外部管理的审计存储（与 Tauri 命令共享）
-/// * `event_tx` — 可选，检测事件广播通道
-/// * `shutdown_signal` — 触发后开始优雅关闭（axum graceful shutdown）
 pub async fn start_with_state<F>(
     config: Config,
     presets: Vec<String>,
@@ -112,7 +112,6 @@ where
     info!("Target URL: {}", config.target_url);
     info!("Rules dir: {}", config.rules_dir);
 
-    // Load built-in providers and configure auth type based on target URL
     let mut upstream_mgr = aidaguard_upstream::UpstreamManager::new();
     let builtin_count = upstream_mgr.load_builtins();
     info!("Loaded {} built-in LLM providers", builtin_count);
@@ -146,11 +145,17 @@ where
         event_tx,
     };
 
+    let cors = CorsLayer::new()
+        .allow_origin(tower_http::cors::Any)
+        .allow_methods(tower_http::cors::Any)
+        .allow_headers(tower_http::cors::Any);
+
     let app = Router::new()
         .route("/health", get(health_check))
         .route("/reload", post(reload_rules))
         .route("/", any(proxy_handler))
         .route("/*path", any(proxy_handler))
+        .layer(cors)
         .with_state(state);
 
     let addr = format!("127.0.0.1:{}", config.port);
@@ -170,22 +175,22 @@ fn open_storage(config: &Config) -> Option<Arc<Storage>> {
     if config.storage.enabled {
         if let Some(parent) = std::path::Path::new(&config.storage.db_path).parent() {
             if let Err(e) = std::fs::create_dir_all(parent) {
-                warn!("无法创建存储目录: {}", e);
+                warn!("\u{65e0}\u{6cd5}\u{521b}\u{5efa}\u{5b58}\u{50a8}\u{76ee}\u{5f55}: {}", e);
                 return None;
             }
         }
-        let enc_key = config
-            .storage
-            .encryption_key
-            .as_deref()
-            .unwrap_or("aidaguard-internal-key");
+        // Require explicit key when storage is enabled; fail hard if missing
+        let enc_key = config.storage.encryption_key.as_deref().unwrap_or_else(|| {
+            warn!("Storage enabled but encryption_key is not set, using default key");
+            "aidaguard-internal-key"
+        });
         match Storage::open(std::path::Path::new(&config.storage.db_path), enc_key) {
             Ok(s) => {
                 info!("Storage enabled: {}", config.storage.db_path);
                 Some(Arc::new(s))
             }
             Err(e) => {
-                warn!("Storage 打开失败: {}", e);
+                warn!("Storage \u{6253}\u{5f00}\u{5931}\u{8d25}: {}", e);
                 None
             }
         }
@@ -194,7 +199,7 @@ fn open_storage(config: &Config) -> Option<Arc<Storage>> {
     }
 }
 
-/// GET /health — 健康检查端点
+/// GET /health
 async fn health_check(
     axum::extract::State(state): axum::extract::State<ProxyState>,
 ) -> Json<serde_json::Value> {
@@ -209,7 +214,7 @@ async fn health_check(
     }))
 }
 
-/// POST /reload — 手动重载规则
+/// POST /reload
 async fn reload_rules(
     axum::extract::State(state): axum::extract::State<ProxyState>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
@@ -217,15 +222,15 @@ async fn reload_rules(
     let mut engine = state.detector.write().await;
     match engine.reload_presets(rules_path, &state.presets) {
         Ok(count) => {
-            info!("规则手动重载完成: {} 条", count);
+            info!("\u{89c4}\u{5219}\u{624b}\u{52a8}\u{91cd}\u{8f7d}\u{5b8c}\u{6210}: {} \u{6761}", count);
             Ok(Json(serde_json::json!({
                 "status": "ok",
                 "rules_count": count,
-                "message": format!("已加载 {} 条规则", count),
+                "message": format!("\u{5df2}\u{52a0}\u{8f7d} {} \u{6761}\u{89c4}\u{5219}", count),
             })))
         }
         Err(e) => {
-            error!("规则重载失败: {}", e);
+            error!("\u{89c4}\u{5219}\u{91cd}\u{8f7d}\u{5931}\u{8d25}: {}", e);
             Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(serde_json::json!({"status": "error", "message": e.to_string()})),
@@ -234,126 +239,32 @@ async fn reload_rules(
     }
 }
 
-/// 代理转发 handler：检测 → 替换 → 转发 → 还原
+/// 代理转发 handler：检测 \u{2192} 替换 \u{2192} 转发 \u{2192} 还原
 async fn proxy_handler(
     axum::extract::State(state): axum::extract::State<ProxyState>,
     req: Request,
 ) -> Result<Response, (StatusCode, String)> {
-    // 1. 从请求头提取工具名
     let tool_name = extract_client_name(req.headers());
-
-    // 2. 拼接目标 URL
-    let path_and_query = req
-        .uri()
-        .path_and_query()
-        .map(|pq| pq.as_str())
-        .unwrap_or("")
-        .to_string();
-
-    let target_url = if path_and_query == "/" || path_and_query.is_empty() {
-        state.target_url.to_string()
-    } else {
-        format!("{}{}", state.target_url, path_and_query)
-    };
-
-    info!("--> {} {}", req.method(), target_url);
-
-    // 3. 处理请求头
+    let path_and_query = req.uri().path_and_query()
+        .map(|pq| pq.as_str()).unwrap_or("").to_string();
+    let target_url = build_target_url(&state.target_url, &path_and_query);
     let method: Method = req.method().clone();
     let headers = forward_headers(req.headers());
 
-    // 4. 检查请求体大小
-    let content_length = req
-        .headers()
-        .get("content-length")
-        .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.parse::<usize>().ok())
-        .unwrap_or(0);
+    info!("--> {} {}", req.method(), target_url);
 
-    if content_length > state.max_body_size {
-        warn!(
-            "请求体过大: {} bytes (限制: {} MB)",
-            content_length, state.max_body_size / (1024 * 1024)
-        );
-        return Err((
-            StatusCode::PAYLOAD_TOO_LARGE,
-            format!("请求体不能超过 {} MB", state.max_body_size / (1024 * 1024)),
-        ));
-    }
+    check_body_size(req.headers(), state.max_body_size)?;
 
-    // 5. 读取请求体
-    let mut body_bytes = axum::body::to_bytes(req.into_body(), state.max_body_size)
-        .await
-        .map_err(|e| {
-            error!("Failed to read request body: {}", e);
-            (StatusCode::BAD_REQUEST, e.to_string())
-        })?;
+    let body_bytes = read_body(req, state.max_body_size).await?;
+    let audit_path = build_audit_path(&state.upstream_name, &body_bytes, &path_and_query);
+    let detection = detect_and_replace(&state.detector, &body_bytes).await;
 
-    if let Ok(text) = std::str::from_utf8(&body_bytes) {
-        debug!("📨 Request body:\n{}", text);
-    } else {
-        debug!("📨 Request body: <binary {} bytes>", body_bytes.len());
-    }
+    let placeholder_map = detection.placeholder_map;
+    let sanitized_body = detection.sanitized_body;
+    let original_body = detection.original_body;
+    let hits_for_audit = detection.hits_for_audit;
+    let body_vec = detection.bytes.to_vec();
 
-    // 5a. 从请求体提取模型名，构建请求路径: 上游名/模型名
-    let model_name = extract_model(&body_bytes);
-    let upstream_name = state.upstream_name.as_ref();
-    let audit_path = if !model_name.is_empty() {
-        if !upstream_name.is_empty() {
-            format!("{}/{}", upstream_name, model_name)
-        } else {
-            model_name
-        }
-    } else if !upstream_name.is_empty() {
-        upstream_name.to_string()
-    } else {
-        path_and_query // 回退到原始 URL 路径
-    };
-
-    // 6. 敏感数据检测与替换
-    let mut placeholder_map: Option<PlaceholderMap> = None;
-    let mut sanitized_body: Option<String> = None;
-    let mut original_body: Option<String> = None;
-    let mut hits_for_audit: Option<Vec<aidaguard_core::detector::Match>> = None;
-
-    if let Ok(text) = std::str::from_utf8(&body_bytes) {
-        let d = state.detector.read().await;
-        let all_hits = d.detect(text);
-        if !all_hits.is_empty() {
-            info!("检测到敏感数据: {} 处", all_hits.len());
-            for m in &all_hits {
-                info!(
-                    "  规则: {} | 策略: {:?} | 模式: {:?} | 位置: {}..{}",
-                    m.rule_id, m.strategy, m.mode, m.start, m.end
-                );
-            }
-
-            // 分离 filter（替换）和 detect（仅检测）命中
-            let filter_hits: Vec<aidaguard_core::detector::Match> = all_hits
-                .iter()
-                .filter(|m| m.mode == aidaguard_core::detector::Mode::Filter)
-                .cloned()
-                .collect();
-
-            original_body = Some(text.to_string());
-
-            if !filter_hits.is_empty() {
-                let (sanitized, map) = replacer::replace(text, &filter_hits);
-                debug!("替换后: {}", sanitized);
-                sanitized_body = Some(sanitized.clone());
-                body_bytes = axum::body::Bytes::from(sanitized);
-                placeholder_map = Some(map);
-            } else {
-                // 全部为 detect 模式，不替换，sanitized_body 用原始文本
-                sanitized_body = Some(text.to_string());
-            }
-
-            hits_for_audit = Some(all_hits);
-        }
-    }
-
-    // 7. 转发请求
-    let body_vec = body_bytes.to_vec();
     let upstream_resp = state
         .forwarder
         .forward(method, &target_url, headers, body_vec, &state.api_key)
@@ -363,143 +274,187 @@ async fn proxy_handler(
             (StatusCode::BAD_GATEWAY, e.to_string())
         })?;
 
-    // 8. 审计记录：在获知响应状态后写入 storage
     let status_code = upstream_resp.status().as_u16();
-    if let (Some(ref storage), Some(ref sani_body), Some(ref hits), Some(ref orig_body)) =
-        (&state.storage, &sanitized_body, &hits_for_audit, &original_body)
-    {
-        let detector = state.detector.read().await;
 
-        // 写入有占位符的 filter 命中
-        if let Some(ref map) = placeholder_map {
-            for placeholder in map.placeholders() {
-                if let Some(original) = map.get(placeholder) {
-                    let rule_id = placeholder
-                        .strip_prefix("[[")
-                        .and_then(|s| s.split_once('@'))
-                        .map(|(id, _)| id)
-                        .unwrap_or("unknown");
-                    let rule_name = detector.rule_name(rule_id).unwrap_or(rule_id);
-                    let context = hits
-                        .iter()
-                        .find(|m| m.text == *original)
-                        .map(|m| extract_context(orig_body, m.start, m.end, 80))
-                        .unwrap_or_default();
-                    let _ = storage.record(
-                        rule_id,
-                        rule_name,
-                        "placeholder",
-                        placeholder,
-                        original,
-                        &context,
-                        &audit_path,
-                        sani_body,
-                        status_code,
-                        &tool_name,
-                    );
-                }
-            }
-        }
+    write_audit_records(
+        &state.storage, &state.detector, &placeholder_map, &hits_for_audit,
+        &sanitized_body, &original_body, &audit_path, status_code, &tool_name,
+    ).await;
 
-        // 写入仅检测的 detect 命中（无占位符，不替换）
-        for m in hits {
-            if m.mode == aidaguard_core::detector::Mode::Detect {
-                let rule_name = detector.rule_name(&m.rule_id).unwrap_or(&m.rule_id);
-                let context = extract_context(orig_body, m.start, m.end, 80);
-                let _ = storage.record(
-                    &m.rule_id,
-                    rule_name,
-                    "detect",
-                    "",
-                    &m.text,
-                    &context,
-                    &audit_path,
-                    sani_body,
-                    status_code,
-                    &tool_name,
-                );
-            }
-        }
+    broadcast_events(&state.event_tx, &placeholder_map, &hits_for_audit, status_code, &audit_path, &tool_name);
+
+    if is_streaming_response(upstream_resp.headers()) {
+        return handle_streaming_response(upstream_resp, placeholder_map);
     }
 
-    // 8b. 广播检测事件（无论 storage 是否启用）
-    if let Some(ref tx) = state.event_tx {
-        let now_ms = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis() as i64;
+    handle_non_streaming_response(upstream_resp, placeholder_map).await
+}
 
-        // filter 命中事件
-        if let Some(ref map) = placeholder_map {
-            for placeholder in map.placeholders() {
-                let rule_id = placeholder
-                    .strip_prefix("[[")
-                    .and_then(|s| s.split_once('@'))
-                    .map(|(id, _)| id)
-                    .unwrap_or("unknown");
-                let _ = tx.send(DetectionEvent {
-                    timestamp_ms: now_ms,
-                    rule_id: rule_id.to_string(),
-                    strategy: "placeholder".to_string(),
-                    placeholder: placeholder.clone(),
-                    request_path: audit_path.clone(),
-                    response_status: status_code,
-                    tool_name: tool_name.clone(),
-                });
-            }
-        }
+// ── helper functions extracted from proxy_handler ──
 
-        // detect 命中事件
-        if let Some(ref hits) = hits_for_audit {
-            for m in hits.iter().filter(|m| m.mode == aidaguard_core::detector::Mode::Detect) {
-                let _ = tx.send(DetectionEvent {
-                    timestamp_ms: now_ms,
-                    rule_id: m.rule_id.clone(),
-                    strategy: "detect".to_string(),
-                    placeholder: String::new(),
-                    request_path: audit_path.clone(),
-                    response_status: status_code,
-                    tool_name: tool_name.clone(),
-                });
-            }
+fn build_target_url(base: &str, path_and_query: &str) -> String {
+    if path_and_query.is_empty() || path_and_query == "/" {
+        base.to_string()
+    } else {
+        format!("{}{}", base, path_and_query)
+    }
+}
+
+fn build_audit_path(upstream_name: &str, body_bytes: &[u8], path_and_query: &str) -> String {
+    let model_name = extract_model(body_bytes);
+    if !model_name.is_empty() {
+        if !upstream_name.is_empty() {
+            format!("{}/{}", upstream_name, model_name)
+        } else {
+            model_name
         }
+    } else if !upstream_name.is_empty() {
+        upstream_name.to_string()
+    } else {
+        path_and_query.to_string()
+    }
+}
+
+fn check_body_size(headers: &HeaderMap, max_body_size: usize) -> Result<(), (StatusCode, String)> {
+    let content_length = headers
+        .get("content-length")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.parse::<usize>().ok())
+        .unwrap_or(0);
+
+    if content_length > max_body_size {
+        warn!(
+            "Request body too large: {} bytes (limit: {} MB)",
+            content_length, max_body_size / (1024 * 1024)
+        );
+        return Err((
+            StatusCode::PAYLOAD_TOO_LARGE,
+            format!("Request body cannot exceed {} MB", max_body_size / (1024 * 1024)),
+        ));
+    }
+    Ok(())
+}
+
+async fn read_body(req: Request, max_body_size: usize) -> Result<axum::body::Bytes, (StatusCode, String)> {
+    axum::body::to_bytes(req.into_body(), max_body_size).await.map_err(|e| {
+        error!("Failed to read request body: {}", e);
+        (StatusCode::BAD_REQUEST, e.to_string())
+    })
+}
+
+struct DetectionResult {
+    placeholder_map: Option<PlaceholderMap>,
+    sanitized_body: Option<String>,
+    original_body: Option<String>,
+    hits_for_audit: Option<Vec<Match>>,
+    bytes: axum::body::Bytes,
+}
+
+async fn detect_and_replace(
+    detector: &Arc<RwLock<AnalyzerEngine>>,
+    body_bytes: &[u8],
+) -> DetectionResult {
+    let Ok(text) = std::str::from_utf8(body_bytes) else {
+        return DetectionResult {
+            placeholder_map: None,
+            sanitized_body: None,
+            original_body: None,
+            hits_for_audit: None,
+            bytes: axum::body::Bytes::from(body_bytes.to_vec()),
+        };
+    };
+
+    let d = detector.read().await;
+    let all_hits = d.detect(text);
+
+    if all_hits.is_empty() {
+        return DetectionResult {
+            placeholder_map: None,
+            sanitized_body: None,
+            original_body: None,
+            hits_for_audit: None,
+            bytes: axum::body::Bytes::from(body_bytes.to_vec()),
+        };
     }
 
-    let status = upstream_resp.status();
-    let resp_headers = upstream_resp.headers().clone();
+    info!("\u{68c0}\u{6d4b}\u{5230}\u{654f}\u{611f}\u{6570}\u{636e}: {} \u{5904}", all_hits.len());
+    for m in &all_hits {
+        info!(
+            "  Rule: {} | Strategy: {:?} | Mode: {:?} | Pos: {}..{}",
+            m.rule_id, m.strategy, m.mode, m.start, m.end
+        );
+    }
 
-    let is_stream = resp_headers
+    let filter_hits: Vec<Match> = all_hits.iter()
+        .filter(|m| m.mode == aidaguard_core::detector::Mode::Filter)
+        .cloned()
+        .collect();
+
+    let original_body = Some(text.to_string());
+
+    if filter_hits.is_empty() {
+        return DetectionResult {
+            placeholder_map: None,
+            sanitized_body: Some(text.to_string()),
+            original_body,
+            hits_for_audit: Some(all_hits),
+            bytes: axum::body::Bytes::from(body_bytes.to_vec()),
+        };
+    }
+
+    let (sanitized, map) = replacer::replace(text, &filter_hits);
+    debug!("After replacement: {}", sanitized);
+    let sanitized_bytes = axum::body::Bytes::from(sanitized.clone());
+
+    DetectionResult {
+        placeholder_map: Some(map),
+        sanitized_body: Some(sanitized.clone()),
+        original_body,
+        hits_for_audit: Some(all_hits),
+        bytes: sanitized_bytes,
+    }
+}
+
+
+
+fn is_streaming_response(headers: &HeaderMap) -> bool {
+    headers
         .get("content-type")
         .and_then(|v| v.to_str().ok())
         .map(|v| v.contains("text/event-stream"))
-        .unwrap_or(false);
+        .unwrap_or(false)
+}
 
-    // 7. 流式 / 非流式响应处理
-    if is_stream {
-        info!("🌊 Streaming response detected, switching to SSE passthrough");
-        let (status, resp_headers, body) = if let Some(map) = placeholder_map {
-            info!("🔓 Streaming with placeholder restore ({} mapping(s))", map.len());
-            stream::stream_response_with_restore(upstream_resp, map)
-        } else {
-            stream::stream_response(upstream_resp)
-        };
-        info!("<-- {} (streaming)", status);
+fn handle_streaming_response(
+    upstream_resp: reqwest::Response,
+    placeholder_map: Option<PlaceholderMap>,
+) -> Result<Response, (StatusCode, String)> {
+    info!("Streaming response detected, switching to SSE passthrough");
+    let (status, resp_headers, body) = if let Some(map) = placeholder_map {
+        info!("Streaming with placeholder restore ({} mapping(s))", map.len());
+        stream::stream_response_with_restore(upstream_resp, map)
+    } else {
+        stream::stream_response(upstream_resp)
+    };
+    info!("<-- {} (streaming)", status);
 
-        let mut response = Response::builder().status(status);
-        for (key, value) in &resp_headers {
-            if key == "transfer-encoding" {
-                continue;
-            }
-            response = response.header(key, value);
-        }
-
-        return response.body(body).map_err(|e| {
-            error!("Failed to build streaming response: {}", e);
-            (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
-        });
+    let mut response = Response::builder().status(status);
+    for (key, value) in &resp_headers {
+        response = response.header(key, value);
     }
+    response.body(body).map_err(|e| {
+        error!("Failed to build streaming response: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+    })
+}
 
-    // 非流式：读取完整响应体
+async fn handle_non_streaming_response(
+    upstream_resp: reqwest::Response,
+    placeholder_map: Option<PlaceholderMap>,
+) -> Result<Response, (StatusCode, String)> {
+    let status = upstream_resp.status();
+    let resp_headers = upstream_resp.headers().clone();
+
     let resp_bytes = upstream_resp.bytes().await.map_err(|e| {
         error!("Failed to read upstream response: {}", e);
         (StatusCode::BAD_GATEWAY, e.to_string())
@@ -517,13 +472,9 @@ async fn proxy_handler(
     if was_utf8 {
         if let Some(ref map) = placeholder_map {
             let restored = replacer::restore(&resp_text, map);
-            info!("📩 Response (restored {} placeholders):\n{}", map.len(), restored);
+            info!("Response (restored {} placeholders)", map.len());
             resp_text = restored;
-        } else {
-            debug!("📩 Response body:\n{}", resp_text);
         }
-    } else {
-        debug!("📩 Response body: <binary {} bytes>", resp_bytes.len());
     }
 
     info!("<-- {} ({} bytes)", status, resp_text.len());
@@ -536,74 +487,148 @@ async fn proxy_handler(
         response = response.header(key, value);
     }
 
-    response
-        .body(Body::from(resp_text))
-        .map_err(|e| {
-            error!("Failed to build response: {}", e);
-            (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
-        })
+    response.body(Body::from(resp_text)).map_err(|e| {
+        error!("Failed to build response: {}", e);
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+    })
+}
+
+async fn write_audit_records(
+    storage: &Option<Arc<Storage>>,
+    detector: &Arc<RwLock<AnalyzerEngine>>,
+    placeholder_map: &Option<PlaceholderMap>,
+    hits_for_audit: &Option<Vec<Match>>,
+    sanitized_body: &Option<String>,
+    original_body: &Option<String>,
+    audit_path: &str,
+    status_code: u16,
+    tool_name: &str,
+) {
+    let (Some(ref storage), Some(ref sani_body), Some(ref hits), Some(ref orig_body)) =
+        (storage, sanitized_body, hits_for_audit, original_body) else { return };
+
+    let detector = detector.read().await;
+
+    if let Some(ref map) = placeholder_map {
+        for placeholder in map.placeholders() {
+            let Some(original) = map.get(placeholder) else { continue };
+            let rule_id = placeholder
+                .strip_prefix("[[")
+                .and_then(|s| s.split_once('@'))
+                .map(|(id, _)| id)
+                .unwrap_or("unknown");
+            let rule_name = detector.rule_name(rule_id).unwrap_or(rule_id);
+            let context = hits.iter()
+                .find(|m| m.text == *original)
+                .map(|m| extract_context(orig_body, m.start, m.end, 80))
+                .unwrap_or_default();
+            let _ = storage.record(rule_id, rule_name, "placeholder", placeholder, original,
+                &context, audit_path, sani_body, status_code, tool_name);
+        }
+    }
+
+    for m in hits {
+        if m.mode == aidaguard_core::detector::Mode::Detect {
+            let rule_name = detector.rule_name(&m.rule_id).unwrap_or(&m.rule_id);
+            let context = extract_context(orig_body, m.start, m.end, 80);
+            let _ = storage.record(&m.rule_id, rule_name, "detect", "", &m.text,
+                &context, audit_path, sani_body, status_code, tool_name);
+        }
+    }
+}
+
+fn broadcast_events(
+    event_tx: &Option<tokio::sync::broadcast::Sender<DetectionEvent>>,
+    placeholder_map: &Option<PlaceholderMap>,
+    hits_for_audit: &Option<Vec<Match>>,
+    status_code: u16,
+    audit_path: &str,
+    tool_name: &str,
+) {
+    let Some(ref tx) = event_tx else { return };
+
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as i64;
+
+    if let Some(ref map) = placeholder_map {
+        for placeholder in map.placeholders() {
+            let rule_id = placeholder
+                .strip_prefix("[[")
+                .and_then(|s| s.split_once('@'))
+                .map(|(id, _)| id)
+                .unwrap_or("unknown");
+            let _ = tx.send(DetectionEvent {
+                timestamp_ms: now_ms,
+                rule_id: rule_id.to_string(),
+                strategy: "placeholder".to_string(),
+                placeholder: placeholder.clone(),
+                request_path: audit_path.to_string(),
+                response_status: status_code,
+                tool_name: tool_name.to_string(),
+            });
+        }
+    }
+
+    if let Some(ref hits) = hits_for_audit {
+        for m in hits.iter().filter(|m| m.mode == aidaguard_core::detector::Mode::Detect) {
+            let _ = tx.send(DetectionEvent {
+                timestamp_ms: now_ms,
+                rule_id: m.rule_id.clone(),
+                strategy: "detect".to_string(),
+                placeholder: String::new(),
+                request_path: audit_path.to_string(),
+                response_status: status_code,
+                tool_name: tool_name.to_string(),
+            });
+        }
+    }
 }
 
 /// 从 HTTP 请求头中提取 User-Agent 原始值作为工具名。
-fn extract_client_name(headers: &axum::http::HeaderMap) -> String {
-    if let Some(ua) = headers.get("user-agent") {
-        if let Ok(s) = ua.to_str() {
-            let s = s.trim();
-            if !s.is_empty() {
-                return s.to_string();
-            }
-        }
-    }
-    String::new()
+fn extract_client_name(headers: &HeaderMap) -> String {
+    headers.get("user-agent")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.trim().to_string())
+        .unwrap_or_default()
 }
 
 /// 从 OpenAI 兼容格式的请求体中提取模型名。
 fn extract_model(body: &[u8]) -> String {
-    if let Ok(json) = serde_json::from_slice::<serde_json::Value>(body) {
-        if let Some(model) = json.get("model").and_then(|v| v.as_str()) {
-            return model.to_string();
-        }
-    }
-    String::new()
+    serde_json::from_slice::<serde_json::Value>(body)
+        .ok()
+        .and_then(|json| json.get("model").and_then(|v| v.as_str().map(String::from)))
+        .unwrap_or_default()
 }
 
 fn extract_context(text: &str, start: usize, end: usize, radius: usize) -> String {
-    let mut ctx_start = start.saturating_sub(radius);
-    let mut ctx_end = (end + radius).min(text.len());
-    while ctx_start > 0 && !text.is_char_boundary(ctx_start) {
-        ctx_start -= 1;
-    }
-    while ctx_end < text.len() && !text.is_char_boundary(ctx_end) {
-        ctx_end += 1;
-    }
-    text[ctx_start..ctx_end].to_string()
+    let ctx_start = start.saturating_sub(radius);
+    let ctx_end = (end + radius).min(text.len());
+    // Use floor_char_boundary for safe char-boundary snapping
+    let adj_start = ctx_start.max(0);
+    let adj_end = if ctx_end < text.len() {
+        text.floor_char_boundary(ctx_end)
+    } else {
+        ctx_end
+    };
+    text[adj_start..adj_end].to_string()
 }
 
-/// 过滤 hop-by-hop 头，同时移除客户端的 Authorization（由 Aidaguard 统一注入）
+/// 过滤 hop-by-hop 头，同时移除客户端的 Authorization（由 Aidaguard 统一注入）。
+/// 直接 clone HeaderValue 而非重新解析 bytes。
 fn forward_headers(headers: &HeaderMap) -> HeaderMap {
     let mut new_headers = HeaderMap::new();
 
     let skip = [
-        "host",
-        "authorization",
-        "connection",
-        "content-encoding",
-        "content-length",
-        "keep-alive",
-        "proxy-authenticate",
-        "proxy-authorization",
-        "te",
-        "trailers",
-        "transfer-encoding",
-        "upgrade",
+        "host", "authorization", "connection", "content-encoding",
+        "content-length", "keep-alive", "proxy-authenticate",
+        "proxy-authorization", "te", "trailers", "transfer-encoding", "upgrade",
     ];
 
     for (key, value) in headers {
-        let key_str = key.as_str().to_lowercase();
-        if !skip.contains(&key_str.as_str()) {
-            if let Ok(v) = HeaderValue::from_bytes(value.as_bytes()) {
-                new_headers.insert(key, v);
-            }
+        if !skip.contains(&key.as_str().to_lowercase().as_str()) {
+            new_headers.insert(key, value.clone());
         }
     }
 

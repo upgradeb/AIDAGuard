@@ -3,108 +3,21 @@ use axum::http::{HeaderMap, StatusCode};
 use futures::stream::StreamExt;
 use reqwest::Response;
 use serde_json::Value;
+use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 use tracing::{debug, error};
 
 use aidaguard_core::replacer::{self, PlaceholderMap};
 
-/// Incremental placeholder restorer for non-streaming responses.
-/// Processes chunks incrementally, allowing immediate response forwarding.
-pub struct IncrementalRestorer {
-    map: PlaceholderMap,
-    buffer: String,
-}
-
-impl IncrementalRestorer {
-    /// Create a new incremental restorer with the given placeholder map.
-    pub fn new(map: PlaceholderMap) -> Self {
-        Self {
-            map,
-            buffer: String::new(),
-        }
-    }
-
-    /// Process a chunk of text, returning content ready to be sent immediately.
-    /// The restorer buffers incomplete placeholders until more data arrives.
-    pub fn process_chunk(&mut self, chunk: &str) -> String {
-        self.buffer.push_str(chunk);
-
-        let mut ready = String::new();
-
-        // Find all complete placeholders and restore them
-        loop {
-            // Look for placeholder start marker
-            let start_pos = match self.buffer.find("[[") {
-                Some(pos) => pos,
-                None => {
-                    // No incomplete placeholder, all content is safe
-                    ready.push_str(&self.buffer);
-                    self.buffer.clear();
-                    break;
-                }
-            };
-
-            // Look for placeholder end marker after the start
-            let end_pos = match self.buffer[start_pos..].find("]]") {
-                Some(rel_pos) => start_pos + rel_pos + 2, // Include ]]
-                None => {
-                    // Incomplete placeholder, send safe prefix
-                    if start_pos > 0 {
-                        ready.push_str(&self.buffer[..start_pos]);
-                        self.buffer = self.buffer[start_pos..].to_string();
-                    }
-                    break;
-                }
-            };
-
-            // Extract the placeholder
-            let placeholder = &self.buffer[start_pos..end_pos];
-
-            // Add content before the placeholder
-            ready.push_str(&self.buffer[..start_pos]);
-
-            // Restore the placeholder
-            if let Some(original) = self.map.get(placeholder) {
-                ready.push_str(original);
-            } else {
-                // Unknown placeholder, keep as-is
-                ready.push_str(placeholder);
-            }
-
-            // Update buffer
-            self.buffer = self.buffer[end_pos..].to_string();
-        }
-
-        ready
-    }
-
-    /// Process the final chunk and return any remaining buffered content.
-    pub fn finish(&mut self) -> String {
-        let mut remaining = std::mem::take(&mut self.buffer);
-
-        // Restore any remaining placeholders
-        if !remaining.is_empty() {
-            remaining = replacer::restore(&remaining, &self.map);
-        }
-
-        remaining
-    }
-
-    /// Restore a complete text (non-incremental, for comparison).
-    pub fn restore_complete(&self, text: &str) -> String {
-        replacer::restore(text, &self.map)
-    }
-}
-
 /// 纯透传，不做还原
 pub fn stream_response(upstream_resp: Response) -> (StatusCode, HeaderMap, Body) {
     let status = upstream_resp.status();
-    let headers = upstream_resp.headers().clone();
+    let headers = filter_transport_headers(upstream_resp.headers());
 
     let stream = upstream_resp.bytes_stream().map(|result| match result {
         Ok(bytes) => {
             if let Ok(text) = std::str::from_utf8(&bytes) {
-                debug!("📩 SSE chunk: {}", text.trim());
+                debug!("\u{1f4e9} SSE chunk: {}", text.trim());
             }
             Ok::<_, axum::Error>(Bytes::from(bytes))
         }
@@ -127,7 +40,7 @@ pub fn stream_response_with_restore(
     map: PlaceholderMap,
 ) -> (StatusCode, HeaderMap, Body) {
     let status = upstream_resp.status();
-    let headers = upstream_resp.headers().clone();
+    let headers = filter_transport_headers(upstream_resp.headers());
 
     let map = Arc::new(map);
     let text_buf: Arc<Mutex<String>> = Arc::new(Mutex::new(String::new()));
@@ -142,7 +55,7 @@ pub fn stream_response_with_restore(
         .map(move |result| match result {
             Ok(bytes) => {
                 let chunk_str = std::str::from_utf8(&bytes).unwrap_or("");
-                debug!("📩 SSE chunk: {}", &chunk_str[..chunk_str.len().min(120)]);
+                debug!("\u{1f4e9} SSE chunk: {}", &chunk_str[..chunk_str.len().min(120)]);
                 let output = process_sse_chunk(chunk_str, &text_buf, &reasoning_buf, &map);
                 Ok::<_, axum::Error>(Bytes::from(output))
             }
@@ -161,7 +74,7 @@ pub fn stream_response_with_restore(
             };
             if !remaining.is_empty() {
                 let restored = replacer::restore(&remaining, &map_for_flush);
-                debug!("stream flush content {} bytes → {} bytes", remaining.len(), restored.len());
+                debug!("stream flush content {} bytes \u{2192} {} bytes", remaining.len(), restored.len());
                 let delta = serde_json::json!({
                     "choices": [{"delta": {"content": restored}, "index": 0}]
                 });
@@ -175,7 +88,7 @@ pub fn stream_response_with_restore(
             };
             if !remaining.is_empty() {
                 let restored = replacer::restore(&remaining, &map_for_flush);
-                debug!("stream flush reasoning {} bytes → {} bytes", remaining.len(), restored.len());
+                debug!("stream flush reasoning {} bytes \u{2192} {} bytes", remaining.len(), restored.len());
                 let delta = serde_json::json!({
                     "choices": [{"delta": {"reasoning_content": restored}, "index": 0}]
                 });
@@ -188,7 +101,8 @@ pub fn stream_response_with_restore(
     (status, headers, Body::from_stream(stream))
 }
 
-/// 处理单个 SSE chunk（可能包含多条消息）
+/// 使用行级 SSE 解析，逐行读取并累积完整事件，避免 split("\\n\\n")
+/// 拆断 JSON payload 中的嵌入空行。
 fn process_sse_chunk(
     chunk_str: &str,
     text_buf: &Mutex<String>,
@@ -196,28 +110,34 @@ fn process_sse_chunk(
     map: &PlaceholderMap,
 ) -> String {
     let mut output = String::new();
-    let messages: Vec<&str> = chunk_str.split("\n\n").collect();
+    let mut current_event = String::new();
 
-    for (i, msg) in messages.iter().enumerate() {
-        if msg.is_empty() {
-            continue;
-        }
-        let msg_with_nl = if i < messages.len() - 1 {
-            format!("{}\n\n", msg)
-        } else if chunk_str.ends_with("\n\n") {
-            format!("{}\n\n", msg)
+    for line in chunk_str.lines() {
+        if line.is_empty() {
+            // 空行 = SSE 事件分隔符
+            if !current_event.is_empty() {
+                let processed = process_one_message(&current_event, text_buf, reasoning_buf, map);
+                output.push_str(&processed);
+                current_event.clear();
+            }
         } else {
-            msg.to_string()
-        };
+            if !current_event.is_empty() {
+                current_event.push('\n');
+            }
+            current_event.push_str(line);
+        }
+    }
 
-        let processed = process_one_message(&msg_with_nl, text_buf, reasoning_buf, map);
+    // 处理没有尾随 \\n\\n 的剩余数据
+    if !current_event.is_empty() {
+        let processed = process_one_message(&current_event, text_buf, reasoning_buf, map);
         output.push_str(&processed);
     }
 
     output
 }
 
-/// 处理单条 SSE 消息
+/// 处理单条 SSE 消息（已完成的事件，不含尾部 \\n\\n）
 fn process_one_message(
     msg: &str,
     text_buf: &Mutex<String>,
@@ -227,17 +147,17 @@ fn process_one_message(
     let trimmed = msg.trim();
 
     if trimmed == "data: [DONE]" {
-        return msg.to_string();
+        return format!("{}\n\n", msg);
     }
 
     let json_str = match trimmed.strip_prefix("data: ") {
         Some(s) => s,
-        None => return msg.to_string(),
+        None => return format!("{}\n\n", msg),
     };
 
     let mut value: Value = match serde_json::from_str(json_str) {
         Ok(v) => v,
-        Err(_) => return msg.to_string(),
+        Err(_) => return format!("{}\n\n", msg),
     };
 
     // 判断文本字段类型，选择对应缓冲区
@@ -247,7 +167,7 @@ fn process_one_message(
         Some(TextKind::Content { path, text }) => (path, text.to_string(), text_buf),
         Some(TextKind::Reasoning { path, text }) => (path, text.to_string(), reasoning_buf),
         Some(TextKind::ToolCall { path, text }) => (path, text.to_string(), text_buf),
-        None => return msg.to_string(),
+        None => return format!("data: {}\n\n", json_str),
     };
 
     let mut buf = buf.lock().unwrap();
@@ -270,12 +190,7 @@ fn process_one_message(
     }
 
     let new_json = serde_json::to_string(&value).unwrap();
-
-    if msg.ends_with("\n\n") {
-        format!("data: {}\n\n", new_json)
-    } else {
-        format!("data: {}", new_json)
-    }
+    format!("data: {}\n\n", new_json)
 }
 
 /// 文本字段类型
@@ -326,21 +241,71 @@ fn extract_text_info(value: &Value) -> Option<TextKind<'_>> {
     None
 }
 
-/// 在文本中寻找安全分割点：返回可安全还原并转发的字节位置。
-pub fn find_safe_len(text: &str, map: &PlaceholderMap) -> usize {
-    let mut keep_from = text.len();
+/// Pre-computed prefix set for efficient safe-length lookup.
+struct PlaceholderPrefixIndex {
+    prefixes: Vec<String>,
+}
 
-    for placeholder in map.placeholders() {
-        for prefix_len in 1..placeholder.len() {
-            let prefix = &placeholder[..prefix_len];
-            if text.ends_with(prefix) {
-                let start = text.len() - prefix_len;
-                if start < keep_from {
-                    keep_from = start;
+impl PlaceholderPrefixIndex {
+    fn from_map(map: &PlaceholderMap) -> Self {
+        let mut prefixes: HashSet<String> = HashSet::new();
+        for placeholder in map.placeholders() {
+            for prefix_len in 1..placeholder.len() {
+                prefixes.insert(placeholder[..prefix_len].to_string());
+            }
+        }
+        // Sort by length descending so longest prefix is tried first
+        let mut sorted: Vec<String> = prefixes.into_iter().collect();
+        sorted.sort_by(|a, b| b.len().cmp(&a.len()));
+        Self { prefixes: sorted }
+    }
+
+    /// Return the split offset: everything before this point is safe to forward.
+    fn split_offset(&self, text: &str) -> usize {
+        let mut keep_from = text.len();
+        for prefix in &self.prefixes {
+            if let Some(pos) = text.rfind(prefix.as_str()) {
+                if pos < keep_from {
+                    keep_from = pos;
+                    // Short-circuit: can't go lower than 0
+                    if keep_from == 0 {
+                        break;
+                    }
                 }
             }
         }
+        keep_from
     }
+}
 
-    keep_from
+/// 在文本中寻找安全分割点：返回可安全还原并转发的字节位置。
+/// 使用预计算的前缀索引，避免热路径上的 O(n\xc2\xb2) 扫描。
+pub fn find_safe_len(text: &str, map: &PlaceholderMap) -> usize {
+    let index = PlaceholderPrefixIndex::from_map(map);
+    index.split_offset(text)
+}
+
+/// 过滤传输层 header，移除 hop-by-hop 头。
+/// 只克隆需要的 header，避免全量 HeaderMap::clone()。
+fn filter_transport_headers(headers: &HeaderMap) -> HeaderMap {
+    let skip: [&str; 9] = [
+        "host",
+        "transfer-encoding",
+        "connection",
+        "keep-alive",
+        "proxy-authenticate",
+        "proxy-authorization",
+        "te",
+        "trailers",
+        "upgrade",
+    ];
+
+    let mut filtered = HeaderMap::new();
+    for (key, value) in headers {
+        let key_str = key.as_str().to_lowercase();
+        if !skip.contains(&key_str.as_str()) {
+            filtered.insert(key, value.clone());
+        }
+    }
+    filtered
 }

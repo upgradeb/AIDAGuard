@@ -121,11 +121,8 @@ pub struct RuleDef {
 /// YAML 规则文件顶层结构
 #[derive(Debug, Deserialize, Serialize)]
 pub struct RuleFile {
-    #[allow(dead_code)]
     pub version: String,
-    #[allow(dead_code)]
     pub name: String,
-    #[allow(dead_code)]
     pub description: String,
     pub rules: Vec<RuleDef>,
 }

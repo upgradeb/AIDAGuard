@@ -43,6 +43,7 @@ futures = "0.3"
 
 # 文件监听（规则热加载）
 notify = "6"
+tower-http = { version = "0.6", features = ["cors"] }
 
 # 数据库
 rusqlite = { version = "0.31", features = ["bundled"] }

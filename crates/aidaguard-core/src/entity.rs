@@ -109,6 +109,7 @@ impl EntityType {
 
             Self::BankAccount | Self::Amount | Self::CryptoAddress => EntityCategory::Structured,
 
+            // Custom entities default to Structured; register via EntityCategory if different needed
             Self::Custom(_) => EntityCategory::Structured,
         }
     }

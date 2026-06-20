@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use rayon::prelude::*;
 
+use aidaguard_core::EntityType;
 use crate::core::recognizer::Recognizer;
 use crate::core::result::RecognizerResult;
 use crate::recognizers::pattern::yaml_recognizer::YamlRecognizer;
@@ -32,7 +33,13 @@ impl RecognizerRegistry {
     pub fn register(&mut self, recognizer: Arc<dyn Recognizer>) -> &mut Self {
         let key = recognizer.entity_type().to_string();
         let name = recognizer.name().to_string();
+        let name_for_alias = name.clone();
         self.entity_names.entry(key).or_insert(name);
+        // For Custom entity types (from YAML rules), also register by raw ID
+        // so that rule_name("email") works in addition to rule_name("custom:email")
+        if let EntityType::Custom(raw_id) = recognizer.entity_type() {
+            self.entity_names.entry(raw_id).or_insert(name_for_alias);
+        }
         self.recognizers.push(recognizer);
         self
     }
