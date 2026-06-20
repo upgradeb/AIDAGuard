@@ -118,7 +118,7 @@ export default function App() {
           </div>
         </header>
 
-        <main className="flex-1 min-h-0 overflow-auto p-6 bg-background">
+        <main className="flex-1 min-h-0 p-6 bg-background">
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/audit" element={<AuditLog />} />
