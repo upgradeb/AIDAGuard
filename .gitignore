@@ -34,3 +34,5 @@ tools-backup/
 
 # Claude Code
 .claude/
+AGENTS.md
+CLAUDE.md
