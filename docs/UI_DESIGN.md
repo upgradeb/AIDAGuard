@@ -1,4 +1,4 @@
-# Aidaguard 桌面客户端 UI 设计
+# AIDAGuard 桌面客户端 UI 设计
 
 **版本：** 0.5.0
 **技术栈：** Tauri 2.x + React 18 + shadcn/ui + Tailwind CSS + Zustand
@@ -106,7 +106,7 @@
 │   ├── 停止代理
 │   ├── ──────────────
 │   ├── 打开主窗口
-│   └── 退出 Aidaguard
+│   └── 退出 AIDAGuard
 └── 状态
     ├── idle      — 代理未启动，灰色图标
     ├── running   — 代理运行中，绿色图标

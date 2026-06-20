@@ -2,7 +2,7 @@
 layout: home
 
 hero:
-  name: Aidaguard
+  name: AIDAGuard
   text: AI 时代的隐私守护者
   tagline: 本地 LLM API 网关，守护每一个 Token
   actions:

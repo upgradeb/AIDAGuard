@@ -1,4 +1,4 @@
-# Aidaguard 文档
+# AIDAGuard 文档
 
 **版本：** 0.5.0
 

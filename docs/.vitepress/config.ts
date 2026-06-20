@@ -2,7 +2,7 @@ import { defineConfig } from 'vitepress'
 
 export default defineConfig({
   lang: 'zh-CN',
-  title: 'Aidaguard',
+  title: 'AIDAGuard',
   description: 'AI 时代的隐私守护者 — 本地 LLM API 网关',
   base: '/AIDAGuard/',
   ignoreDeadLinks: true,
