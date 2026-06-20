@@ -30,3 +30,9 @@ candle-transformers = { workspace = true, optional = true }
 tokenizers = { workspace = true, optional = true }
 hf-hub = { workspace = true, optional = true }
 dirs = { workspace = true, optional = true }
+
+[[test]]
+name = "anonymizer_tests"
+
+[[test]]
+name = "recognizer_result_tests"

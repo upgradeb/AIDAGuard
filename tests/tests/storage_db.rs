@@ -161,3 +161,95 @@ fn temp_db() -> (Storage, String) {
     assert_eq!(records[0].rule_name, "Rule One");
     let _ = std::fs::remove_file(path);
 }
+#[test] fn test_batch_record_multiple() {
+    let (storage, path) = temp_db();
+    use aidaguard_core::storage_types::DetectionRecord;
+    let records: Vec<DetectionRecord> = (0..3).map(|i| DetectionRecord {
+        id: uuid::Uuid::new_v4().to_string(),
+        timestamp_ms: std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64,
+        rule_id: format!("rule_{}", i),
+        rule_name: format!("Rule {}", i),
+        strategy: "mask".to_string(),
+        placeholder: format!("[[RULE_{}@abc]]", i),
+        original: format!("value_{}", i),
+        context: format!("context_{}", i),
+        request_path: "/api".to_string(),
+        sanitized_body: "sanitized".to_string(),
+        response_status: 200,
+        tool_name: "test_tool".to_string(),
+    }).collect();
+    let count = storage.batch_record(&records).unwrap();
+    assert_eq!(count, 3);
+    assert_eq!(storage.count().unwrap(), 3);
+    let _ = std::fs::remove_file(path);
+}
+#[test] fn test_batch_record_empty() {
+    let (storage, path) = temp_db();
+    let records: Vec<aidaguard_core::storage_types::DetectionRecord> = vec![];
+    let count = storage.batch_record(&records).unwrap();
+    assert_eq!(count, 0);
+    assert_eq!(storage.count().unwrap(), 0);
+    let _ = std::fs::remove_file(path);
+}
+#[test] fn test_list_grouped_basic() {
+    let (storage, path) = temp_db();
+    storage.record("email", "Email", "mask", "[[E]]", "a@b.com", "ctx", "/api", "body", 200, "").unwrap();
+    storage.record("email", "Email", "mask", "[[E2]]", "c@d.com", "ctx", "/api", "body", 200, "").unwrap();
+    storage.record("phone", "Phone", "placeholder", "[[P]]", "13800001111", "ctx", "/api", "body", 200, "").unwrap();
+    let groups = storage.list_grouped(10, 0, AuditFilter::new()).unwrap();
+    assert_eq!(groups.len(), 2); // email+mask and phone+placeholder
+    let email_group = groups.iter().find(|g| g.rule_id == "email").unwrap();
+    assert_eq!(email_group.count, 2);
+    assert_eq!(email_group.strategy, "mask");
+    let phone_group = groups.iter().find(|g| g.rule_id == "phone").unwrap();
+    assert_eq!(phone_group.count, 1);
+    let _ = std::fs::remove_file(path);
+}
+#[test] fn test_list_grouped_with_filter() {
+    let (storage, path) = temp_db();
+    storage.record("email", "Email", "mask", "", "a@b.com", "ctx", "/chat", "body", 200, "").unwrap();
+    storage.record("phone", "Phone", "placeholder", "", "138", "ctx", "/api", "body", 200, "").unwrap();
+    let filter = AuditFilter::new().with_path("/chat");
+    let groups = storage.list_grouped(10, 0, filter).unwrap();
+    assert_eq!(groups.len(), 1);
+    assert_eq!(groups[0].rule_id, "email");
+    let _ = std::fs::remove_file(path);
+}
+#[test] fn test_count_grouped_basic() {
+    let (storage, path) = temp_db();
+    storage.record("email", "Email", "mask", "", "a@b.com", "ctx", "/api", "body", 200, "").unwrap();
+    storage.record("email", "Email", "placeholder", "", "c@d.com", "ctx", "/api", "body", 200, "").unwrap();
+    storage.record("phone", "Phone", "mask", "", "138", "ctx", "/api", "body", 200, "").unwrap();
+    let count = storage.count_grouped(AuditFilter::new()).unwrap();
+    assert_eq!(count, 3); // email+mask, email+placeholder, phone+mask
+    let _ = std::fs::remove_file(path);
+}
+#[test] fn test_count_grouped_with_filter() {
+    let (storage, path) = temp_db();
+    storage.record("email", "Email", "mask", "", "a@b.com", "ctx", "/chat", "body", 200, "").unwrap();
+    storage.record("phone", "Phone", "mask", "", "138", "ctx", "/api", "body", 200, "").unwrap();
+    let filter = AuditFilter::new().with_path("/chat");
+    let count = storage.count_grouped(filter).unwrap();
+    assert_eq!(count, 1);
+    let _ = std::fs::remove_file(path);
+}
+#[test] fn test_purge_before_deletes_old() {
+    let (storage, path) = temp_db();
+    storage.record("r1", "R1", "mask", "", "v1", "ctx", "/api", "body", 200, "").unwrap();
+    // Record was just created with current timestamp
+    let now_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() as i64;
+    // Purge before far future: should delete the record
+    let deleted = storage.purge_before(now_ms + 100000).unwrap();
+    assert_eq!(deleted, 1);
+    assert_eq!(storage.count().unwrap(), 0);
+    let _ = std::fs::remove_file(path);
+}
+#[test] fn test_purge_before_keeps_recent() {
+    let (storage, path) = temp_db();
+    storage.record("r1", "R1", "mask", "", "v1", "ctx", "/api", "body", 200, "").unwrap();
+    // Purge everything before epoch: should keep all
+    let deleted = storage.purge_before(0).unwrap();
+    assert_eq!(deleted, 0);
+    assert_eq!(storage.count().unwrap(), 1);
+    let _ = std::fs::remove_file(path);
+}

@@ -125,3 +125,175 @@ rules:
     let hits = d.detect("13812345678");
     assert!(hits.is_empty());
 }
+
+#[test] fn test_append_from_dir() {
+    let mut d = Detector::new();
+    d.add_rule(make_rule("phone", "phone", r"1[3-9]\d{9}", Strategy::Placeholder, 100, None, true, Mode::Filter)).unwrap();
+    assert_eq!(d.rule_count(), 1);
+
+    let dir = std::env::temp_dir().join(format!("aidaguard_test_append_{}", uuid::Uuid::new_v4()));
+    let _ = std::fs::create_dir_all(&dir);
+    let yaml = r#"
+version: "1"
+name: append_test
+description: ""
+rules:
+  - id: email
+    name: Email
+    pattern: '[\w.+-]+@[\w-]+\.\w+'
+    strategy: mask
+"#;
+    std::fs::write(dir.join("append.yaml"), yaml).unwrap();
+
+    d.append_from_dir(&dir).unwrap();
+    assert_eq!(d.rule_count(), 2);
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test] fn test_load_from_presets_flat_file() {
+    let dir = std::env::temp_dir().join(format!("aidaguard_test_presets_{}", uuid::Uuid::new_v4()));
+    let _ = std::fs::create_dir_all(&dir);
+
+    let core_yaml = r#"
+version: "1"
+name: core
+description: ""
+rules:
+  - id: core_rule
+    name: Core Rule
+    pattern: '\d{11}'
+"#;
+    let cn_yaml = r#"
+version: "1"
+name: cn
+description: ""
+rules:
+  - id: cn_rule
+    name: CN Rule
+    pattern: '1[3-9]\d{9}'
+"#;
+    std::fs::write(dir.join("core.yaml"), core_yaml).unwrap();
+    std::fs::write(dir.join("cn.yaml"), cn_yaml).unwrap();
+
+    let mut d = Detector::new();
+    let count = d.load_from_presets(&dir, &["core", "cn"]).unwrap();
+    assert_eq!(count, 2);
+    assert!(d.rule_name("core_rule").is_some());
+    assert!(d.rule_name("cn_rule").is_some());
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test] fn test_load_from_presets_missing_preset() {
+    let dir = std::env::temp_dir().join(format!("aidaguard_test_missing_preset_{}", uuid::Uuid::new_v4()));
+    let _ = std::fs::create_dir_all(&dir);
+
+    let mut d = Detector::new();
+    // Should not panic; nonexistent preset is skipped with a warning
+    let count = d.load_from_presets(&dir, &["nonexistent_preset"]).unwrap();
+    assert_eq!(count, 0);
+
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test] fn test_rules_needing_validators() {
+    let mut d = Detector::new();
+    let def = RuleDef {
+        id: "cc_test".into(),
+        name: "CC Test".into(),
+        pattern: r"\d{16}".into(),
+        exclude: None,
+        enabled: true,
+        strategy: Strategy::Placeholder,
+        mode: Mode::Filter,
+        priority: 100,
+        compliance: vec![],
+        validator: Some("luhn".into()),
+        context_words: vec![],
+        base_confidence: None,
+        region: None,
+        source: "system".into(),
+    };
+    d.add_rule(def).unwrap();
+
+    let needing = d.rules_needing_validators();
+    assert_eq!(needing.len(), 1);
+    assert_eq!(needing[0].0, "cc_test");
+    assert_eq!(needing[0].1, "luhn");
+}
+
+#[test] fn test_rules_needing_validators_none() {
+    let mut d = Detector::new();
+    d.add_rule(make_rule("phone", "phone", r"1[3-9]\d{9}", Strategy::Placeholder, 100, None, true, Mode::Filter)).unwrap();
+
+    let needing = d.rules_needing_validators();
+    assert!(needing.is_empty());
+}
+
+#[test] fn test_set_validator_found() {
+    let mut d = Detector::new();
+    let def = RuleDef {
+        id: "cc_test".into(),
+        name: "CC Test".into(),
+        pattern: r"\d{16}".into(),
+        exclude: None,
+        enabled: true,
+        strategy: Strategy::Placeholder,
+        mode: Mode::Filter,
+        priority: 100,
+        compliance: vec![],
+        validator: Some("luhn".into()),
+        context_words: vec![],
+        base_confidence: None,
+        region: None,
+        source: "system".into(),
+    };
+    d.add_rule(def).unwrap();
+
+    let found = d.set_validator("cc_test", std::sync::Arc::new(|_s: &str| true));
+    assert!(found);
+}
+
+#[test] fn test_set_validator_not_found() {
+    let mut d = Detector::new();
+    let found = d.set_validator("nonexistent", std::sync::Arc::new(|_s: &str| true));
+    assert!(!found);
+}
+
+#[test] fn test_rules_accessor() {
+    let mut d = Detector::new();
+    d.add_rule(make_rule("phone", "phone", r"1[3-9]\d{9}", Strategy::Placeholder, 100, None, true, Mode::Filter)).unwrap();
+    d.add_rule(make_rule("email", "email", r"[\w.+-]+@[\w-]+\.\w+", Strategy::Mask, 90, None, true, Mode::Filter)).unwrap();
+
+    let rules = d.rules();
+    assert_eq!(rules.len(), 2);
+}
+
+#[test] fn test_validator_integrated_with_detect() {
+    let mut d = Detector::new();
+    let def = RuleDef {
+        id: "cc_test".into(),
+        name: "CC Test".into(),
+        pattern: r"\d{16}".into(),
+        exclude: None,
+        enabled: true,
+        strategy: Strategy::Placeholder,
+        mode: Mode::Filter,
+        priority: 100,
+        compliance: vec![],
+        validator: Some("luhn".into()),
+        context_words: vec![],
+        base_confidence: None,
+        region: None,
+        source: "system".into(),
+    };
+    d.add_rule(def).unwrap();
+
+    // Set a validator that rejects everything
+    d.set_validator("cc_test", std::sync::Arc::new(|_s: &str| false));
+
+    let hits = d.detect("card 1234567890123456 here");
+    // Validator rejects all matches, so detect should return nothing
+    assert!(hits.is_empty());
+}

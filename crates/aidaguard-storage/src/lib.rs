@@ -147,7 +147,7 @@ impl Storage {
 
             tx.execute(
                 "INSERT INTO detections (id, timestamp_ms, rule_id, rule_name, strategy, placeholder, original_encrypted, context_encrypted, request_path, sanitized_body, response_status, tool_name)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12",
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
                 rusqlite::params![
                     &record.id,
                     record.timestamp_ms,

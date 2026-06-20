@@ -76,3 +76,51 @@ fn make_provider(auth: AuthType) -> ProviderConfig {
     assert!(context.contains("13812345678"));
     assert!(context.contains("prefix"));
 }
+
+// T-PRX-FWD: Forwarder — new, set_timeout, with_bearer_auth, from_upstream auth variants
+
+#[test] fn test_forwarder_new_creates_instance() {
+    let f = Forwarder::new();
+    assert!(f.is_ok());
+    let f = f.unwrap();
+    // Forwarder was created successfully with default 300s timeout
+    let _ = f;
+}
+
+#[test] fn test_forwarder_set_timeout() {
+    let mut f = Forwarder::new().unwrap();
+    f.set_timeout(std::time::Duration::from_secs(60));
+    // Timeout was set; no panic or error
+}
+
+#[test] fn test_forwarder_with_bearer_auth_returns_self() {
+    let f = Forwarder::new().unwrap().with_bearer_auth("sk-test-key".to_string());
+    // Builder pattern returns Self
+    let _ = f;
+}
+
+#[test] fn test_forwarder_from_upstream_bearer_token() {
+    let provider = ProviderConfig {
+        id: "openai".into(),
+        name: "OpenAI".into(),
+        protocol: ProtocolType::OpenAiCompatible,
+        auth: AuthType::BearerToken,
+        endpoint: "https://api.openai.com/v1".into(),
+        models: vec![],
+    };
+    let f = Forwarder::from_upstream(&provider, "sk-openai-key".to_string(), 300);
+    assert!(f.is_ok());
+}
+
+#[test] fn test_forwarder_from_upstream_api_key_header() {
+    let provider = ProviderConfig {
+        id: "anthropic".into(),
+        name: "Anthropic".into(),
+        protocol: ProtocolType::AnthropicCompatible,
+        auth: AuthType::ApiKeyHeader { header: "x-api-key".into() },
+        endpoint: "https://api.anthropic.com/v1".into(),
+        models: vec![],
+    };
+    let f = Forwarder::from_upstream(&provider, "sk-ant-key".to_string(), 120);
+    assert!(f.is_ok());
+}

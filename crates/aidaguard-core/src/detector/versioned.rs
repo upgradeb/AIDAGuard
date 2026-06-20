@@ -306,4 +306,137 @@ mod tests {
         // Same rules should produce same checksum
         assert_eq!(snap1.checksum, snap2.checksum);
     }
+
+    #[test]
+    fn test_from_rules() {
+        let rule1 = make_test_rule("r1", r"\d+");
+        let rule2 = make_test_rule("r2", r"\w+");
+        let detector = VersionedDetector::from_rules(vec![rule1, rule2], 5);
+
+        assert_eq!(detector.version(), 0);
+        assert_eq!(detector.rule_count(), 2);
+    }
+
+    #[test]
+    fn test_rollback_to_specific_version() {
+        let mut detector = VersionedDetector::new(10);
+
+        let rules_v1 = vec![make_test_rule("v1", r"\d+")];
+        let rules_v2 = vec![make_test_rule("v2", r"\w+")];
+        let rules_v3 = vec![make_test_rule("v3", r"[a-z]+")];
+
+        detector.atomic_swap(rules_v1).unwrap(); // v1 in history, current=v1
+        detector.atomic_swap(rules_v2).unwrap(); // v2 in history, current=v2
+        detector.atomic_swap(rules_v3).unwrap(); // v3 in history, current=v3
+
+        assert_eq!(detector.version(), 3);
+
+        let v = detector.rollback_to(1).unwrap();
+        assert_eq!(v, 1);
+        assert_eq!(detector.version(), 1);
+    }
+
+    #[test]
+    fn test_rollback_to_nonexistent_version() {
+        let mut detector = VersionedDetector::new(10);
+
+        let rules_v1 = vec![make_test_rule("v1", r"\d+")];
+        let rules_v2 = vec![make_test_rule("v2", r"\w+")];
+
+        detector.atomic_swap(rules_v1).unwrap();
+        detector.atomic_swap(rules_v2).unwrap();
+
+        let result = detector.rollback_to(99);
+        assert!(matches!(result, Err(VersionError::VersionNotFound { version: 99 })));
+    }
+
+    #[test]
+    fn test_history_versions() {
+        let mut detector = VersionedDetector::new(10);
+
+        let rules_v1 = vec![make_test_rule("v1", r"\d+")];
+        let rules_v2 = vec![make_test_rule("v2", r"\w+")];
+        let rules_v3 = vec![make_test_rule("v3", r"[a-z]+")];
+
+        detector.atomic_swap(rules_v1).unwrap();
+        detector.atomic_swap(rules_v2).unwrap();
+        detector.atomic_swap(rules_v3).unwrap();
+
+        let versions = detector.history_versions();
+        assert_eq!(versions.len(), 3);
+        // History: v0 (initial empty, 0 rules), v1 (1 rule), v2 (1 rule)
+        assert_eq!(versions[0].0, 0);
+        assert_eq!(versions[0].2, 0);
+        assert_eq!(versions[1].0, 1);
+        assert_eq!(versions[1].2, 1);
+        assert_eq!(versions[2].0, 2);
+        assert_eq!(versions[2].2, 1);
+    }
+
+    #[test]
+    fn test_clear_history() {
+        let mut detector = VersionedDetector::new(10);
+
+        let rules_v1 = vec![make_test_rule("v1", r"\d+")];
+        let rules_v2 = vec![make_test_rule("v2", r"\w+")];
+
+        detector.atomic_swap(rules_v1).unwrap();
+        detector.atomic_swap(rules_v2).unwrap();
+
+        assert!(!detector.history_versions().is_empty());
+
+        detector.clear_history();
+
+        let result = detector.rollback();
+        assert!(matches!(result, Err(VersionError::NoHistory)));
+    }
+
+    #[test]
+    fn test_rule_snapshot_len() {
+        let rules = vec![
+            make_test_rule("r1", r"\d+"),
+            make_test_rule("r2", r"\w+"),
+            make_test_rule("r3", r"[a-z]+"),
+        ];
+        let snapshot = RuleSnapshot::new(1, rules);
+        assert_eq!(snapshot.len(), 3);
+    }
+
+    #[test]
+    fn test_rule_snapshot_is_empty() {
+        let empty = RuleSnapshot::new(1, Vec::new());
+        assert!(empty.is_empty());
+
+        let non_empty = RuleSnapshot::new(2, vec![make_test_rule("r1", r"\d+")]);
+        assert!(!non_empty.is_empty());
+    }
+
+    #[test]
+    fn test_max_history_respected() {
+        let mut detector = VersionedDetector::new(2);
+
+        for i in 0..5 {
+            let rules = vec![make_test_rule(&format!("v{}", i), r"\d+")];
+            detector.atomic_swap(rules).unwrap();
+        }
+
+        let versions = detector.history_versions();
+        assert!(versions.len() <= 2);
+    }
+
+    #[test]
+    fn test_rollback_after_clear_prevented() {
+        let mut detector = VersionedDetector::new(10);
+
+        let rules_v1 = vec![make_test_rule("v1", r"\d+")];
+        let rules_v2 = vec![make_test_rule("v2", r"\w+")];
+
+        detector.atomic_swap(rules_v1).unwrap();
+        detector.atomic_swap(rules_v2).unwrap();
+
+        detector.clear_history();
+
+        let result = detector.rollback();
+        assert!(matches!(result, Err(VersionError::NoHistory)));
+    }
 }

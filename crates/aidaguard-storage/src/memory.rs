@@ -331,4 +331,87 @@ mod tests {
         assert_eq!(stats.total_count, 3);
         assert_eq!(stats.rule_distribution.len(), 2);
     }
+
+    #[test]
+    fn test_memory_batch_record() {
+        let storage = MemoryStorage::new();
+        let records: Vec<DetectionRecord> = (0..3).map(|i| DetectionRecord {
+            id: uuid::Uuid::new_v4().to_string(),
+            timestamp_ms: current_timestamp_ms(),
+            rule_id: format!("rule_{}", i),
+            rule_name: format!("Rule {}", i),
+            strategy: "mask".to_string(),
+            placeholder: String::new(),
+            original: format!("value_{}", i),
+            context: "ctx".to_string(),
+            request_path: "/api".to_string(),
+            sanitized_body: String::new(),
+            response_status: 200,
+            tool_name: String::new(),
+        }).collect();
+        let count = storage.batch_record(&records).unwrap();
+        assert_eq!(count, 3);
+        assert_eq!(storage.count().unwrap(), 3);
+    }
+
+    #[test]
+    fn test_memory_list_grouped() {
+        let storage = MemoryStorage::new();
+        storage.record("email", "Email", "mask", "", "a@b.com", "ctx", "/api", "", 200, "").unwrap();
+        storage.record("email", "Email", "mask", "", "c@d.com", "ctx", "/api", "", 200, "").unwrap();
+        storage.record("phone", "Phone", "placeholder", "", "138", "ctx", "/api", "", 200, "").unwrap();
+        let groups = storage.list_grouped(10, 0, AuditFilter::new()).unwrap();
+        assert_eq!(groups.len(), 2);
+        let email_group = groups.iter().find(|g| g.rule_id == "email").unwrap();
+        assert_eq!(email_group.count, 2);
+        assert_eq!(email_group.strategy, "mask");
+    }
+
+    #[test]
+    fn test_memory_count_grouped() {
+        let storage = MemoryStorage::new();
+        storage.record("email", "Email", "mask", "", "a@b.com", "ctx", "/api", "", 200, "").unwrap();
+        storage.record("email", "Email", "placeholder", "", "c@d.com", "ctx", "/api", "", 200, "").unwrap();
+        storage.record("phone", "Phone", "mask", "", "138", "ctx", "/api", "", 200, "").unwrap();
+        let count = storage.count_grouped(AuditFilter::new()).unwrap();
+        assert_eq!(count, 3);
+    }
+
+    #[test]
+    fn test_memory_purge_before() {
+        let storage = MemoryStorage::new();
+        storage.record("r1", "R1", "mask", "", "v1", "ctx", "/api", "", 200, "").unwrap();
+        let now_ms = current_timestamp_ms();
+        // Purge everything before far future deletes the record
+        let deleted = storage.purge_before(now_ms + 100000).unwrap();
+        assert_eq!(deleted, 1);
+        assert_eq!(storage.count().unwrap(), 0);
+        // Purge before epoch keeps everything
+        storage.record("r2", "R2", "mask", "", "v2", "ctx", "/api", "", 200, "").unwrap();
+        let deleted = storage.purge_before(0).unwrap();
+        assert_eq!(deleted, 0);
+        assert_eq!(storage.count().unwrap(), 1);
+    }
+
+    #[test]
+    fn test_memory_list_filtered_by_strategy() {
+        let storage = MemoryStorage::new();
+        storage.record("r1", "R1", "mask", "", "v1", "ctx", "/api", "", 200, "").unwrap();
+        storage.record("r2", "R2", "placeholder", "", "v2", "ctx", "/api", "", 200, "").unwrap();
+        let filter = AuditFilter::new().with_strategy("mask");
+        let results = storage.list_filtered(10, 0, filter).unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].strategy, "mask");
+    }
+
+    #[test]
+    fn test_memory_list_filtered_by_tool_name() {
+        let storage = MemoryStorage::new();
+        storage.record("r1", "R1", "mask", "", "v1", "ctx", "/api", "", 200, "cursor").unwrap();
+        storage.record("r2", "R2", "mask", "", "v2", "ctx", "/api", "", 200, "cline").unwrap();
+        let filter = AuditFilter::new().with_tool("cursor");
+        let results = storage.list_filtered(10, 0, filter).unwrap();
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].tool_name, "cursor");
+    }
 }
