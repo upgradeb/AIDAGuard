@@ -1,6 +1,6 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
 
 ## Project Overview
 
@@ -62,7 +62,7 @@ cargo clippy --all
 | `aidaguard-proxy` | HTTP reverse proxy (Axum), detection → replacement → forwarding → restoration |
 | `aidaguard-storage` | SQLite audit logs with AES-256-GCM encryption |
 | `aidaguard-upstream` | LLM provider definitions (OpenAI, Anthropic, DeepSeek, etc.) |
-| `aidaguard-plugins` | AI tool adapters (Cursor, Cline, Claude Code, etc.) |
+| `aidaguard-plugins` | AI tool adapters (Cursor, Cline, Codex, etc.) |
 | `aidaguard-tauri` | Desktop app with Tauri commands and React frontend |
 
 ## Detection System (Unified Pipeline)
