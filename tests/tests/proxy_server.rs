@@ -22,19 +22,19 @@ fn make_provider(auth: AuthType) -> ProviderConfig {
 
 #[test] fn test_forwarder_from_openai_upstream() {
     let provider = make_provider(AuthType::BearerToken);
-    let f = Forwarder::from_upstream(&provider, "sk-openai-key".to_string(), 300);
+    let f = Forwarder::from_upstream(&provider, "sk-openai-key".to_string(), 300, 0);
     assert!(f.is_ok());
 }
 
 #[test] fn test_forwarder_from_anthropic_upstream() {
     let provider = make_provider(AuthType::ApiKeyHeader { header: "x-api-key".into() });
-    let f = Forwarder::from_upstream(&provider, "sk-ant-key".to_string(), 60);
+    let f = Forwarder::from_upstream(&provider, "sk-ant-key".to_string(), 60, 0);
     assert!(f.is_ok());
 }
 
 #[test] fn test_forwarder_from_google_upstream() {
     let provider = make_provider(AuthType::ApiKeyHeader { header: "x-goog-api-key".into() });
-    let f = Forwarder::from_upstream(&provider, "google-key".to_string(), 120);
+    let f = Forwarder::from_upstream(&provider, "google-key".to_string(), 120, 0);
     assert!(f.is_ok());
 }
 

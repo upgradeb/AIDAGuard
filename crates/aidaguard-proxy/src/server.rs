@@ -22,7 +22,8 @@ use aidaguard_core::replacer::{self, PlaceholderMap};
 use aidaguard_storage::Storage;
 use aidaguard_detector::AnalyzerEngine;
 use crate::forwarder::Forwarder;
-use crate::stream;
+use crate::stream::{self, WireApi};
+use crate::wire_api;
 use crate::DetectionEvent;
 
 /// 代理共享状态
@@ -254,15 +255,32 @@ async fn proxy_handler(
     let tool_name = extract_client_name(req.headers());
     let path_and_query = req.uri().path_and_query()
         .map(|pq| pq.as_str()).unwrap_or("").to_string();
-    let target_url = build_target_url(&state.target_url, &path_and_query);
+    let wire_api = detect_wire_api(&path_and_query);
+    let needs_conversion = wire_api == WireApi::Responses;
+
+    let target_url = if needs_conversion {
+        let raw = build_target_url(&state.target_url, &path_and_query);
+        wire_api::rewrite_url_responses_to_chat(&raw)
+    } else {
+        build_target_url(&state.target_url, &path_and_query)
+    };
+
     let method: Method = req.method().clone();
     let headers = forward_headers(req.headers());
 
-    info!("--> {} {}", req.method(), target_url);
+    info!("--> {} {} (wire={:?}, convert={})", req.method(), target_url, wire_api, needs_conversion);
 
     check_body_size(req.headers(), state.max_body_size)?;
 
     let body_bytes = read_body(req, state.max_body_size).await?;
+
+    // If Responses API request, convert body to Chat Completions format before detection
+    let body_bytes = if needs_conversion {
+        convert_request_body(&body_bytes)
+    } else {
+        body_bytes
+    };
+
     let audit_path = build_audit_path(&state.upstream_name, &body_bytes, &path_and_query);
     let detection = detect_and_replace(&state.detector, &body_bytes).await;
 
@@ -291,10 +309,10 @@ async fn proxy_handler(
     broadcast_events(&state.event_tx, &placeholder_map, &hits_for_audit, status_code, &audit_path, &tool_name);
 
     if is_streaming_response(upstream_resp.headers()) {
-        return handle_streaming_response(upstream_resp, placeholder_map);
+        return handle_streaming_response(upstream_resp, placeholder_map, wire_api);
     }
 
-    handle_non_streaming_response(upstream_resp, placeholder_map).await
+    handle_non_streaming_response(upstream_resp, placeholder_map, needs_conversion).await
 }
 
 // ── helper functions extracted from proxy_handler ──
@@ -435,11 +453,12 @@ fn is_streaming_response(headers: &HeaderMap) -> bool {
 fn handle_streaming_response(
     upstream_resp: reqwest::Response,
     placeholder_map: Option<PlaceholderMap>,
+    wire_api: WireApi,
 ) -> Result<Response, (StatusCode, String)> {
     info!("Streaming response detected, switching to SSE passthrough");
     let (status, resp_headers, body) = if let Some(map) = placeholder_map {
         info!("Streaming with placeholder restore ({} mapping(s))", map.len());
-        stream::stream_response_with_restore(upstream_resp, map)
+        stream::stream_response_with_restore(upstream_resp, map, wire_api)
     } else {
         stream::stream_response(upstream_resp)
     };
@@ -458,6 +477,7 @@ fn handle_streaming_response(
 async fn handle_non_streaming_response(
     upstream_resp: reqwest::Response,
     placeholder_map: Option<PlaceholderMap>,
+    needs_conversion: bool,
 ) -> Result<Response, (StatusCode, String)> {
     let status = upstream_resp.status();
     let resp_headers = upstream_resp.headers().clone();
@@ -481,6 +501,14 @@ async fn handle_non_streaming_response(
             let restored = replacer::restore(&resp_text, map);
             info!("Response (restored {} placeholders)", map.len());
             resp_text = restored;
+        }
+
+        // Convert Chat Completions response back to Responses API format
+        if needs_conversion {
+            if let Ok(mut resp_json) = serde_json::from_str::<serde_json::Value>(&resp_text) {
+                resp_json = wire_api::convert_response_chat_to_responses(&resp_json);
+                resp_text = serde_json::to_string(&resp_json).unwrap_or(resp_text);
+            }
         }
     }
 
@@ -640,4 +668,23 @@ fn forward_headers(headers: &HeaderMap) -> HeaderMap {
     }
 
     new_headers
+}
+
+/// Detect wire API format from request path.
+fn detect_wire_api(path: &str) -> WireApi {
+    if path.contains("/responses") {
+        WireApi::Responses
+    } else {
+        WireApi::ChatCompletions
+    }
+}
+
+/// Convert Responses API request body to Chat Completions format.
+fn convert_request_body(body_bytes: &[u8]) -> axum::body::Bytes {
+    let Ok(json) = serde_json::from_slice::<serde_json::Value>(body_bytes) else {
+        return axum::body::Bytes::from(body_bytes.to_vec());
+    };
+    let converted = wire_api::convert_request_responses_to_chat(&json);
+    let converted_bytes = serde_json::to_vec(&converted).unwrap_or_else(|_| body_bytes.to_vec());
+    axum::body::Bytes::from(converted_bytes)
 }

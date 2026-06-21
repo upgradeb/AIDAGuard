@@ -8,6 +8,16 @@ use std::sync::{Arc, Mutex};
 use tracing::{debug, error};
 
 use aidaguard_core::replacer::{self, PlaceholderMap};
+use crate::wire_api::{self, StreamConvertState};
+
+/// Which wire protocol the upstream uses.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WireApi {
+    /// OpenAI Chat Completions: `/v1/chat/completions`
+    ChatCompletions,
+    /// OpenAI Responses: `/v1/responses`
+    Responses,
+}
 
 /// 纯透传，不做还原
 pub fn stream_response(upstream_resp: Response) -> (StatusCode, HeaderMap, Body) {
@@ -38,6 +48,7 @@ pub fn stream_response(upstream_resp: Response) -> (StatusCode, HeaderMap, Body)
 pub fn stream_response_with_restore(
     upstream_resp: Response,
     map: PlaceholderMap,
+    wire_api: WireApi,
 ) -> (StatusCode, HeaderMap, Body) {
     let status = upstream_resp.status();
     let headers = filter_transport_headers(upstream_resp.headers());
@@ -45,6 +56,7 @@ pub fn stream_response_with_restore(
     let map = Arc::new(map);
     let text_buf: Arc<Mutex<String>> = Arc::new(Mutex::new(String::new()));
     let reasoning_buf: Arc<Mutex<String>> = Arc::new(Mutex::new(String::new()));
+    let convert_state: Arc<Mutex<StreamConvertState>> = Arc::new(Mutex::new(StreamConvertState::default()));
 
     let map_for_flush = map.clone();
     let text_buf_for_flush = text_buf.clone();
@@ -56,7 +68,7 @@ pub fn stream_response_with_restore(
             Ok(bytes) => {
                 let chunk_str = std::str::from_utf8(&bytes).unwrap_or("");
                 debug!("\u{1f4e9} SSE chunk: {}", &chunk_str[..chunk_str.len().min(120)]);
-                let output = process_sse_chunk(chunk_str, &text_buf, &reasoning_buf, &map);
+                let output = process_sse_chunk(chunk_str, &text_buf, &reasoning_buf, &map, wire_api, &convert_state);
                 Ok::<_, axum::Error>(Bytes::from(output))
             }
             Err(e) => {
@@ -75,9 +87,15 @@ pub fn stream_response_with_restore(
             if !remaining.is_empty() {
                 let restored = replacer::restore(&remaining, &map_for_flush);
                 debug!("stream flush content {} bytes \u{2192} {} bytes", remaining.len(), restored.len());
-                let delta = serde_json::json!({
-                    "choices": [{"delta": {"content": restored}, "index": 0}]
-                });
+                let delta = match wire_api {
+                    WireApi::ChatCompletions => serde_json::json!({
+                        "choices": [{"delta": {"content": restored}, "index": 0}]
+                    }),
+                    WireApi::Responses => serde_json::json!({
+                        "type": "response.output_text.delta",
+                        "delta": restored
+                    }),
+                };
                 flush_output.push_str(&format!("data: {}\n\n", serde_json::to_string(&delta).unwrap()));
             }
 
@@ -89,9 +107,15 @@ pub fn stream_response_with_restore(
             if !remaining.is_empty() {
                 let restored = replacer::restore(&remaining, &map_for_flush);
                 debug!("stream flush reasoning {} bytes \u{2192} {} bytes", remaining.len(), restored.len());
-                let delta = serde_json::json!({
-                    "choices": [{"delta": {"reasoning_content": restored}, "index": 0}]
-                });
+                let delta = match wire_api {
+                    WireApi::ChatCompletions => serde_json::json!({
+                        "choices": [{"delta": {"reasoning_content": restored}, "index": 0}]
+                    }),
+                    WireApi::Responses => serde_json::json!({
+                        "type": "response.reasoning.delta",
+                        "delta": restored
+                    }),
+                };
                 flush_output.push_str(&format!("data: {}\n\n", serde_json::to_string(&delta).unwrap()));
             }
 
@@ -108,6 +132,8 @@ fn process_sse_chunk(
     text_buf: &Mutex<String>,
     reasoning_buf: &Mutex<String>,
     map: &PlaceholderMap,
+    wire_api: WireApi,
+    convert_state: &Mutex<StreamConvertState>,
 ) -> String {
     let mut output = String::new();
     let mut current_event = String::new();
@@ -116,7 +142,7 @@ fn process_sse_chunk(
         if line.is_empty() {
             // 空行 = SSE 事件分隔符
             if !current_event.is_empty() {
-                let processed = process_one_message(&current_event, text_buf, reasoning_buf, map);
+                let processed = process_one_message(&current_event, text_buf, reasoning_buf, map, wire_api, convert_state);
                 output.push_str(&processed);
                 current_event.clear();
             }
@@ -130,7 +156,7 @@ fn process_sse_chunk(
 
     // 处理没有尾随 \\n\\n 的剩余数据
     if !current_event.is_empty() {
-        let processed = process_one_message(&current_event, text_buf, reasoning_buf, map);
+        let processed = process_one_message(&current_event, text_buf, reasoning_buf, map, wire_api, convert_state);
         output.push_str(&processed);
     }
 
@@ -143,6 +169,8 @@ fn process_one_message(
     text_buf: &Mutex<String>,
     reasoning_buf: &Mutex<String>,
     map: &PlaceholderMap,
+    wire_api: WireApi,
+    convert_state: &Mutex<StreamConvertState>,
 ) -> String {
     let trimmed = msg.trim();
 
@@ -161,7 +189,10 @@ fn process_one_message(
     };
 
     // 判断文本字段类型，选择对应缓冲区
-    let text_info = extract_text_info(&value);
+    let text_info = match wire_api {
+        WireApi::ChatCompletions => extract_text_info_chat(&value),
+        WireApi::Responses => extract_text_info_responses(&value),
+    };
 
     let (field_path, text_to_add, buf) = match text_info {
         Some(TextKind::Content { path, text }) => (path, text.to_string(), text_buf),
@@ -189,6 +220,13 @@ fn process_one_message(
         *v = Value::String(restored);
     }
 
+    // If converting Chat Completions → Responses API format
+    if wire_api == WireApi::Responses {
+        let mut state = convert_state.lock().unwrap();
+        let events = wire_api::convert_stream_event_chat_to_responses(&value, &mut state);
+        return events.join("");
+    }
+
     let new_json = serde_json::to_string(&value).unwrap();
     format!("data: {}\n\n", new_json)
 }
@@ -200,8 +238,8 @@ enum TextKind<'a> {
     ToolCall { path: String, text: &'a str },
 }
 
-/// 从 delta JSON 中提取文本内容，按优先级：content > reasoning_content > tool_calls arguments
-fn extract_text_info(value: &Value) -> Option<TextKind<'_>> {
+/// Chat Completions: 从 delta JSON 中提取文本内容，按优先级：content > reasoning_content > tool_calls arguments
+fn extract_text_info_chat(value: &Value) -> Option<TextKind<'_>> {
     if let Some(s) = value
         .pointer("/choices/0/delta/content")
         .and_then(|v| v.as_str())
@@ -239,6 +277,44 @@ fn extract_text_info(value: &Value) -> Option<TextKind<'_>> {
     }
 
     None
+}
+
+/// Responses API: 从 SSE JSON 中提取文本内容
+///
+/// Responses API 事件格式：
+/// - `response.output_text.delta` → `{"type": "response.output_text.delta", "delta": "..."}`
+/// - `response.reasoning.delta` → `{"type": "response.reasoning.delta", "delta": "..."}`
+/// - `response.function_call_arguments.delta` → `{"type": "response.function_call_arguments.delta", "delta": "..."}`
+fn extract_text_info_responses(value: &Value) -> Option<TextKind<'_>> {
+    let event_type = value.get("type").and_then(|v| v.as_str())?;
+
+    match event_type {
+        "response.output_text.delta" => {
+            let delta = value.get("delta").and_then(|v| v.as_str())?;
+            if delta.is_empty() { return None; }
+            Some(TextKind::Content {
+                path: "/delta".to_string(),
+                text: delta,
+            })
+        }
+        "response.reasoning.delta" => {
+            let delta = value.get("delta").and_then(|v| v.as_str())?;
+            if delta.is_empty() { return None; }
+            Some(TextKind::Reasoning {
+                path: "/delta".to_string(),
+                text: delta,
+            })
+        }
+        "response.function_call_arguments.delta" => {
+            let delta = value.get("delta").and_then(|v| v.as_str())?;
+            if delta.is_empty() { return None; }
+            Some(TextKind::ToolCall {
+                path: "/delta".to_string(),
+                text: delta,
+            })
+        }
+        _ => None,
+    }
 }
 
 /// Pre-computed prefix set for efficient safe-length lookup.
